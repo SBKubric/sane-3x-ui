@@ -984,6 +984,45 @@ config_debug_mode() {
     fi
 }
 
+# prompt_web_listen asks, where the installer asks for the panel's port,
+# whether the panel's pages should stay on the loopback (#141). XUI_WEB_LISTEN
+# answers it up front.
+prompt_web_listen() {
+    [[ -n "${XUI_WEB_LISTEN:-}" ]] && return 0
+    local __choice
+    read -rp "Keep the panel on 127.0.0.1 only and open it through an SSH tunnel? [y/N]: " __choice
+    case "${__choice,,}" in
+    y | yes) XUI_WEB_LISTEN=127.0.0.1 ;;
+    esac
+}
+
+# config_web_listen applies XUI_WEB_LISTEN: the address the panel listens on
+# (webListen). 127.0.0.1 takes the panel's pages off the network — with the
+# front in «only 443» its login and API are still published on 443 for API
+# clients (#141) — and the admin reaches them through an SSH tunnel, which
+# this prints. Without the option the panel keeps listening where it did.
+config_web_listen() {
+    local __listen="${XUI_WEB_LISTEN:-}"
+    [[ -z "${__listen}" ]] && return 0
+    if ! is_ip "${__listen}" || [[ ! "${__listen}" =~ ^[0-9A-Fa-f.:]+$ ]]; then
+        echo -e "${red}XUI_WEB_LISTEN '${__listen}' is not an IP address — the panel keeps listening where it did.${plain}"
+        return 0
+    fi
+    "${xui_folder}/x-ui" setting -listenIP "${__listen}" >/dev/null 2>&1
+    echo -e "${green}The panel listens on ${__listen}.${plain}"
+    case "${__listen}" in
+    127.* | ::1) ;;
+    *) return 0 ;;
+    esac
+    local __port __base __target="${__listen}"
+    [[ "${__listen}" == "::1" ]] && __target="[::1]"
+    __port=$("${xui_folder}/x-ui" setting -show true 2>/dev/null | grep -Eo 'port: .+' | awk '{print $2}')
+    __base=$(panel_base_path)
+    echo -e "${yellow}The panel's pages are reachable from this server only. From your computer:${plain}"
+    echo -e "${yellow}    ssh -L ${__port}:${__target}:${__port} root@<this server>${plain}"
+    echo -e "${yellow}and open https://127.0.0.1:${__port}${__base} (the certificate names the server, not 127.0.0.1).${plain}"
+}
+
 config_after_install() {
     # Debug / localhost-only mode short-circuits the SSL + public-IP +
     # IPv6 logic below. The panel binds to 127.0.0.1, listens on plain
@@ -1036,6 +1075,7 @@ config_after_install() {
                 local config_port=$(shuf -i 1024-62000 -n 1)
                 echo -e "${yellow}Generated random port: ${config_port}${plain}"
             fi
+            prompt_web_listen
 
             ${xui_folder}/x-ui setting -username "${config_username}" -password "${config_password}" -port "${config_port}" -webBasePath "${config_webBasePath}"
 
@@ -1124,6 +1164,8 @@ config_after_install() {
             echo -e "${green}SSL certificate already configured. No action needed.${plain}"
         fi
     fi
+
+    config_web_listen
 
     ${xui_folder}/x-ui migrate
 }
@@ -1917,6 +1959,77 @@ install_nginx() {
     fi
 
     echo -e "${green}nginx: $(nginx -v 2>&1 | sed 's|.*nginx/||')${plain}"
+}
+
+# front_wants_fail2ban says whether fail2ban belongs on this box (#141): it
+# comes together with the front's «only 443», whose jails it runs. On a hop the
+# front is PROXY_FRONT at install and proxy.json afterwards; on the panel it is
+# the mode the panel stored, which `x-ui nginx mode` prints. XUI_FAIL2BAN=1
+# asks for it outright — the orchestrator installs the panel before it turns
+# only443 on.
+front_wants_fail2ban() {
+    [[ "${XUI_FAIL2BAN:-}" == "1" ]] && return 0
+    if [[ "${XUI_PROXY_MODE:-}" == "1" ]]; then
+        [[ "${PROXY_FRONT:-}" == "only443" ]] && return 0
+        grep -Eq '"mode"[[:space:]]*:[[:space:]]*"only443"' "${PROXY_CONFIG:-/etc/x-ui/proxy.json}" 2>/dev/null
+        return
+    fi
+    [[ "$("${xui_folder}/x-ui" nginx mode 2>/dev/null)" == "only443" ]]
+}
+
+# install_fail2ban puts fail2ban on the box. The jails are not written here:
+# the panel, or `x-ui proxy` on a hop, writes them with the front's exemptions
+# and starts fail2ban itself. Nothing here fails the installation — without
+# fail2ban the front's limits still hold, and the panel says what is missing.
+install_fail2ban() {
+    if command -v fail2ban-client &>/dev/null; then
+        fail2ban_sshd_journal
+        return 0
+    fi
+    echo -e "${green}Installing fail2ban (bans for probing the front and for failed logins)...${plain}"
+    case "${release}" in
+    ubuntu | debian | armbian)
+        # python3-systemd lets a jail read the journal (fail2ban_sshd_journal).
+        apt-get install -y -q fail2ban python3-systemd 2>/dev/null ||
+            apt-get install -y -q fail2ban 2>/dev/null || true
+        ;;
+    fedora | amzn | rhel | almalinux | rocky | ol | centos)
+        dnf install -y fail2ban 2>/dev/null || yum install -y fail2ban 2>/dev/null || true
+        ;;
+    arch | manjaro | parch)
+        pacman -Syu --noconfirm fail2ban 2>/dev/null || true
+        ;;
+    alpine)
+        apk add fail2ban 2>/dev/null || true
+        ;;
+    *)
+        echo -e "${yellow}Unknown OS — install fail2ban by hand to have the front's probers banned.${plain}"
+        return 0
+        ;;
+    esac
+    if ! command -v fail2ban-client &>/dev/null; then
+        echo -e "${yellow}fail2ban was not installed: the front's limits hold, but nobody is banned.${plain}"
+        return 0
+    fi
+    fail2ban_sshd_journal
+}
+
+# fail2ban_sshd_journal keeps Debian's sshd jail from stopping fail2ban. The
+# package enables that jail on /var/log/auth.log, which a box without rsyslog
+# does not have — and fail2ban refuses to start at all over one missing log,
+# the front's jails with it. There the jail reads the journal instead. A file
+# already in that place, the operator's or ours, is left as it is.
+fail2ban_sshd_journal() {
+    local __root="${FAIL2BAN_ROOT:-/etc/fail2ban}" __log
+    local __override="${__root}/jail.d/3ax-ui-sshd.local"
+    for __log in ${FAIL2BAN_AUTH_LOGS:-/var/log/auth.log /var/log/secure}; do
+        [[ -e "${__log}" ]] && return 0
+    done
+    command -v journalctl &>/dev/null || return 0
+    [[ -d "${__root}/jail.d" && ! -e "${__override}" ]] || return 0
+    printf '%s\n' "# Generated by 3AX-UI (#141): sshd logs to the journal on this box, and" \
+        "# fail2ban will not start while a jail's log file is missing." \
+        "[sshd]" "backend = systemd" >"${__override}"
 }
 
 xray_release_arch() {
@@ -3279,6 +3392,8 @@ prompt_proxy_mode
 if [[ "${XUI_PROXY_MODE:-}" == "1" ]]; then
     install_base
     hop_install_nginx
+    # Before the proxy starts: its front writes the jails as it comes up.
+    front_wants_fail2ban && install_fail2ban
     install_x-ui $1
 else
     prompt_debug_mode
@@ -3286,6 +3401,7 @@ else
     install_amneziawg
     install_wireguard_native
     install_nginx
+    front_wants_fail2ban && install_fail2ban
     install_x-ui $1
 fi
 
