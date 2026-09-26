@@ -620,6 +620,9 @@ func (s *NginxService) Plan(in NginxSettings) NginxPlan {
 	if from, to, moved := s.subAddressChange(in); moved {
 		plan.Changes = append(plan.Changes, NginxChange{Kind: "subs", From: from, To: to})
 	}
+	if s.subsUnreachable(in) {
+		plan.Warnings = append(plan.Warnings, warn("subsUnreachable"))
+	}
 	if in.Mode == string(nginx.ModeOnly443) && in.ManageFirewall {
 		if !nginx.FirewallAvailable() {
 			plan.Blockers = append(plan.Blockers, warn("noFirewall"))
@@ -649,9 +652,9 @@ func (s *NginxService) subAddressChange(in NginxSettings) (from string, to strin
 		return "", "", false
 	}
 	label := func(set NginxSettings) string {
-		if nginx.Mode(set.Mode) != nginx.ModeOff && set.SubsBehind443 && set.Domain != "" {
+		if scheme, host, ok := s.publicSubBase(set); ok {
 			// The public port is 443, and a URL says that by saying nothing.
-			return "https://" + set.Domain
+			return scheme + "://" + host
 		}
 		return s.ownSubAddress()
 	}

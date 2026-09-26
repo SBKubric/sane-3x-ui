@@ -3,6 +3,7 @@ package service
 import (
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
 	"github.com/coinman-dev/3ax-ui/v2/database"
@@ -494,5 +495,52 @@ func TestTheDocumentCarriesTheNeighbourTargets(t *testing.T) {
 	}
 	if edgeBDoc.Self.RealityTarget != "198.51.100.20:443" || edgeBDoc.Self.RealityServerName != "www.neighbour-b.example" {
 		t.Errorf("edge-b self neighbour = %+v", edgeBDoc.Self)
+	}
+}
+
+// TestThePanelAsNextHopFollowsItsFront (#145): the innermost hop dials the
+// panel wherever the panel publishes its subscriptions. Behind the front that
+// is https on 443 — under the domain, or by address when the IP certificate is
+// all the HTTP side has; the sub port there is closed in only443. The host is
+// not the front's to choose: it stays the one the owner stated.
+func TestThePanelAsNextHopFollowsItsFront(t *testing.T) {
+	cases := []struct {
+		name          string
+		mode          string
+		subsBehind443 bool
+		domain        string
+		ipCert        bool
+		wantScheme    string
+		wantPort      int
+	}{
+		{name: "domain", mode: "only443", subsBehind443: true, domain: "vpn.example.com", wantScheme: "https", wantPort: 443},
+		{name: "IP certificate only", mode: "only443", subsBehind443: true, ipCert: true, wantScheme: "https", wantPort: 443},
+		{name: "neither", mode: "only443", subsBehind443: true, wantScheme: "http", wantPort: 2096},
+		{name: "front-end off", mode: "off", subsBehind443: true, ipCert: true, wantScheme: "http", wantPort: 2096},
+		{name: "subscriptions on their own port", mode: "only443", ipCert: true, wantScheme: "http", wantPort: 2096},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			documents, registry := newChainDocuments(t)
+			dir := useIPCertDir(t)
+			if tc.ipCert {
+				writeIPCert(t, dir, time.Now().Add(5*24*time.Hour), []string{"203.0.113.5"}, nil)
+			}
+			setSetting(t, "subPort", "2096")
+			setNginxFront(t, tc.mode, tc.subsBehind443, tc.domain)
+			enteredHop(t, registry, AddHopInput{Name: "edge-a", Host: "a.example.net", Role: chain.RoleEdge})
+
+			document, err := documents.Build("edge-a")
+			if err != nil {
+				t.Fatalf("Build(edge-a): %v", err)
+			}
+			next := document.NextHop
+			if next.Host != "198.51.100.1" {
+				t.Errorf("host = %q, want the stated chainPanelHost", next.Host)
+			}
+			if next.SubScheme != tc.wantScheme || next.SubPort != tc.wantPort {
+				t.Errorf("the hop dials %s on %d, want %s on %d", next.SubScheme, next.SubPort, tc.wantScheme, tc.wantPort)
+			}
+		})
 	}
 }

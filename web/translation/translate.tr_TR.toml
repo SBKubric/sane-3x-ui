@@ -320,6 +320,7 @@
 "closedWarning" = "Yukarıda işaretlenen bağlantılara erişilemez olacak: onlar için sunucu adı bildiren bir şey yok, dolayısıyla 443’ün arkasında yaşayamazlar. Portlarının açık kalması için güvenlik duvarı anahtarını kapatın."
 "warnNoStreamModule" = "Bu nginx stream modülü olmadan derlenmiş, bu yüzden 443 portunu sunucu adına göre ayıramaz."
 "warnNoDomain" = "Alan adı ayarlanmamış, bu yüzden bu sunucuyu tarayıcıda açan Reality’nin örtü sitesine düşer ve onun sertifikasını görür. Kendi sayfanızı burada sunmak için alan adını doldurun."
+"warnSubsUnreachable" = "Abonelikler 443 üzerinden gidecek şekilde ayarlı, ancak alan adı ve IP sertifikası olmadan 443’te onlara yanıt veren yok ve «Yalnızca 443 portu» kendi portlarını kapatıyor: abonelik bağlantıları ve zincirin paneli yoklaması ulaşmayacak. Alan adını ayarlayın veya IP sertifikasını alın."
 "warnStockCoverPage" = "Kapak sayfası «%s» hiç dokunulmamış hazır sayfa. Her sunucuda aynı sayfanın olması başlı başına bir iz — «Kapak sayfası» bölümünden değiştirin."
 "warnCertExpiring" = "%s için sertifika %s tarihinde doluyor."
 "warnSniConflict" = "«%s» ve «%s» aynı örtü alan adını (%s) kullanıyor — nginx onu yalnızca birine verebilir."

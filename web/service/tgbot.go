@@ -2414,17 +2414,26 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 
 	// Proxy-front: when the host override is enabled, hand out the proxy's
 	// subscription URL instead of the real panel's (overrides any configured subURI).
-	if oh, ok := t.settingService.GetProxyOverride(); ok {
+	oh, overridden := t.settingService.GetProxyOverride()
+	if overridden {
 		subDomain = oh
 		subURI = ""
 		subJsonURI = ""
+		// Behind its front the active edge answers on 443 only (#140); the
+		// panel's own sub port there is closed.
+		if port, edgeScheme, ok := (&ChainService{}).ActiveEdgeFront(); ok {
+			subPort, scheme = port, edgeScheme
+			tls = edgeScheme == "https"
+		}
 	}
 
 	host := subDomain
-	// The front-end comes first: with nginx publishing the subscriptions under
-	// the site's domain, that is the address to hand out, port and all — which
-	// is to say no port.
-	if frontScheme, frontHost, ok := PublicSubBase(); ok {
+	// The front-end comes next, as on the sub page: the override names another
+	// box, and this box's front says nothing about it. With nginx publishing
+	// the subscriptions here, under the site's domain or by address with the
+	// IP certificate, that is the address to hand out, and with no port: the
+	// public port is 443.
+	if frontScheme, frontHost, ok := PublicSubBase(); ok && !overridden {
 		scheme, host = frontScheme, frontHost
 	} else if (subPort == 443 && tls) || (subPort == 80 && !tls) {
 		// standard ports: no port in host

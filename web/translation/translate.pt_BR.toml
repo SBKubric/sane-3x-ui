@@ -320,6 +320,7 @@
 "closedWarning" = "As entradas marcadas ficam inacessíveis: nada anuncia um nome de servidor por elas, então não podem viver atrás da 443. Desligue a chave do firewall para deixar as portas delas abertas."
 "warnNoStreamModule" = "Este nginx foi compilado sem o módulo stream, então não consegue dividir a porta 443 por nome de servidor."
 "warnNoDomain" = "Não há domínio configurado, então quem abrir este servidor num navegador cai no site de disfarce do Reality e vê o certificado dele. Preencha o domínio para servir a sua própria página aqui."
+"warnSubsUnreachable" = "As assinaturas devem passar pela 443, mas sem domínio nem certificado de IP nada na 443 responde por elas, e «Somente a porta 443» fecha a porta delas: os links de assinatura e a consulta do painel pela cadeia não vão chegar. Configure o domínio ou emita o certificado de IP."
 "warnStockCoverPage" = "A página de fachada «%s» está intocada. A mesma página em todo servidor já é um rastro — troque-a em «Página de fachada»."
 "warnCertExpiring" = "O certificado de %s expira em %s."
 "warnSniConflict" = "«%s» e «%s» usam o mesmo domínio de disfarce %s — o nginx só pode entregá-lo a um dos dois."
