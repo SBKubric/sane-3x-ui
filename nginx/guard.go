@@ -141,8 +141,8 @@ func (g *Guard) exemptList() []string {
 // formats. Our file is included from inside http {}, so it can.
 func (g *Guard) writeHTTPLevel(b *strings.Builder) {
 	b.WriteString("# The limits count per client address (#141). An exempt address — loopback,\n")
-	b.WriteString("# the chain's neighbours, mon-server — has an empty key, which limit_req and\n")
-	b.WriteString("# limit_conn do not count at all.\n")
+	b.WriteString("# the chain's neighbours and, on the panel, mon-server — has an empty key,\n")
+	b.WriteString("# which limit_req and limit_conn do not count at all.\n")
 	b.WriteString("geo $threeax_exempt {\n    default 0;\n")
 	for _, entry := range g.exemptList() {
 		fmt.Fprintf(b, "    %s 1;\n", entry)

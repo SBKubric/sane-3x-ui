@@ -30,6 +30,8 @@ type FrontSystem interface {
 	Remove() error
 	ApplyFirewall(nginx.Firewall) error
 	RemoveFirewall() error
+	ApplyJails(nginx.Jails) error
+	RemoveJails() error
 }
 
 // frontListeners is the part of the sub server the front moves around.
@@ -72,6 +74,7 @@ type Front struct {
 	relayFiltered bool   // the relay carries the front's port list, not the document's
 	publicClosed  bool   // this process has closed the old sub port
 	firewall      string // the firewall last applied, "" for none
+	jailsProblem  string // what fail2ban last said, so it is logged once
 }
 
 // NewFront prepares the front of a box. stub is the decoy page served when
@@ -151,7 +154,33 @@ func (f *Front) Apply(doc *chain.Document, relayChanged bool) error {
 	f.saved.SubListen = layout.SubListen
 	f.saveLocked()
 	f.portsLocked(doc, kept)
+	f.jailsLocked(config.Site.Guard)
 	return nil
+}
+
+// jailsLocked puts fail2ban's probe jail in step with the guard (#141): the
+// same exemptions, rewritten with every revision. A box has no login, so no
+// login jail. fail2ban is not the front's to fail over: the limits hold
+// without it, and a problem is logged once, not with every poll.
+func (f *Front) jailsLocked(guard *nginx.Guard) {
+	var err error
+	if guard != nil {
+		err = f.sys.ApplyJails(nginx.Jails{MissLog: guard.MissLog, IgnoreIP: guard.Exempt})
+	} else {
+		err = f.sys.RemoveJails()
+	}
+	problem := ""
+	if err != nil {
+		problem = err.Error()
+	}
+	if problem != "" && problem != f.jailsProblem {
+		if errors.Is(err, nginx.ErrNoFail2ban) {
+			logger.Warning("proxy-front: fail2ban is not installed — the limits hold, but nobody is banned; install it (apt install fail2ban)")
+		} else {
+			logger.Warning("proxy-front: fail2ban:", err)
+		}
+	}
+	f.jailsProblem = problem
 }
 
 // NoteAcks is called whenever an outer neighbour has polled: its
@@ -252,6 +281,7 @@ func (f *Front) offLocked(doc *chain.Document, relayChanged bool) error {
 		errs = append(errs, fmt.Errorf("firewall: %w", err))
 	}
 	f.firewall = "none"
+	f.jailsLocked(nil)
 	if err := f.listeners.OpenPublic(); err != nil {
 		errs = append(errs, err)
 	}
@@ -335,3 +365,5 @@ func (systemFront) Apply(c nginx.Config) error               { return nginx.Appl
 func (systemFront) Remove() error                            { return nginx.Remove() }
 func (systemFront) ApplyFirewall(fw nginx.Firewall) error    { return nginx.ApplyFirewall(fw) }
 func (systemFront) RemoveFirewall() error                    { return nginx.RemoveFirewall() }
+func (systemFront) ApplyJails(j nginx.Jails) error           { return nginx.ApplyJails(j) }
+func (systemFront) RemoveJails() error                       { return nginx.RemoveJails() }

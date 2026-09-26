@@ -69,6 +69,11 @@ func (f *fakeFrontSystem) RemoveFirewall() error {
 	f.firewall = nil
 	return nil
 }
+func (f *fakeFrontSystem) ApplyJails(j nginx.Jails) error {
+	f.log.add("jails.apply miss=%s login=%s ignore=%s", j.MissLog, j.LoginLog, strings.Join(j.IgnoreIP, ","))
+	return nil
+}
+func (f *fakeFrontSystem) RemoveJails() error { f.log.add("jails.remove"); return nil }
 
 type fakeListeners struct{ log *frontLog }
 
