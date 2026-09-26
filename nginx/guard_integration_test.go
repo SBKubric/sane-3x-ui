@@ -200,6 +200,27 @@ func TestGuardedHTTPSideInPractice(t *testing.T) {
 			t.Errorf("the miss log has %q, which is no miss:\n%s", unwanted, log)
 		}
 	}
+
+	// And the probe jail reads it as written: every line blames the client.
+	if bin, err := exec.LookPath("fail2ban-regex"); err == nil {
+		filter := filepath.Join(root, "probe.conf")
+		if err := os.WriteFile(filter, []byte(probeFilter), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		out, err := exec.Command(bin, "-o", "ip", missLog, filter).CombinedOutput()
+		if err != nil {
+			t.Fatalf("fail2ban-regex: %v\n%s", err, out)
+		}
+		blamed := strings.Fields(string(out))
+		if len(blamed) != strings.Count(log, "\n") {
+			t.Errorf("the probe filter blamed %v for %d lines:\n%s", blamed, strings.Count(log, "\n"), log)
+		}
+		for _, ip := range blamed {
+			if ip != prober && ip != client {
+				t.Errorf("the probe filter blamed %s", ip)
+			}
+		}
+	}
 }
 
 // TestNginxAcceptsTheGuardedFrontOfAHop hands a box's guarded front (#141) to
