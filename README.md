@@ -119,6 +119,8 @@ With the default `PROXY_TLS=letsencrypt-ip` the installer issues a Let's Encrypt
 
 **Front 443 on a hop** (`PROXY_FRONT=only443`, or `"front": {"mode": "only443"}` in `/etc/x-ui/proxy.json`): nginx takes 443 and splits it by SNI. An edge passes its neighbour target's server name raw to its next hop and an unknown name raw to the neighbour target itself; an inner passes the active edge's server name on and gives anything else a decoy page; a request by IP, without SNI, reaches the hop's subscriptions and `/chain/v1` through the IP certificate. The relay stops holding 443/tcp and other TCP ports (UDP is relayed as before), and the hop closes everything but 443/tcp, 80/tcp, SSH and the relayed UDP ports (`"firewall": false` leaves the ports alone). The hop tells the panel on every poll, the panel moves its sub port to 443 and the old sub port closes once the hops polling it have moved; an edge closes it at once, and client subscription links become `https://<edge>/…`. It needs the Let's Encrypt IP certificate — without one the front stays off. Details: `docs/runbooks/proxy-front.md` §3.5.
 
+**Protection of the HTTP side** (#141): in `only443` the panel and every hop limit each client address on the published paths (subscriptions and `/chain/v1` 30/min, the panel API and `/mon/v1` 10/s, the login and `/join/` 6/min; over the limit is answered by the decoy page, not 429) and log the misses — unknown paths under a secret prefix, refusals, limit hits — to `/var/log/nginx/3ax-ui-miss.log`, where fail2ban bans after 10 misses (or 5 failed panel logins) in 10 minutes: 1 h, growing to a day for repeat offenders, on 80/443 only. The chain's neighbours and mon-server are exempt. Of the panel only `<base>login` and `<base>panel/api/` are published on 443; its pages are reached through an SSH tunnel (below). `install.sh`/`update.sh` install fail2ban with `only443`; values can be overridden in `/etc/fail2ban/jail.local`. Details: `docs/runbooks/proxy-front.md` §3.6.
+
 **CLI** (the same binary in both roles):
 
 ```
@@ -251,7 +253,7 @@ The generation is picked from a dropdown next to the **Generate** button: 2.0 or
 
 **A cover page, not an empty port.** The domain is served a real website: one of three built-in templates or your own single-file HTML, chosen from a gallery of live previews, edited in the panel and stored in the database — so it rides along in the backup and survives a reinstall. Only the active one is written to disk for nginx to serve.
 
-**The panel and the subscriptions can live there too.** Both can be published on the same domain over 443, each at its own path — two fewer ports to explain. The subscription server keeps its own port as well, so links already handed out do not break; new ones carry the new address.
+**The subscriptions and the panel's API can live there too.** Both can be published on the same domain over 443, each at its own path — two fewer ports to explain. Of the panel only its login and API go there, for API clients such as the orchestrator; its pages stay on its own port, reached through an SSH tunnel once «Port 443 only» closes it (see «Admin access through an SSH tunnel»). The subscription server keeps its own port as well, so links already handed out do not break; new ones carry the new address.
 
 **Closing ports is a lease, not a leap.** SSH stays open, on whatever port sshd's own configuration says. So do the UDP tunnels, DHCP, anything arriving through a tunnel interface, the replies to whatever the server itself asked for, and any extra ports you name. Then you have two minutes to confirm from the panel that it is still reachable — if nobody does, it all comes back on its own. The deadline is stored in the database, so restarting the panel does not lose it.
 
@@ -474,6 +476,8 @@ With the default `PROXY_TLS=letsencrypt-ip` the installer issues a Let's Encrypt
 
 **Front 443 on a hop** (`PROXY_FRONT=only443`, or `"front": {"mode": "only443"}` in `/etc/x-ui/proxy.json`): nginx takes 443 and splits it by SNI. An edge passes its neighbour target's server name raw to its next hop and an unknown name raw to the neighbour target itself; an inner passes the active edge's server name on and gives anything else a decoy page; a request by IP, without SNI, reaches the hop's subscriptions and `/chain/v1` through the IP certificate. The relay stops holding 443/tcp and other TCP ports (UDP is relayed as before), and the hop closes everything but 443/tcp, 80/tcp, SSH and the relayed UDP ports (`"firewall": false` leaves the ports alone). The hop tells the panel on every poll, the panel moves its sub port to 443 and the old sub port closes once the hops polling it have moved; an edge closes it at once, and client subscription links become `https://<edge>/…`. It needs the Let's Encrypt IP certificate — without one the front stays off. Details: `docs/runbooks/proxy-front.md` §3.5.
 
+**Protection of the HTTP side** (#141): in `only443` the panel and every hop limit each client address on the published paths (subscriptions and `/chain/v1` 30/min, the panel API and `/mon/v1` 10/s, the login and `/join/` 6/min; over the limit is answered by the decoy page, not 429) and log the misses — unknown paths under a secret prefix, refusals, limit hits — to `/var/log/nginx/3ax-ui-miss.log`, where fail2ban bans after 10 misses (or 5 failed panel logins) in 10 minutes: 1 h, growing to a day for repeat offenders, on 80/443 only. The chain's neighbours and mon-server are exempt. Of the panel only `<base>login` and `<base>panel/api/` are published on 443; its pages are reached through an SSH tunnel (below). `install.sh`/`update.sh` install fail2ban with `only443`; values can be overridden in `/etc/fail2ban/jail.local`. Details: `docs/runbooks/proxy-front.md` §3.6.
+
 **CLI** (the same binary in both roles):
 
 ```
@@ -544,6 +548,23 @@ bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/sane-3x-ui/main/insta
 # Specific version
 bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/sane-3x-ui/main/install.sh) v1.9.0-chain.6
 ```
+
+### Admin access through an SSH tunnel
+
+With the front in «Port 443 only» the panel's pages are not published on 443 — only its login and API are, for API clients such as the orchestrator. Keep the panel itself off the network and open it through SSH:
+
+```bash
+# at install: the panel listens on the loopback only
+XUI_WEB_LISTEN=127.0.0.1 bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/sane-3x-ui/main/install.sh)
+# or later, on the server
+x-ui setting -listenIP 127.0.0.1 && x-ui restart
+
+# from your computer
+ssh -L <panel port>:127.0.0.1:<panel port> root@<server>
+# then open https://127.0.0.1:<panel port>/<base path>/ (the certificate names the server, so the browser warns)
+```
+
+The installer asks for this where it asks for the panel's port, and prints the tunnel command when the panel listens on the loopback.
 
 ## Panel Update
 
