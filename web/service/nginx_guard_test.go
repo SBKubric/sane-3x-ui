@@ -165,7 +165,7 @@ func TestSyncJailsFollowsTheMode(t *testing.T) {
 // take the jails says why.
 func TestStatusWarnsAboutFail2ban(t *testing.T) {
 	s := guardedPanel(t)
-	fake := useFakeJails(t, false)
+	useFakeJails(t, false)
 	if err := s.SaveSettings(only443Behind()); err != nil {
 		t.Fatal(err)
 	}
@@ -179,8 +179,7 @@ func TestStatusWarnsAboutFail2ban(t *testing.T) {
 		t.Error("shared mode, which has no jails, was warned about fail2ban")
 	}
 
-	useFakeJails(t, true)
-	fake = useFakeJails(t, true)
+	fake := useFakeJails(t, true)
 	fake.err = errors.New("start fail2ban: Have not found any log file for sshd jail")
 	cfg, _ := s.buildConfig(only443Behind())
 	s.syncJails(cfg)
