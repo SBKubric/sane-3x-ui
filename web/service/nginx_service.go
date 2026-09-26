@@ -323,6 +323,8 @@ func (s *NginxService) GetStatus() NginxStatus {
 		st.Warnings = append(st.Warnings, certWarning(ipCertLabel, err))
 	}
 
+	st.Warnings = append(st.Warnings, fail2banWarnings(set)...)
+
 	routes, warnings := s.collectRoutes(set)
 	st.Routes = routes
 	st.Warnings = append(st.Warnings, warnings...)
@@ -509,12 +511,22 @@ func (s *NginxService) buildConfig(set NginxSettings) (nginx.Config, error) {
 		return cfg, err
 	}
 	site.Listen = net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	if cfg.Mode == nginx.ModeOnly443 {
+		// Every box of the chain in only443 is guarded (#141).
+		site.Guard = s.guard()
+	}
 	if set.PanelBehind443 && cfg.Mode == nginx.ModeOnly443 {
-		panel, err := s.panelProxy()
+		panel, login, err := s.panelProxy()
 		if err != nil {
 			return cfg, err
 		}
-		site.Panel = panel
+		site.Panel, site.Login = panel, login
+		// The rest of the base path — the UI — answers as the stub does and,
+		// guarded, counts as a miss: the base path is a secret, and a
+		// request under it for anything but the login and the API is a
+		// guess.
+		basePath, _ := s.settingService.GetBasePath()
+		site.Decoy = []string{basePath}
 	}
 	if set.SubsBehind443 {
 		sub, err := s.subProxy()
@@ -696,27 +708,30 @@ func (s *NginxService) relayPort(inboundId int) (int, error) {
 	return port, nil
 }
 
-// panelProxy describes the panel itself as an HTTP service behind the domain.
-func (s *NginxService) panelProxy() (*nginx.Proxy, error) {
+// panelProxy describes what of the panel is published behind the domain: its
+// API and its login, and nothing else (#141). The UI listens on the loopback
+// and is reached through an SSH tunnel; an API client — the orchestrator —
+// needs no more than to POST its credentials to <base>login and then call
+// <base>panel/api/. The login page's own helpers (getTwoFactorEnable, the
+// assets) are for a browser, which does not come this way.
+func (s *NginxService) panelProxy() (api *nginx.Proxy, login *nginx.Proxy, err error) {
 	port, err := s.settingService.GetPort()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	basePath, err := s.settingService.GetBasePath()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if basePath == "" || basePath == "/" {
-		// Proxying "/" would swallow the stub site.
-		return nil, fmt.Errorf("the panel has no base path, so it cannot be published under the site's domain — set one in Settings first")
+		// Without a secret prefix the API would sit at a well-known path.
+		return nil, nil, fmt.Errorf("the panel has no base path, so it cannot be published under the site's domain — set one in Settings first")
 	}
 	certFile, _ := s.settingService.GetCertFile()
-	return &nginx.Proxy{
-		Name:   "panel",
-		Paths:  []string{basePath},
-		Target: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
-		TLS:    certFile != "",
-	}, nil
+	target := net.JoinHostPort("127.0.0.1", strconv.Itoa(port))
+	api = &nginx.Proxy{Name: "panel API", Paths: []string{basePath + "panel/api/"}, Target: target, TLS: certFile != ""}
+	login = &nginx.Proxy{Name: "panel login", Paths: []string{basePath + "login"}, Target: target, TLS: certFile != ""}
+	return api, login, nil
 }
 
 // monProxy publishes the monitoring contract, which the panel serves under its

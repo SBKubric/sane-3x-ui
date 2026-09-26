@@ -314,6 +314,8 @@
 "subsWarning" = "訂閱位址將發生變化。已經發出去的連結仍會指向舊位址。"
 "dualNote" = "上面標出的連結在原連接埠上繼續可用，同一批用戶端現在還可以經 443 存取。無需重新發放。"
 "warnNoFirewall" = "這台機器上沒有 iptables，面板無法關閉其餘連接埠。請關掉防火牆開關，或者自行關閉。"
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "「%subject%」將失去連接埠 %from%——無法依伺服器名稱區分它"
 "closedWarning" = "上面標出的入站將無法存取：沒有任何東西為它們宣告伺服器名稱，因此無法待在 443 之後。關掉防火牆開關即可讓它們的連接埠保持開放。"
 "warnNoStreamModule" = "這個 nginx 編譯時沒有帶 stream 模組，無法依伺服器名稱拆分 443 連接埠。"

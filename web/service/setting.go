@@ -122,6 +122,7 @@ var defaultValueMap = map[string]string{
 	"monProbeSubId":          "",
 	"monProbeLastEnsured":    "0",
 	"monLastContact":         "0",
+	"monServerAddr":          "",
 	"monStaleSince":          "0",
 	"monClientsSnapshot":     "[]",
 

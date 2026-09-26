@@ -127,7 +127,12 @@ func (s *NginxService) Apply(in NginxSettings) error {
 	//    merely still open, and tearing a working server down over that would
 	//    be the worse outcome. The settings are saved first on purpose, so the
 	//    reconcile job picks the retry up on its next tick.
-	return s.applyFirewall(in)
+	fwErr := s.applyFirewall(in)
+
+	// 7. fail2ban's jails, in with only443 and out without it (#141). They
+	//    never fail the apply: the limits hold without them.
+	s.syncJails(cfg)
+	return fwErr
 }
 
 // applyFirewall closes the ports the mode asks to close, or opens them all
@@ -155,6 +160,7 @@ func (s *NginxService) disable(in NginxSettings) error {
 	if err := nginx.RemoveFirewall(); err != nil {
 		return err
 	}
+	s.syncJails(nginx.Config{Mode: nginx.ModeOff})
 	if err := nginx.Remove(); err != nil {
 		return err
 	}
@@ -389,6 +395,7 @@ func (s *NginxService) Reconcile() {
 	// it as off means the two disagree about where the inbounds live.
 	if set.Mode == string(nginx.ModeOff) {
 		s.failures, s.skipTicks = 0, 0
+		s.syncJails(nginx.Config{Mode: nginx.ModeOff})
 		if stale, err := nginx.NeedsUpdate(nginx.Config{Mode: nginx.ModeOff}); err == nil && stale {
 			logger.Info("nginx: the mode is off but the front-end is still up, taking it down")
 			// Through Apply rather than straight to disable, so this takes the
@@ -463,6 +470,9 @@ func (s *NginxService) Reconcile() {
 		logger.Warning("nginx reconcile: the current settings do not make a valid config:", err)
 		return
 	}
+	// The jails follow the exemptions and the mode like the config does; a
+	// shared-mode panel with no guard has them taken out.
+	s.syncJails(cfg)
 
 	changed, err := nginx.NeedsUpdate(cfg)
 	if err != nil {
@@ -483,6 +493,21 @@ func (s *NginxService) Reconcile() {
 		return
 	}
 
+	// Nothing moves: only what nginx serves changed — an exemption of the
+	// guard as a hop joins or mon-server moves (#141), a cover name, a path.
+	// Xray keeps its port and its clients, so nginx alone reloads; the full
+	// Apply below would restart Xray and drop every connection for nothing.
+	if !needsMove {
+		if err := s.reloadFront(cfg); err != nil {
+			s.failures++
+			s.skipTicks = min(2*s.failures, 20)
+			logger.Errorf("nginx reconcile: reloading nginx failed (attempt %d, pausing): %v", s.failures, err)
+			return
+		}
+		s.failures, s.skipTicks = 0, 0
+		return
+	}
+
 	// Apply is the one path that moves inbounds, restarts Xray and hands over
 	// the port in the right order — and puts everything back if any step
 	// fails. Doing it piecemeal here is how a server ends up with its inbounds
@@ -496,6 +521,15 @@ func (s *NginxService) Reconcile() {
 		return
 	}
 	s.failures, s.skipTicks = 0, 0
+}
+
+// reloadFront hands nginx a config that moves nothing, under the same lock as
+// Apply. nginx.Apply verifies it with nginx -t first and puts the old files
+// back if the reload does not take.
+func (s *NginxService) reloadFront(cfg nginx.Config) error {
+	applyMu.Lock()
+	defer applyMu.Unlock()
+	return nginx.Apply(cfg)
 }
 
 // Plan describes what applying the given settings would do, so the panel can

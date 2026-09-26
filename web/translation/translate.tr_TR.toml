@@ -314,6 +314,8 @@
 "subsWarning" = "Abonelik adresi değişiyor. Dağıtılmış bağlantılar eskisini göstermeye devam eder."
 "dualNote" = "Yukarıdaki bağlantılar eski portta çalışmaya devam eder, aynı istemcilere artık 443’ten de ulaşılabilir. Yeniden dağıtmaya gerek yok."
 "warnNoFirewall" = "Bu makinede iptables yok, panel diğer portları kapatamaz. Güvenlik duvarı anahtarını kapatın ya da portları kendiniz kapatın."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» %from% portunu kaybediyor — sunucu adına göre ayırt edilemiyor"
 "closedWarning" = "Yukarıda işaretlenen bağlantılara erişilemez olacak: onlar için sunucu adı bildiren bir şey yok, dolayısıyla 443’ün arkasında yaşayamazlar. Portlarının açık kalması için güvenlik duvarı anahtarını kapatın."
 "warnNoStreamModule" = "Bu nginx stream modülü olmadan derlenmiş, bu yüzden 443 portunu sunucu adına göre ayıramaz."

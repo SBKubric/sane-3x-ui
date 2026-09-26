@@ -72,6 +72,7 @@ func (a *MonitoringController) checkMonAuth(c *gin.Context) {
 		return
 	}
 	a.monitoringService.TouchMonLastContact(time.Now())
+	a.monitoringService.NoteMonServerAddr(getRemoteIp(c))
 	c.Header("X-Mon-Contract", strconv.Itoa(service.MonContractVersion))
 	c.Next()
 }
