@@ -320,6 +320,7 @@
 "closedWarning" = "Inbound yang ditandai di atas akan tidak terjangkau: tidak ada yang mengumumkan nama server untuk mereka, jadi mereka tidak bisa hidup di balik 443. Matikan sakelar firewall agar portnya tetap terbuka."
 "warnNoStreamModule" = "nginx ini dibangun tanpa modul stream, jadi tidak bisa membagi port 443 berdasarkan nama server."
 "warnNoDomain" = "Domain belum diatur, jadi membuka server ini di peramban akan mendarat di situs penyamaran Reality dan memperlihatkan sertifikatnya. Isi domainnya supaya halaman Anda sendiri disajikan di sini."
+"warnSubsUnreachable" = "Langganan diatur lewat 443, tetapi tanpa domain dan sertifikat IP tidak ada yang menjawabnya di 443, dan «Hanya port 443» menutup port miliknya sendiri: tautan langganan dan polling panel oleh rantai tidak akan sampai. Atur domain atau terbitkan sertifikat IP."
 "warnStockCoverPage" = "Halaman sampul «%s» masih belum diubah. Halaman yang sama di setiap server sudah menjadi penanda tersendiri — ganti halamannya di «Halaman sampul»."
 "warnCertExpiring" = "Sertifikat untuk %s berakhir pada %s."
 "warnSniConflict" = "«%s» dan «%s» memakai domain penyamaran %s yang sama — nginx hanya bisa memberikannya kepada salah satu."

@@ -36,16 +36,18 @@ const PublicPort = 443
 // firewall has closed. The port is left off the returned host on purpose — the
 // public port is 443, and a URL says that by saying nothing.
 //
+// Without a domain the HTTP side still answers requests by address when the
+// box has its IP certificate (#142), and then the subscriptions live there:
+// https on the public port, under the address that certificate names
+// (publicSubBase explains which). With neither, nothing on 443 answers for
+// them and the sub server's own address stands.
+//
 // It reads the stored settings rather than the ones on screen, and that is the
 // point: Apply saves them last, after nginx is actually serving the config, so
 // what is stored is what is running. A link never moves ahead of the server.
 func PublicSubBase() (scheme string, host string, ok bool) {
 	var svc NginxService
-	set := svc.GetSettings()
-	if nginx.Mode(set.Mode) == nginx.ModeOff || !set.SubsBehind443 || set.Domain == "" {
-		return "", "", false
-	}
-	return "https", set.Domain, true
+	return svc.publicSubBase(svc.GetSettings())
 }
 
 // NginxSettings is the stored front-end configuration.
@@ -148,11 +150,13 @@ type NginxChange struct {
 	To      string `json:"to"`
 }
 
-// NginxPlan is the change list plus the reasons it cannot be applied yet.
+// NginxPlan is the change list plus the reasons it cannot be applied yet, and
+// what is worth reading before it is applied although it does not stop it.
 type NginxPlan struct {
 	Mode     string         `json:"mode"`
 	Changes  []NginxChange  `json:"changes"`
 	Blockers []NginxWarning `json:"blockers"`
+	Warnings []NginxWarning `json:"warnings,omitempty"`
 }
 
 // NginxService owns the front-end: the settings, the generated config, and the
@@ -324,6 +328,9 @@ func (s *NginxService) GetStatus() NginxStatus {
 	}
 
 	st.Warnings = append(st.Warnings, fail2banWarnings(set)...)
+	if s.subsUnreachable(set) {
+		st.Warnings = append(st.Warnings, warn("subsUnreachable"))
+	}
 
 	routes, warnings := s.collectRoutes(set)
 	st.Routes = routes

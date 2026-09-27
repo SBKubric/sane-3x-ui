@@ -539,6 +539,8 @@
         message='{{ i18n "pages.nginx.subsWarning" }}' :style="{ marginTop: '12px' }"></a-alert>
       <a-alert v-if="hasClosedChanges" type="error" show-icon
         message='{{ i18n "pages.nginx.closedWarning" }}' :style="{ marginTop: '12px' }"></a-alert>
+      <a-alert v-for="(warning, i) in plan.warnings" :key="'pw' + i" type="warning" show-icon
+        :message="warningText(warning)" :style="{ marginTop: '12px' }"></a-alert>
     </template>
   </a-modal>
 
@@ -1007,6 +1009,7 @@
           noStreamModule: '{{ i18n "pages.nginx.warnNoStreamModule" }}',
           notInstalled: '{{ i18n "pages.nginx.notInstalled" }}',
           noDomain: '{{ i18n "pages.nginx.warnNoDomain" }}',
+          subsUnreachable: '{{ i18n "pages.nginx.warnSubsUnreachable" }}',
           stockCoverPage: '{{ i18n "pages.nginx.warnStockCoverPage" }}',
           certExpiring: '{{ i18n "pages.nginx.warnCertExpiring" }}',
           sniConflict: '{{ i18n "pages.nginx.warnSniConflict" }}',

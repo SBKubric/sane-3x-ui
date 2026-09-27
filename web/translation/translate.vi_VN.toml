@@ -320,6 +320,7 @@
 "closedWarning" = "Những inbound được đánh dấu ở trên sẽ không truy cập được: không có gì công bố tên máy chủ cho chúng, nên chúng không thể sống sau 443. Hãy tắt công tắc tường lửa để giữ cổng của chúng mở."
 "warnNoStreamModule" = "Bản nginx này được biên dịch không kèm mô-đun stream, nên không thể chia cổng 443 theo tên máy chủ."
 "warnNoDomain" = "Chưa đặt tên miền, nên ai mở máy chủ này bằng trình duyệt sẽ rơi vào trang nguỵ trang của Reality và thấy chứng chỉ của nó. Hãy điền tên miền để phục vụ trang của chính bạn ở đây."
+"warnSubsUnreachable" = "Gói đăng ký được đặt đi qua 443, nhưng không có tên miền lẫn chứng chỉ IP thì không gì trên 443 trả lời cho chúng, và «Chỉ cổng 443» đóng cổng riêng của chúng: liên kết đăng ký và việc chuỗi thăm dò bảng điều khiển sẽ không tới được. Hãy đặt tên miền hoặc cấp chứng chỉ IP."
 "warnStockCoverPage" = "Trang bìa «%s» vẫn chưa được sửa. Cùng một trang trên mọi máy chủ tự nó đã là một dấu vết — hãy đổi trang ở mục «Trang bìa»."
 "warnCertExpiring" = "Chứng chỉ cho %s hết hạn vào %s."
 "warnSniConflict" = "«%s» và «%s» dùng chung tên miền nguỵ trang %s — nginx chỉ có thể giao nó cho một bên."

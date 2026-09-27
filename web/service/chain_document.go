@@ -250,7 +250,10 @@ func (s *ChainDocumentService) panelAsNextHop(fallbackHost string) (chain.NextHo
 		scheme = "https"
 	}
 	// With nginx in front of the subscriptions they live on the public port
-	// under its own certificate, and that is what a front must dial.
+	// under its own certificate, and that is what a front must dial. Without
+	// a domain that certificate is the IP one (#145): the host stays the one
+	// above, which then has to be an address — a request by name would be
+	// routed by SNI and never reach the HTTP side.
 	if publicScheme, _, ok := PublicSubBase(); ok {
 		scheme = publicScheme
 		subPort = PublicPort

@@ -978,7 +978,8 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 		}
 		if scheme, host, ok := PublicSubBase(); ok {
 			// nginx answers for the subscriptions on the public port, so the
-			// address is the site's domain and no port at all.
+			// address is the site's domain, or the IP certificate's address,
+			// and no port at all.
 			subURI = scheme + "://" + host
 		} else {
 			if subTLS {
