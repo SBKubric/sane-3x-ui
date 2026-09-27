@@ -91,7 +91,7 @@ func TestInstallWebListenOption(t *testing.T) {
 	}
 }
 
-var fail2banFunctions = []string{"front_wants_fail2ban", "install_fail2ban", "fail2ban_sshd_journal"}
+var fail2banFunctions = []string{"front_wants_fail2ban", "install_front_firewall", "install_fail2ban", "fail2ban_sshd_journal"}
 
 // TestInstallFail2banWithTheFront (#141): fail2ban comes onto a box together
 // with only443 — on a hop from PROXY_FRONT or proxy.json, on the panel from
@@ -186,6 +186,33 @@ func TestFail2banSshdJournal(t *testing.T) {
 			}
 			if tc.want != "" && !strings.Contains(string(body), tc.want) {
 				t.Errorf("override = %q, want %q", body, tc.want)
+			}
+		})
+	}
+}
+
+// TestInstallFail2banBringsIptables: the front's firewall drives iptables, which
+// Debian 13 does not ship; installing the jails for only443 installs it too
+// (found on the stand, SBKubric/sane-3x-ui-orchestrator#22).
+func TestInstallFail2banBringsIptables(t *testing.T) {
+	for _, script := range []string{"install.sh", "update.sh"} {
+		t.Run(script, func(t *testing.T) {
+			bin := t.TempDir()
+			log := filepath.Join(t.TempDir(), "apt.log")
+			stub := "#!/bin/sh\necho \"$*\" >> " + log + "\n"
+			if err := os.WriteFile(filepath.Join(bin, "apt-get"), []byte(stub), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			// fail2ban-client is present, so only the firewall is missing.
+			if err := os.WriteFile(filepath.Join(bin, "fail2ban-client"), []byte("#!/bin/sh\n"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			out, _ := runScriptShell(t, script, fail2banFunctions,
+				"fail2ban_sshd_journal() { :; }\ninstall_fail2ban\n",
+				"PATH="+bin+":/usr/bin:/bin", "release=debian")
+			got, _ := os.ReadFile(log)
+			if !strings.Contains(string(got), "install -y -q iptables") {
+				t.Errorf("iptables was not installed, apt-get saw %q:\n%s", got, out)
 			}
 		})
 	}
