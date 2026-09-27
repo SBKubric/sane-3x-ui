@@ -54,6 +54,11 @@ test.describe('monitoring page', () => {
     authedRequest,
   }) => {
     const name = 'e2e-mon-chip';
+    // "No summary" is a claim about the whole registry, not this hop, so the
+    // test starts from one with no active edge rather than trusting whoever ran
+    // before it to have cleaned up. playwright.config.ts keeps every other
+    // registry spec out of its way while it runs (#150).
+    expect((await (await authedRequest.post('/panel/api/chain/clearActive')).json()).success).toBe(true);
     const added = await (
       await authedRequest.post('/panel/api/chain/add', { data: { name, host: 'chip.e2e.example', role: 'inner' } })
     ).json();
