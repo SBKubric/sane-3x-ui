@@ -281,3 +281,68 @@ func TestPublicURLBehindTheFront(t *testing.T) {
 		t.Errorf("publicURL by address = %q", got)
 	}
 }
+
+// TestSub_NextHopRefusalPassesThrough (#152): an unknown subscription is the
+// panel's 400, and a hop must answer it the same way — status and body — so
+// the front's HTTP side logs it as a miss and the probe jail counts sub
+// brute force through a hop. A 502 counted as nothing and told a hop from the
+// panel. The next hop failing (5xx, unreachable) stays a 502.
+func TestSub_NextHopRefusalPassesThrough(t *testing.T) {
+	status, body := http.StatusBadRequest, "Error!"
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	host, port := hostPort(t, upstream.URL)
+	state := NewState()
+	document := testDocument(42)
+	document.NextHop = chain.NextHop{Host: host, SubPort: port, SubScheme: "http", SubPath: "/s/", JsonPath: "/j/"}
+	state.SetDocument(document)
+	s := testSubServer(t, &Config{NextHop: NextHop{Host: "10.0.0.7"}}, state)
+
+	get := func(path, accept string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, path, nil)
+		if accept != "" {
+			r.Header.Set("Accept", accept)
+		}
+		s.Handler().ServeHTTP(w, r)
+		return w
+	}
+
+	for _, tc := range []struct {
+		status int
+		body   string
+	}{
+		{http.StatusBadRequest, "Error!"},
+		{http.StatusNotFound, "404 page not found"},
+		{http.StatusForbidden, ""},
+	} {
+		status, body = tc.status, tc.body
+		for _, req := range []struct{ path, accept string }{
+			{"/s/nope", ""}, {"/s/nope", "text/html"}, {"/j/nope", ""},
+		} {
+			w := get(req.path, req.accept)
+			if w.Code != tc.status || w.Body.String() != tc.body {
+				t.Errorf("%s (Accept %q) with the next hop's %d %q: got %d %q", req.path, req.accept, tc.status, tc.body, w.Code, w.Body.String())
+			}
+			if tc.body != "" && w.Header().Get("Content-Type") != "text/plain; charset=utf-8" {
+				t.Errorf("%s: Content-Type %q, want the next hop's", req.path, w.Header().Get("Content-Type"))
+			}
+		}
+	}
+
+	status, body = http.StatusInternalServerError, "boom"
+	for _, path := range []string{"/s/abc", "/j/abc"} {
+		if w := get(path, ""); w.Code != http.StatusBadGateway {
+			t.Errorf("%s with the next hop's 500: got %d, want 502", path, w.Code)
+		}
+	}
+	upstream.Close()
+	for _, path := range []string{"/s/abc", "/j/abc"} {
+		if w := get(path, ""); w.Code != http.StatusBadGateway {
+			t.Errorf("%s with the next hop down: got %d, want 502", path, w.Code)
+		}
+	}
+}
