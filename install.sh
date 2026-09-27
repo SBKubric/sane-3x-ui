@@ -1977,11 +1977,40 @@ front_wants_fail2ban() {
     [[ "$("${xui_folder}/x-ui" nginx mode 2>/dev/null)" == "only443" ]]
 }
 
+# install_front_firewall puts iptables on the box for the front's firewall
+# (THREEAX-IN, nginx/firewall.go), which drives iptables and ip6tables only.
+# Debian 13 and other nftables-first systems ship without the binary, and the
+# box then logs that its ports stay open; the package brings the nft-backed
+# iptables. Nothing here fails the installation.
+install_front_firewall() {
+    command -v iptables &>/dev/null && return 0
+    echo -e "${green}Installing iptables (the front's firewall)...${plain}"
+    case "${release}" in
+    ubuntu | debian | armbian)
+        apt-get install -y -q iptables 2>/dev/null || true
+        ;;
+    fedora | amzn | rhel | almalinux | rocky | ol | centos)
+        dnf install -y iptables-nft 2>/dev/null || yum install -y iptables 2>/dev/null || true
+        ;;
+    arch | manjaro | parch)
+        pacman -S --noconfirm --needed iptables 2>/dev/null || true
+        ;;
+    alpine)
+        apk add iptables ip6tables 2>/dev/null || true
+        ;;
+    esac
+    if ! command -v iptables &>/dev/null; then
+        echo -e "${yellow}iptables was not installed: the front runs, but its firewall cannot close ports.${plain}"
+    fi
+}
+
 # install_fail2ban puts fail2ban on the box. The jails are not written here:
 # the panel, or `x-ui proxy` on a hop, writes them with the front's exemptions
 # and starts fail2ban itself. Nothing here fails the installation — without
 # fail2ban the front's limits still hold, and the panel says what is missing.
 install_fail2ban() {
+    # The same only443 that wants the jails closes ports with iptables.
+    install_front_firewall
     if command -v fail2ban-client &>/dev/null; then
         fail2ban_sshd_journal
         return 0

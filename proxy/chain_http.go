@@ -170,7 +170,11 @@ func TruncateDocument(doc *chain.Document, hop chain.Hop, cfg *Config) chain.Doc
 		Version:     chain.DocumentVersion,
 		Revision:    doc.Revision,
 		GeneratedAt: doc.GeneratedAt,
-		Self:        chain.Self{Name: hop.Name, Role: hop.Role, Host: hop.Host, State: hop.State},
+		// The neighbour target travels in self too: an edge's front splits 443
+		// by it (#140), and behind an inner hop this is where the edge's
+		// document comes from.
+		Self: chain.Self{Name: hop.Name, Role: hop.Role, Host: hop.Host, State: hop.State,
+			RealityTarget: hop.RealityTarget, RealityServerName: hop.RealityServerName},
 		NextHop: chain.NextHop{
 			Host:      selfHost(doc, cfg),
 			SubPort:   cfg.PublicSubPort(),

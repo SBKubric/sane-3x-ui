@@ -383,6 +383,23 @@ func TestTruncateDocumentCarriesTheNeighbourState(t *testing.T) {
 	}
 }
 
+// TestTruncateDocumentKeepsTheEdgesNeighbourTarget: an edge behind an inner
+// hop gets its document from that hop, not from the panel. Its front splits
+// 443 by self.realityServerName and sends unknown SNI to self.realityTarget
+// (#140), so dropping them here left the edge routing every client to the
+// decoy (found on the stand, SBKubric/sane-3x-ui-orchestrator#22).
+func TestTruncateDocumentKeepsTheEdgesNeighbourTarget(t *testing.T) {
+	cfg := &Config{Domain: "10.0.0.7", SubPort: 2096}
+	doc := innerDocument()
+	doc.Hops[2].RealityTarget = "203.0.113.50:443"
+	doc.Hops[2].RealityServerName = "www.example.org"
+
+	out := TruncateDocument(doc, doc.Hops[2], cfg)
+	if out.Self.RealityTarget != "203.0.113.50:443" || out.Self.RealityServerName != "www.example.org" {
+		t.Errorf("edge self = %+v, want its neighbour target 203.0.113.50:443 / www.example.org", out.Self)
+	}
+}
+
 func hopNamesOf(hops []chain.Hop) []string {
 	names := make([]string, 0, len(hops))
 	for _, hop := range hops {
