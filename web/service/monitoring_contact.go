@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/logger"
+	"github.com/coinman-dev/3ax-ui/v2/nginx"
 )
 
 // Last contact with mon-server (monitoring-panel.md §4.2, §5). Every
@@ -20,6 +21,11 @@ var monContact struct {
 	loaded    bool
 	last      int64 // ms, what the panel believes
 	persisted int64 // ms, what the setting holds
+
+	// addr is where mon-server called from last (#141), as the setting
+	// monServerAddr holds it; addrLoaded says the setting has been read.
+	addr       string
+	addrLoaded bool
 }
 
 // TouchMonLastContact records an authorised mon-server request at now.
@@ -60,10 +66,53 @@ func (s *MonitoringService) loadContactLocked() {
 	monContact.loaded = true
 }
 
+// NoteMonServerAddr records the address an authorised mon-server request came
+// from (#141). The front exempts that address from its limits and its bans:
+// mon-server calls in bursts, and a ban would read as the whole panel going
+// STALE. The token is the proof that it is mon-server; the address is written
+// only when it changes, not on every call.
+func (s *MonitoringService) NoteMonServerAddr(addr string) {
+	ip, ok := nginx.ExemptAddress(addr)
+	if !ok {
+		return
+	}
+	monContact.Lock()
+	defer monContact.Unlock()
+	s.loadAddrLocked()
+	if ip == monContact.addr {
+		return
+	}
+	if err := s.settingService.setString("monServerAddr", ip); err != nil {
+		logger.Warning("monitoring: remembering mon-server's address:", err)
+		return
+	}
+	monContact.addr = ip
+}
+
+// MonServerAddr is the address mon-server last called from, "" before its
+// first authorised call.
+func (s *MonitoringService) MonServerAddr() string {
+	monContact.Lock()
+	defer monContact.Unlock()
+	s.loadAddrLocked()
+	return monContact.addr
+}
+
+func (s *MonitoringService) loadAddrLocked() {
+	if monContact.addrLoaded {
+		return
+	}
+	if v, err := s.settingService.getString("monServerAddr"); err == nil {
+		monContact.addr = v
+	}
+	monContact.addrLoaded = true
+}
+
 // resetMonContactForTest clears the cache between tests.
 func resetMonContactForTest() {
 	monContact.Lock()
 	monContact.loaded, monContact.last, monContact.persisted = false, 0, 0
+	monContact.addr, monContact.addrLoaded = "", false
 	monContact.Unlock()
 }
 

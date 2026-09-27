@@ -314,6 +314,8 @@
 "subsWarning" = "Адреса підписок змінюється. Уже роздані посилання й далі вказуватимуть на стару."
 "dualNote" = "Позначені посилання й далі працюватимуть на старому порту, а ті самі клієнти тепер доступні ще й на 443. Роздавати заново нічого не потрібно."
 "warnNoFirewall" = "На цій машині немає iptables, закрити решту портів панель не зможе. Вимкніть перемикач фаєрвола або закрийте їх самі."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» втрачає порт %from% — за іменем сервера його не розрізнити"
 "closedWarning" = "Позначені інбаунди стануть недоступними: імені сервера вони не повідомляють, а отже за 443 жити не можуть. Вимкніть перемикач фаєрвола, щоб їхні порти лишилися відкритими."
 "warnNoStreamModule" = "Цей nginx зібрано без модуля stream, тож розділити порт 443 за іменем сервера він не може."

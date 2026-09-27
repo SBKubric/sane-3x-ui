@@ -314,6 +314,8 @@
 "subsWarning" = "عنوان الاشتراكات يتغير. والروابط الموزَّعة ستظل تشير إلى العنوان القديم."
 "dualNote" = "الروابط أعلاه تظل تعمل على المنفذ القديم، وصار الوصول إلى العملاء أنفسهم ممكنًا عبر ٤٤٣ أيضًا. ولا حاجة إلى إعادة توزيع شيء."
 "warnNoFirewall" = "لا يوجد iptables على هذا الجهاز، فلا تستطيع اللوحة إغلاق بقية المنافذ. أطفئ مفتاح الجدار الناري أو أغلقها بنفسك."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» يفقد المنفذ %from% — لا يمكن تمييزه باسم الخادم"
 "closedWarning" = "الواردات المؤشَّرة أعلاه ستصير خارج المتناول: لا شيء يعلن اسم خادم نيابةً عنها، فلا مكان لها خلف ٤٤٣. أطفئ مفتاح الجدار الناري لتبقى منافذها مفتوحة."
 "warnNoStreamModule" = "بُني هذا الـ nginx دون وحدة stream، فلا يستطيع تقسيم المنفذ ٤٤٣ باسم الخادم."

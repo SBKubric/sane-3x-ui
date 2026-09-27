@@ -314,6 +314,8 @@
 "subsWarning" = "La dirección de las suscripciones cambia. Los enlaces ya repartidos seguirán apuntando a la anterior."
 "dualNote" = "Los enlaces marcados siguen funcionando en el puerto de antes, y esos mismos clientes ahora también son accesibles por el 443. No hay que repartir nada de nuevo."
 "warnNoFirewall" = "En esta máquina no hay iptables, así que el panel no puede cerrar los demás puertos. Desactiva el interruptor del cortafuegos o ciérralos tú."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» pierde el puerto %from%: no se le puede distinguir por nombre de servidor"
 "closedWarning" = "Las entradas marcadas quedarán inaccesibles: nada anuncia un nombre de servidor por ellas, así que no pueden vivir detrás del 443. Desactiva el interruptor del cortafuegos para dejar sus puertos abiertos."
 "warnNoStreamModule" = "Este nginx se compiló sin el módulo stream, así que no puede repartir el puerto 443 por nombre de servidor."

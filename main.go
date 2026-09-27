@@ -609,10 +609,16 @@ func chainCommand(args []string, out io.Writer) int {
 // 80 answered by nginx before acme.sh can issue or renew a certificate there.
 func nginxCommand(args []string, out io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(out, "nginx: subcommands are `acme-front` (serve the ACME webroot on port 80)")
+		fmt.Fprintln(out, "nginx: subcommands are `acme-front` (serve the ACME webroot on port 80) and `mode` (print the panel's front mode)")
 		return 1
 	}
 	switch args[0] {
+	case "mode":
+		// update.sh asks this to know whether the front is in only443 and
+		// fail2ban belongs on the machine (#141). A box has no panel
+		// database, and so no panel front.
+		fmt.Fprintln(out, storedNginxMode())
+		return 0
 	case "acme-front":
 		cmd := flag.NewFlagSet("nginx acme-front", flag.ContinueOnError)
 		cmd.SetOutput(out)
@@ -631,9 +637,26 @@ func nginxCommand(args []string, out io.Writer) int {
 		}
 		return 0
 	default:
-		fmt.Fprintf(out, "nginx: unknown subcommand %q; try `acme-front`\n", args[0])
+		fmt.Fprintf(out, "nginx: unknown subcommand %q; try `acme-front` or `mode`\n", args[0])
 		return 1
 	}
+}
+
+// storedNginxMode is the panel's saved front mode, "off" where there is no
+// panel database or no mode chosen yet.
+func storedNginxMode() string {
+	if _, err := os.Stat(config.GetDBPath()); err != nil {
+		return string(nginx.ModeOff)
+	}
+	if err := database.InitDB(config.GetDBPath()); err != nil {
+		return string(nginx.ModeOff)
+	}
+	defer database.CloseDB()
+	mode := (&service.NginxService{}).GetSettings().Mode
+	if !nginx.Mode(mode).Valid() {
+		return string(nginx.ModeOff)
+	}
+	return mode
 }
 
 // generateAwg2 fills the AmneziaWG server row with freshly generated 2.0

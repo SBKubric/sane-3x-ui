@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sort"
 	"strconv"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
@@ -147,8 +148,46 @@ func BuildFront(doc *chain.Document, layout FrontLayout, ipCert, ipKey string) (
 			Paths:  frontSubPaths(doc),
 			Target: layout.SubListen,
 		},
+		// The join page takes a secret typed by hand: the login limit.
+		Login: &nginx.Proxy{
+			Name:   "join page of " + doc.Self.Name,
+			Paths:  []string{joinPathPrefix},
+			Target: layout.SubListen,
+		},
+		Guard: &nginx.Guard{Exempt: frontNeighbours(doc), MissLog: nginx.MissLogPath},
 	}
 	return cfg, warnings, nil
+}
+
+// joinPathPrefix is where the sub server serves the join page.
+const joinPathPrefix = "/join/"
+
+// frontNeighbours are the addresses this box's HTTP side neither limits nor
+// bans (#141): its neighbours in the chain, as far as its document knows them
+// — the next hop, and every hop outside it. The hops outside fetch the
+// subscriptions and the wave here for every client behind them, and a raw
+// stream from an outer hop arrives from that hop's address too. A neighbour
+// entered by name is not resolved: the answer could change under the config
+// between two revisions.
+func frontNeighbours(doc *chain.Document) []string {
+	seen := map[string]bool{}
+	add := func(host string) {
+		if ip, ok := nginx.ExemptAddress(host); ok {
+			seen[ip] = true
+		}
+	}
+	add(doc.NextHop.Host)
+	for _, hop := range doc.Hops {
+		if hop.Name != doc.Self.Name {
+			add(hop.Host)
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for ip := range seen {
+		out = append(out, ip)
+	}
+	sort.Strings(out)
+	return out
 }
 
 // activeEdgeServerName is the server name clients of the active edge send,
@@ -165,12 +204,13 @@ func activeEdgeServerName(doc *chain.Document) string {
 	return ""
 }
 
-// frontSubPaths is what the HTTP side passes to the box's sub server: the
-// subscription paths of the document, the wave, and the join page.
+// frontSubPaths is what the HTTP side passes to the box's sub server under
+// the subscription limit: the subscription paths of the document and the
+// wave. The join page goes to the same server under a limit of its own.
 func frontSubPaths(doc *chain.Document) []string {
 	seen := map[string]bool{}
 	var paths []string
-	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, ChainPathPrefix + "/", "/join/"} {
+	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, ChainPathPrefix + "/"} {
 		if path == "" || path == "/" || seen[path] {
 			continue
 		}

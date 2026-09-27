@@ -314,6 +314,8 @@
 "subsWarning" = "订阅地址将发生变化。已经发出去的链接仍会指向旧地址。"
 "dualNote" = "上面标出的链接在原端口上继续可用，同一批客户端现在还可以经 443 访问。无需重新发放。"
 "warnNoFirewall" = "这台机器上没有 iptables，面板无法关闭其余端口。请关掉防火墙开关，或者自行关闭。"
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "「%subject%」将失去端口 %from%——无法按服务器名称区分它"
 "closedWarning" = "上面标出的入站将无法访问：没有任何东西为它们声明服务器名称，因此无法待在 443 之后。关掉防火墙开关即可让它们的端口保持开放。"
 "warnNoStreamModule" = "这个 nginx 编译时没有带 stream 模块，无法按服务器名称拆分 443 端口。"

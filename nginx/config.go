@@ -87,10 +87,12 @@ func (r Route) target() string {
 
 // Proxy is one HTTP service published under the site's domain.
 type Proxy struct {
-	Name   string
-	Paths  []string // URL prefixes, each ending in "/"
-	Target string   // host:port
-	TLS    bool     // the service speaks HTTPS on that port
+	Name string
+	// Paths are URL prefixes, each ending in "/", or exact paths: one that
+	// does not end in "/" matches itself only (the panel's login, #141).
+	Paths  []string
+	Target string // host:port
+	TLS    bool   // the service speaks HTTPS on that port
 }
 
 // Site is the HTTP side: the HTTPS server that terminates TLS for our own
@@ -115,14 +117,41 @@ type Site struct {
 	// box whose panel port only443 has closed, whether or not the panel
 	// itself is published here (ADR 0005).
 	Mon *Proxy
+	// Login is where a secret is typed by hand — the panel's login, a box's
+	// join page — published under the tightest limit (#141).
+	Login *Proxy
+	// Decoy are secret prefixes of which only some paths are published: the
+	// panel's base path, where the login and the API are and the UI is not.
+	// Everything else under them answers as the stub does, and with a guard
+	// counts as a miss.
+	Decoy []string
+	// Guard limits every published path per client and logs the misses for
+	// fail2ban (#141); nil for none.
+	Guard *Guard
 }
 
 // proxies is every HTTP service the site publishes, in the order they are
 // written out.
 func (s *Site) proxies() []*Proxy {
 	var out []*Proxy
-	for _, p := range []*Proxy{s.Panel, s.Sub, s.Mon} {
-		if p != nil {
+	for _, p := range s.zoned() {
+		out = append(out, p.proxy)
+	}
+	return out
+}
+
+// zonedProxy is a published service with the limit its paths are under.
+type zonedProxy struct {
+	proxy *Proxy
+	zone  zone
+}
+
+// zoned pairs each service with its limit: which of the site's fields a
+// service is in says what kind of secret its paths guard.
+func (s *Site) zoned() []zonedProxy {
+	var out []zonedProxy
+	for _, p := range []zonedProxy{{s.Panel, zoneAPI}, {s.Login, zoneLogin}, {s.Sub, zoneSub}, {s.Mon, zoneAPI}} {
+		if p.proxy != nil {
 			out = append(out, p)
 		}
 	}
@@ -235,6 +264,22 @@ func (c Config) Validate() error {
 			}
 			if len(p.Paths) == 0 {
 				return fmt.Errorf("%s has no path", p.Name)
+			}
+			for _, path := range p.Paths {
+				if !strings.HasPrefix(path, "/") {
+					return fmt.Errorf("%s has a path %q that does not start with /", p.Name, path)
+				}
+			}
+		}
+		for _, prefix := range c.Site.Decoy {
+			// A decoy of "/" would take over the stub's own location.
+			if !strings.HasPrefix(prefix, "/") || !strings.HasSuffix(prefix, "/") || prefix == "/" {
+				return fmt.Errorf("decoy prefix %q is not a path under the site's root ending in /", prefix)
+			}
+		}
+		if c.Site.Guard != nil {
+			if err := c.Site.Guard.validate(); err != nil {
+				return err
 			}
 		}
 	}
@@ -362,6 +407,9 @@ func (c Config) HTTPConf() (string, error) {
 		b.WriteString("    ''      close;\n")
 		b.WriteString("}\n\n")
 	}
+	if s.Guard != nil {
+		s.Guard.writeHTTPLevel(&b)
+	}
 
 	if s.Domain != "" {
 		writeServer(&b, s, "", s.Domain, s.CertFile, s.KeyFile)
@@ -398,9 +446,18 @@ func writeServer(b *strings.Builder, s *Site, listenExtra, name, cert, key strin
 
 	b.WriteString("    access_log off;\n")
 	b.WriteString("    server_tokens off;\n\n")
+	if s.Guard != nil {
+		s.Guard.writeServerLevel(b)
+	}
 
-	for _, p := range s.proxies() {
-		writeProxy(b, p)
+	for _, p := range s.zoned() {
+		writeProxy(b, p.proxy, s.Guard, p.zone)
+	}
+	for _, prefix := range s.Decoy {
+		s.Guard.writeDecoy(b, prefix)
+	}
+	if s.Guard != nil {
+		s.Guard.writeLimited(b)
 	}
 
 	fmt.Fprintf(b, "    root %s;\n", s.Root)
@@ -416,15 +473,22 @@ func (s *Site) hasIPCert() bool { return s.IPCertFile != "" }
 
 // writeProxy emits one location per path of a proxied service. The panel needs
 // the websocket upgrade for its live traffic view and a long read timeout to
-// keep it open.
-func writeProxy(b *strings.Builder, p *Proxy) {
+// keep it open. With a guard, each location is under z's limit.
+func writeProxy(b *strings.Builder, p *Proxy, g *Guard, z zone) {
 	scheme := "http"
 	if p.TLS {
 		scheme = "https"
 	}
 	for _, path := range p.Paths {
 		fmt.Fprintf(b, "    # %s\n", p.Name)
-		fmt.Fprintf(b, "    location %s {\n", path)
+		if strings.HasSuffix(path, "/") {
+			fmt.Fprintf(b, "    location %s {\n", path)
+		} else {
+			fmt.Fprintf(b, "    location = %s {\n", path)
+		}
+		if g != nil {
+			g.writeLimits(b, z)
+		}
 		fmt.Fprintf(b, "        proxy_pass %s://%s;\n", scheme, p.Target)
 		if p.TLS {
 			// The panel's certificate is whatever the operator gave it and

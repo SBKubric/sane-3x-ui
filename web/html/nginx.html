@@ -791,11 +791,9 @@
           const proto = window.location.protocol;
           return `${proto}//${host}:${port}${basePath}panel/nginx`;
         }
-        if (this.settings.mode === 'only443' && this.settings.panelBehind443) {
-          const domain = (this.settings.domain || window.location.hostname).trim();
-          const proto = 'https:';
-          return `${proto}//${domain}${basePath}panel/nginx`;
-        }
+        // The panel's pages are never published on 443 (#141): only its login
+        // and API are, for API clients. The page stays where it is, on the
+        // panel's own port — through an SSH tunnel once the firewall closes it.
         return window.location.href;
       },
       copyUrl(url) {
@@ -816,13 +814,13 @@
         if (url) window.location.href = url;
       },
       async apply() {
-        const movesBehind443 = this.settings.mode === 'only443' && this.settings.panelBehind443;
         const currentPort = window.location.port;
         const currentOn443 = (currentPort === '' || currentPort === '443');
-        const entering443 = !currentOn443 && movesBehind443;
-        const leaving443 = currentOn443 && !movesBehind443;
+        // A page opened through 443 by an older version loses it: the UI is
+        // no longer published there in any mode (#141).
+        const leaving443 = currentOn443;
         const closesPorts = this.settings.mode === 'only443' && this.settings.manageFirewall;
-        const willDisruptConnection = entering443 || leaving443 || closesPorts;
+        const willDisruptConnection = leaving443 || closesPorts;
         const newUrl = this.computePanelUrl(leaving443);
 
         this.applying = true;
@@ -1015,6 +1013,8 @@
           sniIsOwnDomain: '{{ i18n "pages.nginx.warnSniIsOwnDomain" }}',
           nothingToRoute: '{{ i18n "pages.nginx.warnNothingToRoute" }}',
           noFirewall: '{{ i18n "pages.nginx.warnNoFirewall" }}',
+          noFail2ban: '{{ i18n "pages.nginx.warnNoFail2ban" }}',
+          fail2banProblem: '{{ i18n "pages.nginx.warnFail2banProblem" }}',
           certMissingFor: '{{ i18n "pages.nginx.warnCertMissingFor" }}',
           certProblem: '{{ i18n "pages.nginx.warnCertProblem" }}',
           stubExternal: '{{ i18n "pages.nginx.warnStubExternal" }}',

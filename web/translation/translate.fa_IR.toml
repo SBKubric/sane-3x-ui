@@ -314,6 +314,8 @@
 "subsWarning" = "نشانی اشتراک‌ها عوض می‌شود. لینک‌هایی که پخش شده‌اند همچنان به نشانی قدیمی اشاره می‌کنند."
 "dualNote" = "لینک‌های بالا روی پورت قدیمی به کار خود ادامه می‌دهند و همان کلاینت‌ها اکنون از راه ۴۴۳ هم در دسترس‌اند. لازم نیست چیزی دوباره پخش شود."
 "warnNoFirewall" = "روی این ماشین iptables نیست، پس پنل نمی‌تواند بقیهٔ پورت‌ها را ببندد. کلید دیوارهٔ آتش را خاموش کنید یا خودتان آن‌ها را ببندید."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» پورت %from% را از دست می‌دهد — از روی نام سرور نمی‌شود آن را جدا کرد"
 "closedWarning" = "ورودی‌های نشان‌دار بالا از دسترس خارج می‌شوند: چیزی برایشان نام سرور اعلام نمی‌کند، پس پشت ۴۴۳ جایی ندارند. برای آنکه پورتشان باز بماند، کلید دیوارهٔ آتش را خاموش کنید."
 "warnNoStreamModule" = "این nginx بدون ماژول stream ساخته شده، پس نمی‌تواند پورت ۴۴۳ را از روی نام سرور تقسیم کند."

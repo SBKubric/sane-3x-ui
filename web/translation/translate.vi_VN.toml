@@ -314,6 +314,8 @@
 "subsWarning" = "Địa chỉ đăng ký thay đổi. Những liên kết đã phát vẫn trỏ tới địa chỉ cũ."
 "dualNote" = "Các liên kết ở trên vẫn chạy trên cổng cũ, và chính những máy khách đó giờ còn truy cập được qua 443. Không cần phát lại gì cả."
 "warnNoFirewall" = "Máy này không có iptables nên bảng điều khiển không thể đóng các cổng còn lại. Hãy tắt công tắc tường lửa, hoặc tự đóng lấy."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» mất cổng %from% — không phân biệt được nó theo tên máy chủ"
 "closedWarning" = "Những inbound được đánh dấu ở trên sẽ không truy cập được: không có gì công bố tên máy chủ cho chúng, nên chúng không thể sống sau 443. Hãy tắt công tắc tường lửa để giữ cổng của chúng mở."
 "warnNoStreamModule" = "Bản nginx này được biên dịch không kèm mô-đun stream, nên không thể chia cổng 443 theo tên máy chủ."

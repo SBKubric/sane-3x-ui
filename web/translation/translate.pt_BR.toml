@@ -314,6 +314,8 @@
 "subsWarning" = "O endereço das assinaturas muda. Os links já distribuídos continuam apontando para o antigo."
 "dualNote" = "Os links marcados continuam funcionando na porta antiga, e os mesmos clientes agora também podem ser alcançados pela 443. Não é preciso distribuir nada de novo."
 "warnNoFirewall" = "Nesta máquina não há iptables, então o painel não consegue fechar as outras portas. Desligue a chave do firewall ou feche-as você mesmo."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» perde a porta %from% — não dá para separá-la por nome de servidor"
 "closedWarning" = "As entradas marcadas ficam inacessíveis: nada anuncia um nome de servidor por elas, então não podem viver atrás da 443. Desligue a chave do firewall para deixar as portas delas abertas."
 "warnNoStreamModule" = "Este nginx foi compilado sem o módulo stream, então não consegue dividir a porta 443 por nome de servidor."

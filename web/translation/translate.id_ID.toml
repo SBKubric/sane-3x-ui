@@ -314,6 +314,8 @@
 "subsWarning" = "Alamat langganan berubah. Tautan yang sudah dibagikan tetap menunjuk ke alamat lama."
 "dualNote" = "Tautan di atas tetap berfungsi di port lama, dan klien yang sama kini juga terjangkau lewat 443. Tidak perlu membagikan ulang apa pun."
 "warnNoFirewall" = "Di mesin ini tidak ada iptables, jadi panel tidak bisa menutup port lainnya. Matikan sakelar firewall, atau tutup sendiri."
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "«%subject%» kehilangan port %from% — ia tidak bisa dibedakan lewat nama server"
 "closedWarning" = "Inbound yang ditandai di atas akan tidak terjangkau: tidak ada yang mengumumkan nama server untuk mereka, jadi mereka tidak bisa hidup di balik 443. Matikan sakelar firewall agar portnya tetap terbuka."
 "warnNoStreamModule" = "nginx ini dibangun tanpa modul stream, jadi tidak bisa membagi port 443 berdasarkan nama server."

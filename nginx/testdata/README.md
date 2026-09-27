@@ -1,6 +1,6 @@
 # Эталоны конфигов nginx
 
-Снято с `Config.StreamConf`, `Config.HTTPConf` и `acmeFrontConf` на входных данных из
+Снято с `Config.StreamConf`, `Config.HTTPConf`, `acmeFrontConf` и `Jails.render` на входных данных из
 `nginx/config_test.go` (`goldenConfig`, `goldenSite`) — сервер с VLESS Reality
 на двух доменах прикрытия и MTProto на своём.
 
@@ -12,6 +12,10 @@
 | `stream_ip.conf`, `http_ip.conf` | HTTP-сторона только с IP-сертификатом (без своего домена): пустой SNI → HTTP-сторона, `default_server` с IP-сертификатом |
 | `stream_only443_ip.conf`, `http_only443_ip.conf` | «Только 443» с доменом и IP-сертификатом: блок домена как был, плюс `default_server` по IP с теми же locations |
 | `stream_hop_raw.conf`, `http_hop.conf` | фронт звена цепочки (`goldenHopConfig`, #140): SNI edge'а сырым потоком на 443 next hop'а, неизвестный SNI — сырым потоком на target-сосед; `Raw` снимает PROXY-заголовок на loopback-relay до выхода с коробки; HTTP-сторона только по IP |
+| `http_only443_guard.conf` | защита HTTP-стороны панели в «Только 443» (`goldenGuardedSite`, #141): из панели наружу только `<base>login` (точное совпадение) и `<base>panel/api/`, остальное под `<base>` — заглушка с записью в лог промахов; `limit_req`/`limit_conn` по адресу клиента, исключения через `geo` → пустой ключ; превышение лимита — ответ заглушки через `error_page 429 = @threeax_limited`, не 429 |
+| `http_hop_guard.conf` | то же на звене: подписки и волна под лимитом подписок, `/join/` — под лимитом входа, соседи по цепочке в исключениях |
+| `fail2ban_jail_panel.conf`, `fail2ban_jail_box.conf` | jail'ы fail2ban (`Jails.render`, #141): на панели — промахи HTTP-стороны (`3ax-ui-probe`: 10 за 10 мин) и неудачный вход (`3ax-ui-login`: 5 за 10 мин), на звене — только промахи; бан 1 ч с ростом до суток, `ignoreip` = исключения guard'а + loopback, бан только 80/443 |
+| `fail2ban_filter_probe.conf`, `fail2ban_filter_login.conf` | фильтры к ним: лог промахов nginx и строка неудачного входа в логе панели |
 | `acme_front.conf` | порт 80 (`acmeFrontConf`): webroot для `/.well-known/acme-challenge/` и 301 на https; не зависит от режима |
 
 Эти эталоны, в отличие от `tunnel/testdata`, **не заморожены** — они фиксируют
@@ -19,7 +23,7 @@
 перегенерируется командой
 
 ```
-go test ./nginx/ -run TestGeneratedConfigs -update
+go test ./nginx/ -run 'TestGenerated' -update
 ```
 
 и уезжает в коммит вместе с правкой генератора: смысл эталона в том, что диф
@@ -40,5 +44,10 @@ go test ./nginx/ -run TestGeneratedConfigs -update
   незнакомый SNI по-прежнему уходит в `default`, то есть в Reality;
 - `default_server` в listen HTTP-стороны ровно один — у блока с
   IP-сертификатом; блок домена его не получает;
+- превышение лимита и промах отвечают одинаково (заглушкой, тем же кодом
+  на тот же метод) — пробник не отличает одно от другого; различает их только
+  лог промахов (`miss`/`limit`), который читает fail2ban. Отказ самого
+  upstream'а (404 hop'у, 400 на неизвестную подписку) остаётся как был и
+  тоже пишется в лог промахов;
 - имена серверов приводятся к нижнему регистру и сортируются, поэтому
   сохранение без изменений даёт те же байты и не дёргает reload.

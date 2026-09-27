@@ -314,6 +314,8 @@
 "subsWarning" = "サブスクリプションのアドレスが変わります。配布済みのリンクは古いほうを指したままです。"
 "dualNote" = "上のリンクは元のポートでそのまま使え、同じクライアントに 443 からも届くようになります。配り直す必要はありません。"
 "warnNoFirewall" = "このマシンには iptables がないため、パネルはほかのポートを閉じられません。ファイアウォールのスイッチを切るか、ご自身で閉じてください。"
+"warnNoFail2ban" = "fail2ban is not installed: the limits on port 443 hold, but nobody who probes the secret paths or guesses the login is banned. Install it (apt install fail2ban) — the panel sets up its jails on its own."
+"warnFail2banProblem" = "fail2ban did not take the front's jails."
 "planClosed" = "「%subject%」はポート %from% を失います — サーバー名では見分けられません"
 "closedWarning" = "上に印の付いたインバウンドは届かなくなります。サーバー名を名乗るものが何もないため、443 の裏では暮らせません。ポートを開けたままにするには、ファイアウォールのスイッチを切ってください。"
 "warnNoStreamModule" = "この nginx は stream モジュールなしでビルドされているため、443 番ポートをサーバー名で振り分けられません。"
