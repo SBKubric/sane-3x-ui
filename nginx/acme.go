@@ -22,6 +22,12 @@ import (
 // and so that uninstalling the panel takes it with it.
 var ACMEWebroot = "/usr/local/x-ui/acme-webroot"
 
+// ACMEPort is where nginx answers the CA and redirects everything else to
+// https. Port 80 belongs to nginx on every box (ADR 0005), so every firewall
+// that closes the rest leaves this one open — the panel's and a proxy box's
+// alike.
+const ACMEPort = 80
+
 // acmeConfName is the port-80 file, next to the http-level 3ax-ui.conf but
 // separate from it: that file comes and goes with the front mode, while port
 // 80 has to answer the CA whatever the mode — a certificate renews every few
@@ -77,7 +83,7 @@ func stageACMEFront(tx *fileTx) (changed bool, err error) {
 		return false, fmt.Errorf("create the ACME webroot: %w", err)
 	}
 
-	want := acmeFrontConf(80, ACMEWebroot)
+	want := acmeFrontConf(ACMEPort, ACMEWebroot)
 	path := ACMEConfPath()
 	current, err := os.ReadFile(path)
 	switch {

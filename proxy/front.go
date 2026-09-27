@@ -18,7 +18,7 @@ const frontPort = 443
 
 // acmePort is nginx's other port on every box: the ACME webroot the IP
 // certificate renews through (x-ui nginx acme-front).
-const acmePort = 80
+const acmePort = nginx.ACMEPort
 
 // The range the front's loopback listeners are picked from: the same one the
 // panel uses, above the well-known ports and below the ephemeral ones.

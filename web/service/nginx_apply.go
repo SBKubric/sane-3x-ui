@@ -678,9 +678,19 @@ func (s *NginxService) subAddressChange(in NginxSettings) (from string, to strin
 // cannot hide behind an SNI multiplexer in any case. Anything else loses its
 // port outright — leaving the UDP half of a TCP inbound open would be a port a
 // scanner can find, in exchange for an inbound that is broken anyway.
+//
+// Port 80 stays open next to 443 (#148). It belongs to nginx on every box (ADR
+// 0005): the ACME webroot the Let's Encrypt IP certificate renews through, and
+// the 301 to https for everything else. Closing it let the certificate the
+// front serves by address run out a few days later, while every proxy box
+// kept it open (proxy.FrontFirewall). Not made conditional on the ACME file
+// being there: the chain is rebuilt only on Apply, so a front set up after the
+// mode — which is what an update does — would stay shut until somebody pressed
+// Apply again; and with nothing behind it the port gives a scanner no more
+// than 443 already does.
 func (s *NginxService) firewallPlan(set NginxSettings) (nginx.Firewall, []NginxChange) {
 	fw := nginx.Firewall{
-		TCP:    nginx.Ports(PublicPort),
+		TCP:    nginx.Ports(PublicPort, nginx.ACMEPort),
 		Ifaces: tunnelInterfaces(),
 	}
 
