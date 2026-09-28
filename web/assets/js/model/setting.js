@@ -52,6 +52,9 @@ class AllSetting {
         this.subURI = "";
         this.subJsonURI = "";
         this.subClashURI = "";
+        this.subTunEnable = true;
+        this.subTunPath = "/tun/";
+        this.subTunURI = "";
         this.subJsonFragment = "";
         this.subJsonNoises = "";
         this.subJsonMux = "";

@@ -37,6 +37,24 @@
                     v-model="allSetting.subClashURI"></a-input>
             </template>
         </a-setting-list-item>
+        <a-setting-list-item paddings="small" v-if="allSetting.subTunEnable">
+            <template #title>{{ i18n "pages.settings.subTunPath"}}</template>
+            <template #description>{{ i18n "pages.settings.subTunPathDesc"}}</template>
+            <template #control>
+                <a-input type="text" v-model="allSetting.subTunPath"
+                    @input="allSetting.subTunPath = ((typeof $event === 'string' ? $event : ($event && $event.target ? $event.target.value : '')) || '').replace(/[:*]/g, '')"
+                    @blur="allSetting.subTunPath = (p => { p = p || '/'; if (!p.startsWith('/')) p='/' + p; if (!p.endsWith('/')) p += '/'; return p.replace(/\/+/g,'/'); })(allSetting.subTunPath)"
+                    placeholder="/tun/"></a-input>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small" v-if="allSetting.subTunEnable">
+            <template #title>{{ i18n "pages.settings.subTunURI"}}</template>
+            <template #description>{{ i18n "pages.settings.subURIDesc"}}</template>
+            <template #control>
+                <a-input type="text" placeholder="(http|https)://domain[:port]/path/"
+                    v-model="allSetting.subTunURI"></a-input>
+            </template>
+        </a-setting-list-item>
     </a-collapse-panel>
     <a-collapse-panel key="2" header='{{ i18n "pages.settings.fragment"}}'>
         <a-setting-list-item paddings="small">

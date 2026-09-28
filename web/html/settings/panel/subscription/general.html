@@ -26,6 +26,13 @@
             </template>
         </a-setting-list-item>
         <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subTunEnable"}}</template>
+            <template #description>{{ i18n "pages.settings.subTunPathDesc"}}</template>
+            <template #control>
+                <a-switch v-model="allSetting.subTunEnable" data-testid="sub-tun-enable"></a-switch>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
             <template #title>{{ i18n "pages.settings.subListen"}}</template>
             <template #description>{{ i18n
                 "pages.settings.subListenDesc"}}</template>
