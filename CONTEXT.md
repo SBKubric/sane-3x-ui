@@ -42,6 +42,24 @@ _Avoid_: proxy override, address substitution
 Публичный маршрут подписки, отдающий по subId клиентские конфиги AmneziaWG и WireGuard той же подписки; дополняет xray-подписку, не меняя её.
 _Avoid_: AWG subscription, conf feed, tunnel feed
 
+## Users
+
+**Пользователь** (user):
+Человек, которому выдан доступ: одно имя, одна подписка, один или несколько клиентов.
+_Avoid_: subscriber, account, admin (администратор панели — не пользователь)
+
+**Клиент** (client):
+Учётная запись в одном inbound'е; принадлежит ровно одному пользователю.
+_Avoid_: user, account
+
+**Подписка** (subscription):
+Ссылка `/sub/<subId>` пользователя.
+_Avoid_: sub link, subscription id (subId — ключ подписки, а не она сама)
+
+**Технический пользователь** (technical user):
+`robot` (клиенты без подписки) и `monitoring` (probe accounts); его нельзя удалить или переименовать, его имя нельзя занять.
+_Avoid_: system user, service user
+
 ## Chain
 
 **Chain** (цепочка):
