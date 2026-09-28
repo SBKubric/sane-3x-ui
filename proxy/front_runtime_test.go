@@ -361,3 +361,52 @@ func TestTheWaveRebuildsTheFront(t *testing.T) {
 		t.Errorf("the front does not pass edge-b's server name on:\n%s", rig.sys.current)
 	}
 }
+
+// TestTheWaveSwitchesAnEdgeFront (#161): a switch of the active edge changes
+// nothing an edge relays, only whether its own server name goes to the next
+// hop. The revision that makes it active adds the route, the one that makes it
+// standby again takes it off — nginx reloads both times, the relay never.
+func TestTheWaveSwitchesAnEdgeFront(t *testing.T) {
+	standby := edgeFrontDocument()
+	standby.ActiveEdge = ""
+	poller, _, _, _ := wavePoller(t, serveDocument(&standby, nil))
+	rig := newFrontRig(t, chain.FrontOnly443, "")
+	rig.front.cfg, rig.front.state = poller.cfg, poller.state
+	poller.cfg.Front.Mode, poller.cfg.StateDir = chain.FrontOnly443, t.TempDir()
+	poller.front = rig.front
+
+	if err := poller.Apply(standby); err != nil {
+		t.Fatalf("Apply(standby): %v", err)
+	}
+	if strings.Contains(rig.sys.current, "proxy_pass 203.0.113.9:443;") {
+		t.Fatalf("a standby edge passes its clients on:\n%s", rig.sys.current)
+	}
+
+	active := *standby
+	active.Revision++
+	active.ActiveEdge = "edge-a"
+	rig.log.events = nil
+	if err := poller.Apply(&active); err != nil {
+		t.Fatalf("Apply(active): %v", err)
+	}
+	if !rig.log.has("nginx.apply") || !strings.Contains(rig.sys.current, "proxy_pass 203.0.113.9:443;") {
+		t.Errorf("becoming active did not route the edge's server name on: %v\n%s", rig.log.events, rig.sys.current)
+	}
+	if rig.log.has("relay.") {
+		t.Errorf("the relay restarted for a switch it does not carry: %v", rig.log.events)
+	}
+
+	back := active
+	back.Revision++
+	back.ActiveEdge = ""
+	rig.log.events = nil
+	if err := poller.Apply(&back); err != nil {
+		t.Fatalf("Apply(standby again): %v", err)
+	}
+	if !rig.log.has("nginx.apply") || strings.Contains(rig.sys.current, "proxy_pass 203.0.113.9:443;") {
+		t.Errorf("going standby did not take the route off: %v\n%s", rig.log.events, rig.sys.current)
+	}
+	if rig.log.has("relay.") {
+		t.Errorf("the relay restarted for a switch it does not carry: %v", rig.log.events)
+	}
+}

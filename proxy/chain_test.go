@@ -202,7 +202,8 @@ func TestPollOn404KeepsRelaying(t *testing.T) {
 }
 
 // TestApplyDiffs pins §3.5: ports and the next hop's address restart the
-// relay, an activeEdge switch does not touch the box at all.
+// relay, an activeEdge switch does not touch the relay (the front, which it
+// does touch, is TestTheWaveSwitchesAnEdgeFront).
 func TestApplyDiffs(t *testing.T) {
 	doc := testDocument(42)
 	poller, _, relay, _ := wavePoller(t, serveDocument(&doc, nil))
@@ -210,7 +211,7 @@ func TestApplyDiffs(t *testing.T) {
 		t.Fatalf("first poll: %v", err)
 	}
 
-	// Only the active edge changed: the box does nothing.
+	// Only the active edge changed: the relay stays as it is.
 	switched := testDocument(43)
 	switched.ActiveEdge = "edge-b"
 	if err := poller.Apply(switched); err != nil {
@@ -241,6 +242,20 @@ func TestApplyDiffs(t *testing.T) {
 	}
 	if relay.applies != 3 || relay.nextHop != "10.0.0.9" {
 		t.Errorf("a new next hop did not reach the relay: %d applies, %q", relay.applies, relay.nextHop)
+	}
+}
+
+// TestDocumentDiffersOnTheActiveEdge (#161): a document that only moves the
+// active edge is not the same document — an edge's front routes its own
+// server name by it — even should the revision stay put.
+func TestDocumentDiffersOnTheActiveEdge(t *testing.T) {
+	a, b := testDocument(42), testDocument(42)
+	if documentDiffers(a, b) {
+		t.Fatal("identical documents differ")
+	}
+	b.ActiveEdge = ""
+	if !documentDiffers(a, b) {
+		t.Error("a document that makes the edge standby is taken for the same one")
 	}
 }
 

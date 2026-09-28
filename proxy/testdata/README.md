@@ -7,6 +7,7 @@
 | файл | что покрывает |
 |---|---|
 | `front_edge_stream.conf`, `front_edge_http.conf` | edge с target-соседом: своё имя сервера — сырым потоком на 443 next hop'а, неизвестный SNI — сырым потоком на target-сосед, без SNI — HTTP-сторона с IP-сертификатом перед sub-сервером коробки (sub/json, `/chain/v1/`, `/join/`) |
+| `front_edge_standby_stream.conf` | standby edge (в документе нет `activeEdge`, #161): своё имя сервера, как и неизвестный SNI, — сырым потоком на target-сосед; на next hop не уходит ничего |
 | `front_edge_notarget_stream.conf` | edge без target-соседа в документе: неизвестный SNI получает заглушку, имени для клиентов нет (предупреждение в логе) |
 | `front_inner_stream.conf`, `front_inner_http.conf` | inner: имя active edge — сырым потоком на next hop, имя standby edge и неизвестный SNI — заглушка |
 

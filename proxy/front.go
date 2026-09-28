@@ -76,9 +76,12 @@ func NewFrontLayout(doc *chain.Document, subPort int) FrontLayout {
 //
 //   - an edge passes its own neighbour target's server name — the one the
 //     chain-following inbounds accept while it is active — raw to the next
-//     hop, and an unknown name raw to the neighbour target itself, so a
-//     prober sees the neighbour's site exactly as an unauthenticated Reality
-//     client does;
+//     hop, but only while its document names it the active edge (#161); an
+//     unknown name, and its own name while it is standby, go raw to the
+//     neighbour target itself, so a prober sees the neighbour's site exactly
+//     as an unauthenticated Reality client does. A standby edge's own name
+//     would otherwise reach an inner that routes only the active edge's name
+//     and get the decoy with the IP certificate there;
 //   - an inner passes the active edge's server name raw to the next hop and
 //     gives an unknown one the decoy: there is no Reality here to answer it;
 //   - a request by address, without SNI, is the HTTP side on either: the IP
@@ -106,21 +109,25 @@ func BuildFront(doc *chain.Document, layout FrontLayout, ipCert, ipKey string) (
 				doc.Self.Name))
 			break
 		}
-		cfg.Routes = append(cfg.Routes,
-			nginx.Route{
+		// The document tells an edge it is active by naming it, and a
+		// standby edge by naming nobody (TruncateDocument): the wave that
+		// switches the active edge rebuilds both fronts.
+		if doc.ActiveEdge == doc.Self.Name {
+			cfg.Routes = append(cfg.Routes, nginx.Route{
 				Name:     "clients of " + doc.Self.Name + " → next hop",
 				SNIs:     []string{doc.Self.RealityServerName},
 				Upstream: nextHop,
 				Relay:    layout.NextHopRelay,
 				Raw:      true,
-			},
-			nginx.Route{
-				Name:     "neighbour target of " + doc.Self.Name,
-				Upstream: doc.Self.RealityTarget,
-				Relay:    layout.TargetRelay,
-				Raw:      true,
-				Fallback: true,
 			})
+		}
+		cfg.Routes = append(cfg.Routes, nginx.Route{
+			Name:     "neighbour target of " + doc.Self.Name,
+			Upstream: doc.Self.RealityTarget,
+			Relay:    layout.TargetRelay,
+			Raw:      true,
+			Fallback: true,
+		})
 	default:
 		name := activeEdgeServerName(doc)
 		if name == "" {
