@@ -123,6 +123,61 @@ func TestFrontOfAnEdge(t *testing.T) {
 	}
 }
 
+// TestFrontOfAStandbyEdge (#161): an edge the document does not call active
+// has no clients to pass on. Its own server name goes to its neighbour target
+// like any unknown one, so a prober asking it for that name sees the
+// neighbour's site, not the inner's decoy with the IP certificate.
+func TestFrontOfAStandbyEdge(t *testing.T) {
+	doc := edgeFrontDocument()
+	doc.ActiveEdge = "" // what TruncateDocument hands a standby edge
+	cfg, warnings := buildFrontT(t, doc)
+	if len(warnings) != 0 {
+		t.Errorf("a standby edge is a normal state, not a warning: %v", warnings)
+	}
+	stream, _ := renderFront(t, cfg)
+	checkFrontGolden(t, "front_edge_standby_stream.conf", stream)
+	layout := NewFrontLayout(doc, DefaultSubPort)
+	if strings.Contains(stream, "www.neighbour.example "+layout.NextHopRelay) || strings.Contains(stream, "proxy_pass 203.0.113.9:443;") {
+		t.Errorf("a standby edge passes its own server name on to the next hop:\n%s", stream)
+	}
+	for _, want := range []string{
+		"    default " + layout.TargetRelay + ";\n",
+		"    listen " + layout.TargetRelay + " proxy_protocol;\n    proxy_pass www.neighbour.example:443;\n",
+	} {
+		if !strings.Contains(stream, want) {
+			t.Errorf("stream lacks %q", want)
+		}
+	}
+}
+
+// TestFrontOfAnEdgeFollowsTheActiveEdge (#161): the route of the edge's own
+// server name exists exactly while the document names this edge active — a
+// document naming nobody (standby) or, should one ever carry it, another edge
+// leaves it out; the neighbour target stays in every case.
+func TestFrontOfAnEdgeFollowsTheActiveEdge(t *testing.T) {
+	for _, tc := range []struct {
+		active string
+		routed bool
+	}{{"edge-a", true}, {"", false}, {"edge-b", false}} {
+		doc := edgeFrontDocument()
+		doc.ActiveEdge = tc.active
+		cfg, _ := buildFrontT(t, doc)
+		routed, fallback := false, false
+		for _, route := range cfg.Routes {
+			for _, sni := range route.SNIs {
+				routed = routed || (sni == "www.neighbour.example" && route.Upstream == "203.0.113.9:443")
+			}
+			fallback = fallback || (route.Fallback && route.Upstream == "www.neighbour.example:443")
+		}
+		if routed != tc.routed {
+			t.Errorf("activeEdge %q: own server name to the next hop = %v, want %v", tc.active, routed, tc.routed)
+		}
+		if !fallback {
+			t.Errorf("activeEdge %q: an unknown SNI no longer goes to the neighbour target", tc.active)
+		}
+	}
+}
+
 // TestFrontOfAnEdgeWithoutATarget: no neighbour target in the document means
 // nothing to hand an unknown SNI to but the decoy — and nothing to route the
 // clients by either, which the owner has to hear about.
