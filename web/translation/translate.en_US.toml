@@ -88,6 +88,11 @@
 "unlimited" = "Unlimited"
 "noExpiry" = "No expiry"
 "pageThemeDesc" = "Default theme for the subscription info page."
+"tunnels" = "Tunnels"
+"downloadConf" = "Download"
+"copyConf" = "Copy config"
+"tunnelHint" = "Open with AmneziaVPN or the AmneziaWG / WireGuard app. Changes are not pushed: download again after the server changes."
+"noTunnels" = "No tunnel configs in this subscription"
 
 [menu]
 "theme" = "Theme"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "Leave empty to keep this peer out of any subscription. Use the same ID as an Xray client to share one subscription."
+"tunnelSubscription" = "Subscription"
+"notInSubscription" = "Not in a subscription"
 
 [pages.client]
 "add" = "Add Client"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "Enable tunnel subscription"
+"subTunPath" = "Tunnel subscription path"
+"subTunPathDesc" = "Serves AmneziaWG and WireGuard configs of a subscription as JSON"
+"subTunURI" = "Tunnel subscription URI"
 
 [pages.xray]
 "title" = "Xray Configs"

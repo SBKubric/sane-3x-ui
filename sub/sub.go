@@ -48,6 +48,7 @@ type Server struct {
 	listener6  net.Listener
 
 	sub            *SUBController
+	tun            *TunnelSubController
 	chain          *ChainController
 	settingService service.SettingService
 
@@ -274,6 +275,16 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 		g, LinksPath, JsonPath, ClashPath, subJsonEnable, subClashEnable, Encrypt, ShowInfo, RemarkModel, SubUpdates,
 		SubJsonFragment, SubJsonNoises, SubJsonMux, SubJsonRules, SubTitle, SubSupportUrl,
 		SubProfileUrl, SubAnnounce, SubEnableRouting, SubRoutingRules, SubTheme)
+
+	// The tunnel subscription (docs/spec/tunnel-subscription.md §6): the
+	// AmneziaWG and WireGuard configs of a subscription, beside its xray links.
+	if on, err := s.settingService.GetSubTunEnable(); err == nil && on {
+		tunPath, err := s.settingService.GetSubTunPath()
+		if err != nil {
+			return nil, err
+		}
+		s.tun = NewTunnelSubController(g.Group(tunPath), s.sub)
+	}
 
 	// The chain's wave and join share the sub port with the subscriptions
 	// (docs/spec/proxy-chain.md §3.3): one port is enough, and a second one
