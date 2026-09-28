@@ -321,7 +321,7 @@
 "warnNoStreamModule" = "nginx ini dibangun tanpa modul stream, jadi tidak bisa membagi port 443 berdasarkan nama server."
 "warnNoDomain" = "Domain belum diatur, jadi membuka server ini di peramban akan mendarat di situs penyamaran Reality dan memperlihatkan sertifikatnya. Isi domainnya supaya halaman Anda sendiri disajikan di sini."
 "warnSubsUnreachable" = "Langganan diatur lewat 443, tetapi tanpa domain dan sertifikat IP tidak ada yang menjawabnya di 443, dan «Hanya port 443» menutup port miliknya sendiri: tautan langganan dan polling panel oleh rantai tidak akan sampai. Atur domain atau terbitkan sertifikat IP."
-"warnStockCoverPage" = "Halaman sampul «%s» masih belum diubah. Halaman yang sama di setiap server sudah menjadi penanda tersendiri — ganti halamannya di «Halaman sampul»."
+"warnStockCoverPage" = "Halaman sampul «%s» adalah halaman bawaan panel yang belum diubah. Setiap server yang menjalankan panel ini bisa menyajikan byte yang sama, dan itu sudah menjadi penanda tersendiri — ganti ke «nginx default page» atau halaman Anda sendiri di «Halaman sampul»."
 "warnCertExpiring" = "Sertifikat untuk %s berakhir pada %s."
 "warnSniConflict" = "«%s» dan «%s» memakai domain penyamaran %s yang sama — nginx hanya bisa memberikannya kepada salah satu."
 "warnSniIsOwnDomain" = "«%s» memakai domain panel sendiri, %s, sebagai domain penyamaran."

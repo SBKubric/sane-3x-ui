@@ -67,6 +67,7 @@ var stockUpgrades = []stockUpgrade{
 // again, so the panel does it for them; anything they wrote themselves is
 // never touched.
 func (s *StubService) migrateLegacyStockSites() {
+	s.adoptNginxDefault()
 	db := database.GetDB()
 	if db == nil {
 		return
@@ -128,6 +129,7 @@ func (s *StubService) GetSite(id int) (*model.StubSite, error) {
 // SaveSite creates or updates a page and returns whatever is worth warning
 // about. A returned error means nothing was saved.
 func (s *StubService) SaveSite(site *model.StubSite) ([]NginxWarning, error) {
+	s.adoptNginxDefault() // before the operator's choice, never over it
 	site.Name = strings.TrimSpace(site.Name)
 	if site.Name == "" {
 		return nil, fmt.Errorf("the page needs a name")
@@ -199,6 +201,7 @@ func (s *StubService) DeleteSite(id int) error {
 
 // ActivateSite makes one page the one nginx serves.
 func (s *StubService) ActivateSite(id int) error {
+	s.adoptNginxDefault() // before the operator's choice, never over it
 	if _, err := s.GetSite(id); err != nil {
 		return err
 	}
@@ -257,8 +260,8 @@ func (s *StubService) SyncToDisk() error {
 }
 
 // DefaultTemplateKey is the page a server falls back on when nothing else has
-// been set up.
-const DefaultTemplateKey = "construction"
+// been set up: nginx's own welcome page (#160).
+const DefaultTemplateKey = NginxDefaultKey
 
 // installDefaultSite puts the built-in page in the database and makes it
 // active. It is a no-op once any page exists.
@@ -325,6 +328,10 @@ func (s *StubService) Templates() []StubTemplate {
 		}
 		out = append(out, StubTemplate{Key: d.key, Name: d.name, Html: string(body), Size: len(body)})
 	}
+	// The default page leads the gallery (#160).
+	if tpl, ok := nginxDefaultTemplate(); ok {
+		out = append([]StubTemplate{tpl}, out...)
+	}
 	return out
 }
 
@@ -335,13 +342,16 @@ func (s *StubService) Templates() []StubTemplate {
 // service runs with no request and no locale, so a sentence written here would
 // reach the panel in English whatever language it is set to.
 func (s *StubService) warnings(html string) []NginxWarning {
+	// nginx's welcome page is exactly what every stock nginx serves; its
+	// links to nginx.org are anchors, not files a visitor's browser fetches.
+	if isNginxDefault(html) {
+		return nil
+	}
 	out := StubWarnings(html)
 
-	// The page the panel installs by itself, served unchanged, is a
-	// fingerprint: the same bytes on every 3AX-UI server anywhere. Only that
-	// one is worth saying out loud — the other built-in pages are there to be
-	// picked, and nagging somebody about a choice they just made is noise.
-	if tpl, ok := s.DefaultTemplate(); ok && strings.TrimSpace(html) == strings.TrimSpace(tpl.Html) {
+	// A page that ships with every copy of the panel, served unchanged, is a
+	// fingerprint: the same bytes on every 3AX-UI server anywhere (#153 Q6).
+	if tpl, ok := s.UpstreamTemplate(html); ok {
 		out = append(out, warn("stockCoverPage", tpl.Name))
 	}
 	return out

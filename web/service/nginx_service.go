@@ -288,13 +288,14 @@ func (s *NginxService) GetStatus() NginxStatus {
 	if set.Mode != string(nginx.ModeOff) {
 		if set.Domain == "" {
 			st.Warnings = append(st.Warnings, warn("noDomain"))
-		} else if active := s.stubService.ActiveSite(); active != nil {
-			// The panel installs its built-in page rather than leave the
-			// domain empty, but serving it unchanged is a fingerprint: the
-			// same bytes on every 3AX-UI server anywhere. Nobody picked that
-			// page, which is what makes it worth a word; a page chosen out of
-			// the gallery or written by hand is a decision, not an oversight.
-			if tpl, ok := s.stubService.DefaultTemplate(); ok && strings.TrimSpace(active.Html) == strings.TrimSpace(tpl.Html) {
+		}
+		if active := s.stubService.ActiveSite(); active != nil {
+			// A page that ships with every copy of the panel, served
+			// unchanged, is a fingerprint: the same bytes on every 3AX-UI
+			// server anywhere — with a domain or without, since the HTTP side
+			// answers by address too (#153 Q6). nginx's welcome page, the
+			// default, is what any stock nginx serves and is never flagged.
+			if tpl, ok := s.stubService.UpstreamTemplate(active.Html); ok {
 				st.Warnings = append(st.Warnings, warn("stockCoverPage", tpl.Name))
 			}
 		}

@@ -18,6 +18,11 @@ func newStubTestService(t *testing.T) *StubService {
 	}
 	nginx.WebRoot = t.TempDir()
 	t.Cleanup(func() { nginx.WebRoot = "/usr/local/x-ui/www" })
+	// Whatever nginx the machine running the tests has installed is not part
+	// of any test that does not put a welcome page there itself.
+	prevPages := NginxWelcomePages
+	NginxWelcomePages = []string{filepath.Join(t.TempDir(), "no-nginx-package.html")}
+	t.Cleanup(func() { NginxWelcomePages = prevPages })
 	return &StubService{}
 }
 
@@ -229,7 +234,8 @@ func TestStockTemplateIsFlagged(t *testing.T) {
 		t.Fatalf("got %d built-in pages, want 3", len(templates))
 	}
 
-	site := &model.StubSite{Name: "stock", Html: templates[0].Html}
+	stock := templateByKey(t, s, "construction")
+	site := &model.StubSite{Name: "stock", Html: stock.Html}
 	warnings, err := s.SaveSite(site)
 	if err != nil {
 		t.Fatal(err)
@@ -250,7 +256,7 @@ func TestStockTemplateIsFlagged(t *testing.T) {
 	// one» is not something the operator can go and look for in the gallery.
 	named := false
 	for _, w := range warnings {
-		if w.Code == "stockCoverPage" && len(w.Params) == 1 && w.Params[0] == templates[0].Name {
+		if w.Code == "stockCoverPage" && len(w.Params) == 1 && w.Params[0] == stock.Name {
 			named = true
 		}
 	}
@@ -259,7 +265,7 @@ func TestStockTemplateIsFlagged(t *testing.T) {
 	}
 
 	// A page the operator actually edited must not be nagged about.
-	edited := &model.StubSite{Name: "edited", Html: templates[0].Html + "\n<!-- ours -->"}
+	edited := &model.StubSite{Name: "edited", Html: stock.Html + "\n<!-- ours -->"}
 	warnings, err = s.SaveSite(edited)
 	if err != nil {
 		t.Fatal(err)
@@ -267,23 +273,7 @@ func TestStockTemplateIsFlagged(t *testing.T) {
 	if flagged(warnings) {
 		t.Errorf("an edited page was still called stock: %+v", warnings)
 	}
-
-	// Nor must a page picked out of the gallery: choosing one of the games is
-	// a decision, and the panel does not argue with it. Only the page it put
-	// there itself is worth a word.
-	for _, tpl := range templates {
-		if tpl.Key == DefaultTemplateKey {
-			continue
-		}
-		picked := &model.StubSite{Name: tpl.Name, Html: tpl.Html}
-		warnings, err = s.SaveSite(picked)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if flagged(warnings) {
-			t.Errorf("«%s» was picked on purpose and still got nagged about: %+v", tpl.Name, warnings)
-		}
-	}
+	// The pages picked out of the gallery: TestEveryUpstreamPageIsFlagged.
 }
 
 // TestBuiltInTemplatesAreSelfContained: a cover page that fetches a font from
@@ -293,7 +283,10 @@ func TestBuiltInTemplatesAreSelfContained(t *testing.T) {
 	s := newStubTestService(t)
 	for _, tpl := range s.Templates() {
 		t.Run(tpl.Key, func(t *testing.T) {
-			if warnings := StubWarnings(tpl.Html); len(warnings) > 0 {
+			// The nginx page is the distribution's bytes, links to nginx.org
+			// and all: anchors are not fetched, and the point is to be
+			// exactly what every stock nginx serves.
+			if warnings := StubWarnings(tpl.Html); len(warnings) > 0 && tpl.Key != NginxDefaultKey {
 				t.Errorf("built-in page %q is not self-contained: %v", tpl.Key, warnings)
 			}
 			if !strings.Contains(strings.ToLower(tpl.Html), "<!doctype html>") {
@@ -334,7 +327,7 @@ func TestSyncInstallsTheBuiltInPageWhenThereIsNone(t *testing.T) {
 		t.Error("what is on disk is not what the database says is active")
 	}
 
-	// It has to be the "under construction" page, and it has to be a normal
+	// It has to be the default page (nginx's welcome page, #160), and it has to be a normal
 	// row: visible in the list, editable, replaceable.
 	var construction string
 	for _, tpl := range s.Templates() {
