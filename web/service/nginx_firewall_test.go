@@ -81,6 +81,45 @@ func TestFirewallKeepsThePanelReachable(t *testing.T) {
 	}
 }
 
+// TestOnly443KeepsNginxsPort80 (#148): port 80 belongs to nginx on every box
+// (ADR 0005) — the ACME webroot the IP certificate renews through, and the 301
+// to https. A panel whose firewall closed it could not renew its certificate
+// and showed the redirect to nobody, while every proxy box kept 80 open.
+func TestOnly443KeepsNginxsPort80(t *testing.T) {
+	svc := newNginxTestServer(t)
+	seedInbounds(t)
+
+	for _, set := range []NginxSettings{only443(true), func() NginxSettings {
+		behind := only443(true)
+		behind.PanelBehind443, behind.SubsBehind443 = true, true
+		return behind
+	}()} {
+		fw, _ := svc.firewallPlan(set)
+		for _, port := range []int{80, PublicPort} {
+			if !slices.Contains(fw.TCP, nginx.Port(port)) {
+				t.Errorf("port %d/tcp is closed (panel behind 443: %v); open TCP ports are %v",
+					port, set.PanelBehind443, fw.TCP)
+			}
+		}
+		// Only TCP: nginx answers the CA over HTTP/1.1, and a UDP 80 with
+		// nothing behind it is a port for a scanner to find.
+		if slices.Contains(fw.UDP, nginx.Port(80)) {
+			t.Errorf("port 80/udp is open; open UDP ports are %v", fw.UDP)
+		}
+	}
+
+	// And the operator reads it before confirming, not afterwards.
+	var kept string
+	for _, c := range svc.Plan(only443(true)).Changes {
+		if c.Kind == "kept" {
+			kept = c.From
+		}
+	}
+	if !slices.Contains(strings.Split(kept, ", "), "80/tcp") {
+		t.Errorf("the plan does not say 80/tcp stays open: %q", kept)
+	}
+}
+
 // TestFirewallNamesWhatItCutsOff: an inbound nobody can tell apart by server
 // name cannot live behind 443, and closing its port takes it away. That has to
 // be in the plan the operator reads, not a surprise afterwards.
