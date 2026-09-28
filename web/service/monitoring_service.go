@@ -318,8 +318,9 @@ const revisionEndpointHost = "probe.invalid"
 // §4.2): the override, the chain's active edge and probed hops (absent with an
 // empty registry), the probe subId, the link setting that shapes xray links,
 // and per inbound, sorted by (kind, inboundId), its target fields plus
-// its probe material — for an xray inbound listen, streamSettings and settings
-// with clients cut down to its probe client; for the AmneziaWG server the
+// its probe material — for an xray inbound listen, streamSettings, settings
+// with clients cut down to its probe client and, when set, the chain-follower
+// flag; for the AmneziaWG server the
 // probe peers, each as its rendered .conf. Tag and remark stay out so a
 // rename does not rebuild targets. Nothing in it depends on time or on map
 // order, so it is the same across restarts; there is no counter.
@@ -332,13 +333,20 @@ func (s *MonitoringService) Revision() (string, error) {
 	for _, ib := range inbounds {
 		switch {
 		case monXrayProtocols[ib.Protocol]:
-			entries = append(entries, map[string]any{
+			entry := map[string]any{
 				"kind": model.MonInboundKindXray, "inboundId": ib.Id, "protocol": string(ib.Protocol),
 				"port": ib.LinkPort(), "enable": ib.Enable,
 				"listen":   ib.Listen,
 				"stream":   probeStream(ib.StreamSettings),
 				"settings": probeSettings(ib),
-			})
+			}
+			// The flag decides whether a standby edge carries the inbound's
+			// probe (#161). Only a flagged inbound has the key, so the
+			// revision of every other inbound hashes as it did before.
+			if ib.FollowChain {
+				entry["followChain"] = true
+			}
+			entries = append(entries, entry)
 		case ib.Protocol == model.AmneziaWG:
 			peers, err := s.tunnelProbeMaterial()
 			if err != nil {
@@ -749,6 +757,12 @@ func (s *MonitoringService) EnsureProbeSet(snapshot []MonClient) (*MonEnsureResu
 	if err := s.dropTargetsOutside(snapshot); err != nil {
 		return nil, err
 	}
+	// A target the probed set no longer has, left by a panel that pruned
+	// less (#161) or kept alive by a late /stats, goes here too: mon-server
+	// calls ensure every minute.
+	if err := pruneMonTargetsTx(database.GetDB()); err != nil {
+		return nil, err
+	}
 
 	rev, err := s.Revision()
 	if err != nil {
@@ -790,8 +804,9 @@ func (s *MonitoringService) tunnelProbeConf(client *model.TunnelClient, host str
 // host they carry that host instead (path "direct"); with hop — or its synonym
 // edge — they carry that hop's host from the registry (path edge:<name> or
 // inner:<name>, proxy-chain.md §6.1), whatever the hop's role and whether it
-// is active. Disabled inbounds are left out, as in a subscription, so
-// mon-server sees them PAUSED.
+// is active — except that a standby edge carries no chain-following inbound
+// (monSkipsFollowers, #161). Disabled inbounds are left out, as in a
+// subscription, so mon-server sees them PAUSED.
 func (s *MonitoringService) ProbeConfigs(host, hop, edge string) (*MonProbeConfigs, error) {
 	hopRow, err := s.probeHop(hop, edge)
 	if err != nil {
@@ -806,9 +821,11 @@ func (s *MonitoringService) ProbeConfigs(host, hop, edge string) (*MonProbeConfi
 	}
 	host = strings.TrimSpace(host)
 	path, via := model.MonPathDirect, ""
+	skipFollowers := false
 	switch {
 	case hopRow != nil:
 		path, via = monHopPath(hopRow.Role, hopRow.Name), hopRow.Host
+		skipFollowers = monSkipsFollowers(hopRow.Role, hopRow.IsActive)
 	case host == "":
 		overrideHost, on := s.settingService.GetProxyOverride()
 		if !on {
@@ -828,6 +845,9 @@ func (s *MonitoringService) ProbeConfigs(host, hop, edge string) (*MonProbeConfi
 		}
 		switch {
 		case monXrayProtocols[ib.Protocol]:
+			if skipFollowers && ib.FollowChain {
+				continue
+			}
 			links := s.links()
 			if links == nil {
 				return nil, ErrLinksNotWired

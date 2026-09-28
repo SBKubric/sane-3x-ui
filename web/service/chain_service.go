@@ -495,8 +495,10 @@ func (s *ChainService) Delete(id int, force, skipDrain bool) (*DeleteResult, err
 }
 
 // SetActive makes one joined edge the active one — the single registry write
-// behind /proxy <name> and the switch button. Nothing changes on any box
-// (§4.7): the only consequence is which host the panel publishes.
+// behind /proxy <name> and the switch button. The panel publishes the new
+// edge's host, and the revision it bumps carries the switch to the boxes: the
+// new edge starts passing its own server name on to the next hop and the old
+// one sends it to its neighbour target instead (§4.7, #161).
 func (s *ChainService) SetActive(id int) error {
 	followers := 0
 	err := database.GetDB().Transaction(func(tx *gorm.DB) error {
@@ -532,6 +534,10 @@ func (s *ChainService) SetActive(id int) error {
 			Update("is_active", true).Error; err != nil {
 			return err
 		}
+		// The old edge is standby now: its chain-following targets go.
+		if err := pruneMonTargetsTx(tx); err != nil {
+			return err
+		}
 		return bumpRevisionTx(tx)
 	})
 	if err != nil {
@@ -564,6 +570,10 @@ func (s *ChainService) ClearActive() error {
 		}
 		if followers > 0 {
 			logger.Warningf("chain: %d chain-following inbound(s) keep the last active edge's neighbour target", followers)
+		}
+		// Every edge is standby now: no chain-following target on any of them.
+		if err := pruneMonTargetsTx(tx); err != nil {
+			return err
 		}
 		return bumpRevisionTx(tx)
 	})

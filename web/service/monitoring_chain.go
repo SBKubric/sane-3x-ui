@@ -126,6 +126,31 @@ func monProbedPaths(c *MonChain) []string {
 	return append(paths, inner...)
 }
 
+// monSkipsFollowers reports whether a path of this hop leaves the
+// chain-following inbounds out (#161, decision #157 Q2): a standby edge sends
+// the active edge's server name — the only one those inbounds accept — to its
+// own neighbour target, so a probe of them through it could only be DOWN. An
+// inner, the active edge, direct and the AmneziaWG probes through any hop are
+// unaffected.
+func monSkipsFollowers(role string, active bool) bool {
+	return role == chain.RoleEdge && !active
+}
+
+// monStandbyEdgePaths are the paths of the probed edges that are not active:
+// the ones no chain-following inbound is probed on.
+func monStandbyEdgePaths(c *MonChain) []string {
+	if c == nil {
+		return nil
+	}
+	var paths []string
+	for _, h := range c.Hops {
+		if monSkipsFollowers(h.Role, c.ActiveEdge != nil && h.Name == *c.ActiveEdge) {
+			paths = append(paths, monHopPath(h.Role, h.Name))
+		}
+	}
+	return paths
+}
+
 // monProbePair is one pair of mon-client × path that gets an AmneziaWG
 // probe peer.
 type monProbePair struct {
@@ -192,7 +217,9 @@ func monProbePairs(snapshot []MonClient, probed []string) []monProbePair {
 // (proxy-chain.md §6.1, contract §6): a hop deleted or renamed, gone out of
 // joined/legacy, the first probed hop appearing (proxy goes) or the last one
 // leaving (proxy comes back). It deletes, in the registry write's own
-// transaction, every mon_targets row whose path is no longer in the set.
+// transaction, every mon_targets row whose path is no longer in the set —
+// and every row of a chain-following xray inbound on a standby edge's path
+// (#161), which the switch of the active edge, or clearing it, leaves behind.
 // Events and aggregates age out with the ordinary retention; nothing is sent
 // to Telegram. Every registry write calls it: working out the set again is
 // cheaper than working out which writes change it.
@@ -201,7 +228,16 @@ func pruneMonTargetsTx(tx *gorm.DB) error {
 	if err != nil {
 		return err
 	}
-	return tx.Where("path NOT IN ?", monProbedPaths(chain)).Delete(&model.MonTarget{}).Error
+	if err := tx.Where("path NOT IN ?", monProbedPaths(chain)).Delete(&model.MonTarget{}).Error; err != nil {
+		return err
+	}
+	standby := monStandbyEdgePaths(chain)
+	if len(standby) == 0 {
+		return nil
+	}
+	followers := tx.Model(&model.Inbound{}).Select("id").Where("follow_chain = ?", true)
+	return tx.Where("inbound_kind = ? AND path IN ? AND inbound_id IN (?)", model.MonInboundKindXray, standby, followers).
+		Delete(&model.MonTarget{}).Error
 }
 
 // deleteMonitoringByHopTx drops the stored monitoring of a hop leaving the
