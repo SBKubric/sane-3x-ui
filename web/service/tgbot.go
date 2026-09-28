@@ -515,6 +515,9 @@ func (t *Tgbot) OnReceive() {
 
 		h.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 			if userState, exists := userStates[message.Chat.ID]; exists {
+				if t.answerUsersText(&message, userState) {
+					return nil
+				}
 				switch userState {
 				case "awaiting_id":
 					if client_Id == strings.TrimSpace(message.Text) {
@@ -792,6 +795,10 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		decodedQuery, err := t.decodeQuery(callbackQuery.Data)
 		if err != nil {
 			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
+			return
+		}
+		// The users flows (#169) take their own buttons, and «Add client».
+		if t.answerUsersCallback(callbackQuery, decodedQuery) {
 			return
 		}
 		dataArray := strings.Split(decodedQuery, " ")
@@ -2265,6 +2272,9 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addClient")).WithCallbackData(t.encodeQuery("add_client")),
 		),
 		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.users.menu")).WithCallbackData(t.encodeQuery("usr_menu")),
+		),
+		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("pages.settings.subSettings")).WithCallbackData(t.encodeQuery("admin_client_sub_links")),
 			tu.InlineKeyboardButton(t.I18nBot("subscription.individualLinks")).WithCallbackData(t.encodeQuery("admin_client_individual_links")),
 			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("admin_client_qr_links")),
@@ -3427,6 +3437,9 @@ func (t *Tgbot) searchClient(chatId int64, email string, messageID ...int) {
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.toggle")).WithCallbackData(t.encodeQuery("toggle_enable "+email)),
+		),
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.users.addProtocol")).WithCallbackData(t.encodeQuery("usr_apc "+email)),
 		),
 	)
 	if len(messageID) > 0 {
