@@ -2382,7 +2382,13 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 	if err != nil || client == nil {
 		return "", "", errors.New("client not found")
 	}
+	subURL, subJsonURL := t.subscriptionURLs(client.SubID)
+	return subURL, subJsonURL, nil
+}
 
+// subscriptionURLs builds the HTML sub page URL and the JSON subscription URL
+// of a subId, as buildSubscriptionURLs hands them out for a client.
+func (t *Tgbot) subscriptionURLs(subId string) (string, string) {
 	// Gather settings to construct absolute URLs
 	subURI, _ := t.settingService.GetSubURI()
 	subJsonURI, _ := t.settingService.GetSubJsonURI()
@@ -2463,25 +2469,25 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 		if !strings.HasSuffix(subURI, "/") {
 			subURI = subURI + "/"
 		}
-		subURL = fmt.Sprintf("%s%s", subURI, client.SubID)
+		subURL = fmt.Sprintf("%s%s", subURI, subId)
 	} else {
-		subURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subPath, client.SubID)
+		subURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subPath, subId)
 	}
 
 	if subJsonURI != "" {
 		if !strings.HasSuffix(subJsonURI, "/") {
 			subJsonURI = subJsonURI + "/"
 		}
-		subJsonURL = fmt.Sprintf("%s%s", subJsonURI, client.SubID)
+		subJsonURL = fmt.Sprintf("%s%s", subJsonURI, subId)
 	} else {
 
-		subJsonURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subJsonPath, client.SubID)
+		subJsonURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subJsonPath, subId)
 	}
 
 	if !subJsonEnable {
 		subJsonURL = ""
 	}
-	return subURL, subJsonURL, nil
+	return subURL, subJsonURL
 }
 
 // sendClientSubLinks sends the subscription links for the client to the chat.
