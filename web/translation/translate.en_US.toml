@@ -321,7 +321,7 @@
 "warnNoStreamModule" = "This nginx was built without the stream module, so it cannot split port 443 by server name."
 "warnNoDomain" = "No domain is set, so opening this server in a browser lands on the Reality cover site and is shown its certificate. Fill the domain in to serve your own page here."
 "warnSubsUnreachable" = "Subscriptions are set to go through 443, but with no domain and no IP certificate nothing on 443 answers for them, and «Port 443 only» closes their own port: subscription links and the chain's poll of the panel will not get through. Set the domain or issue the IP certificate."
-"warnStockCoverPage" = "The cover page is «%s», built-in and unchanged. The same page on every server is a give-away of its own — change it under «Cover page»."
+"warnStockCoverPage" = "The cover page is «%s», one of the pages that ship with the panel, unchanged. Every server running the panel can serve the same bytes, and that is a give-away of its own — switch to «nginx default page» or a page of your own under «Cover page»."
 "warnCertExpiring" = "The certificate for %s expires on %s."
 "warnSniConflict" = "«%s» and «%s» both use the cover domain %s — nginx can only send it to one of them."
 "warnSniIsOwnDomain" = "«%s» uses the panel's own domain %s as its cover domain."

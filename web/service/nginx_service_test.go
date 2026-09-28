@@ -37,6 +37,9 @@ func newNginxTestServer(t *testing.T) *NginxService {
 	prevIPCertDir := ipCertDir
 	ipCertDir = filepath.Join(t.TempDir(), "no-ip-cert")
 	t.Cleanup(func() { ipCertDir = prevIPCertDir })
+	prevPages := NginxWelcomePages
+	NginxWelcomePages = []string{filepath.Join(t.TempDir(), "no-nginx-package.html")}
+	t.Cleanup(func() { NginxWelcomePages = prevPages })
 	return &NginxService{}
 }
 
@@ -582,29 +585,47 @@ func TestStatusWarnsWhenTheDomainHasNothingBehindIt(t *testing.T) {
 		t.Errorf("the front-end is off, yet it complained about the domain: %v", got)
 	}
 
-	// With a domain set, the built-in page is installed rather than leaving
-	// the domain empty — but serving it unchanged is a fingerprint of its own,
-	// so the panel says so.
-	if err := s.SaveSettings(NginxSettings{Mode: "shared", Domain: "example.net", RealityPort: 8443}); err != nil {
-		t.Fatal(err)
-	}
+	// The page the panel installs by itself is nginx's own welcome page
+	// (#160): what every stock nginx serves is no fingerprint of this panel.
 	nginx.WebRoot = t.TempDir()
 	t.Cleanup(func() { nginx.WebRoot = "/usr/local/x-ui/www" })
 	stubs := &StubService{}
+	if err := s.SaveSettings(NginxSettings{Mode: "shared", RealityPort: 8443}); err != nil {
+		t.Fatal(err)
+	}
 	if err := stubs.SyncToDisk(); err != nil {
 		t.Fatal(err)
 	}
-	if got := s.GetStatus().Warnings; !mentions(got, "stockCoverPage") {
-		t.Errorf("an unedited built-in page was not reported: %v", got)
+	if got := s.GetStatus().Warnings; mentions(got, "stockCoverPage") {
+		t.Errorf("the nginx page was reported as stock: %v", got)
 	}
 
-	// Picking one of the other built-in pages is a decision somebody made, not
-	// the default nobody chose, and the panel does not argue with it.
-	if err := stubs.ActivateTemplate("snake"); err != nil {
+	// Every page that ships with the panel, served unchanged, is the same
+	// bytes on every server — picked on purpose or not, with a domain or
+	// without (#153 Q6).
+	for _, domain := range []string{"", "example.net"} {
+		if err := s.SaveSettings(NginxSettings{Mode: "shared", Domain: domain, RealityPort: 8443}); err != nil {
+			t.Fatal(err)
+		}
+		for _, key := range []string{"construction", "snake", "tetris"} {
+			if err := stubs.ActivateTemplate(key); err != nil {
+				t.Fatal(err)
+			}
+			if got := s.GetStatus().Warnings; !mentions(got, "stockCoverPage") {
+				t.Errorf("domain %q: the unchanged built-in %q was not reported: %v", domain, key, got)
+			}
+		}
+	}
+
+	// Switched off, nginx serves nothing, so there is nothing to say.
+	if err := s.SaveSettings(NginxSettings{Mode: "off", RealityPort: 8443}); err != nil {
 		t.Fatal(err)
 	}
 	if got := s.GetStatus().Warnings; mentions(got, "stockCoverPage") {
-		t.Errorf("a page picked out of the gallery was reported as stock: %v", got)
+		t.Errorf("the front-end is off, yet it complained about the page: %v", got)
+	}
+	if err := s.SaveSettings(NginxSettings{Mode: "shared", Domain: "example.net", RealityPort: 8443}); err != nil {
+		t.Fatal(err)
 	}
 
 	// Once the operator has written their own, the nagging stops.

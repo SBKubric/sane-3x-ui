@@ -844,11 +844,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("proxy: %v", err)
 		}
-		// The box's front serves the panel's own built-in cover page as its
-		// decoy unless proxy.json names another (#140).
-		stub := ""
-		if tpl, ok := (&service.StubService{}).DefaultTemplate(); ok {
-			stub = tpl.Html
+		// The box's front serves nginx's welcome page as its decoy unless
+		// proxy.json names another (#140, #160).
+		stub, warning := proxyDecoy(cfg.Front.Stub)
+		if warning != "" {
+			logger.Warning("proxy-front:", warning)
 		}
 		if err := proxy.Run(cfg, stub); err != nil {
 			log.Fatalf("proxy: %v", err)

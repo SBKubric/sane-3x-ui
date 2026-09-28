@@ -165,7 +165,7 @@ ssh bridge 'grep -RIl "privateKey\|PrivateKey" /etc/x-ui /usr/local/x-ui; ls -la
 - relay не держит 443/tcp (его держит nginx), 443/udp и прочий UDP релеит как раньше, TCP-порты кроме 443 **не релеит** (WARN со списком);
 - файрвол `THREEAX-IN`: открыты 443/tcp, 80/tcp, SSH, relayed UDP; остальное DROP. Выключается `"front": {"mode": "only443", "firewall": false}`;
 - sub-сервер переезжает на loopback за nginx. Звено сообщает панели свой фронт при опросе, панель ставит ему `subPort=443`/`https` и бампает ревизию. **Старый sub-порт живёт, пока каждый прямой внешний сосед не подтвердит ревизию новее той, на которой поднялся фронт** — только тогда порт закрывается (и в файрволе тоже). У edge внешних соседей нет, поэтому порт закрывается сразу; клиентские ссылки подписки панель с этого момента строит как `https://<edge>/…` — старые ссылки с `:2096` перестают работать, клиентам надо обновить подписку;
-- заглушка — встроенная страница панели или свой HTML: `"front": {"mode": "only443", "stub": "/etc/x-ui/stub.html"}`.
+- заглушка — стандартная страница nginx с этой коробки (`/var/www/html/index.nginx-debian.html` на Debian/Ubuntu, `/usr/share/nginx/html/index.html` на RHEL/Arch, `/var/lib/nginx/html/index.html` на Alpine; нет файла — встроенная копия) или свой HTML: `"front": {"mode": "only443", "stub": "/etc/x-ui/stub.html"}`. Неизменённая встроенная страница апстрима («Site under construction», «Snake», «Tetris») в `front.stub` отдаётся, но с WARN в логе (#160).
 
 Проверка:
 

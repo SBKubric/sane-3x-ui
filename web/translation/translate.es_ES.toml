@@ -321,7 +321,7 @@
 "warnNoStreamModule" = "Este nginx se compiló sin el módulo stream, así que no puede repartir el puerto 443 por nombre de servidor."
 "warnNoDomain" = "No hay dominio configurado, así que quien abra este servidor en un navegador acaba en el sitio de tapadera de Reality y ve su certificado. Rellena el dominio para servir aquí tu propia página."
 "warnSubsUnreachable" = "Las suscripciones deben pasar por 443, pero sin dominio ni certificado de IP nada en 443 responde por ellas, y «Solo el puerto 443» cierra su propio puerto: los enlaces de suscripción y el sondeo del panel por la cadena no llegarán. Configure el dominio o emita el certificado de IP."
-"warnStockCoverPage" = "La página de portada «%s» está sin tocar. La misma página en todos los servidores es un rastro en sí mismo: cámbiala en «Página de portada»."
+"warnStockCoverPage" = "La página de portada «%s» es una de las que trae el panel, sin tocar. Cualquier servidor con este panel puede servir los mismos bytes, y eso es un rastro en sí mismo: cambia a «nginx default page» o a una página propia en «Página de portada»."
 "warnCertExpiring" = "El certificado de %s caduca el %s."
 "warnSniConflict" = "«%s» y «%s» usan el mismo dominio de tapadera %s: nginx solo puede entregárselo a uno de los dos."
 "warnSniIsOwnDomain" = "«%s» usa el propio dominio del panel, %s, como dominio de tapadera."
