@@ -317,6 +317,10 @@ func subscriptionID(path, documentPath, fallback string) (string, bool) {
 func (s *SubServer) handleSub(c *gin.Context, subid string) {
 	base, subPath, _ := s.nextHop()
 	body, header, status, err := s.fetchUpstream(base, subPath, subid)
+	if err == nil && isRefusal(status) {
+		passRefusal(c, status, header, body)
+		return
+	}
 	if err != nil || status != http.StatusOK || len(body) == 0 {
 		logger.Warningf("proxy-front: next hop sub fetch failed (status %d): %v", status, err)
 		c.String(http.StatusBadGateway, "subscription unavailable")
@@ -335,6 +339,10 @@ func (s *SubServer) handleSub(c *gin.Context, subid string) {
 func (s *SubServer) handleJson(c *gin.Context, subid string) {
 	base, _, jsonPath := s.nextHop()
 	body, header, status, err := s.fetchUpstream(base, jsonPath, subid)
+	if err == nil && isRefusal(status) {
+		passRefusal(c, status, header, body)
+		return
+	}
 	if err != nil || status != http.StatusOK || len(body) == 0 {
 		c.String(http.StatusBadGateway, "subscription unavailable")
 		return
@@ -386,6 +394,26 @@ func (s *SubServer) fetchUpstream(base, path, subid string) ([]byte, http.Header
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	return body, resp.Header, resp.StatusCode, err
+}
+
+// isRefusal is the next hop turning the request down — the panel's 400 for a
+// subscription it does not know — as opposed to failing to serve it.
+func isRefusal(status int) bool {
+	return status >= 400 && status < 500
+}
+
+// passRefusal answers the client with the next hop's refusal as it came:
+// status, body and content type (#152). The hop then answers an unknown
+// subscription as the panel does, so the front's HTTP side logs it as a miss
+// (a 502 was none, and sub brute force through a hop went unbanned), and the
+// answer does not tell a hop from the panel. Not logged: a prober would fill
+// the log.
+func passRefusal(c *gin.Context, status int, header http.Header, body []byte) {
+	contentType := header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "text/plain; charset=utf-8"
+	}
+	c.Data(status, contentType, body)
 }
 
 func copyHeaders(c *gin.Context, header http.Header) {

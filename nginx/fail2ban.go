@@ -156,6 +156,9 @@ type fail2banControl interface {
 	Running() bool
 	Start() error
 	Reload() error
+	Restart() error
+	// Actions are the actions a running jail has.
+	Actions(jail string) ([]string, error)
 }
 
 var (
@@ -167,6 +170,9 @@ var (
 	// jailsRetryAfter holds back another start of a fail2ban that would
 	// not start: the reconcile calls ApplyJails every half minute.
 	jailsRetryAfter time.Time
+	// jailsChecked says the running jails' actions have been looked at
+	// since this process started or the files last changed (checkActions).
+	jailsChecked bool
 )
 
 // jailsRetryPause is how long a fail2ban that would not start is left alone,
@@ -217,15 +223,65 @@ func ApplyJails(j Jails) error {
 			jailsRetryAfter = time.Now().Add(jailsRetryPause)
 			return fmt.Errorf("start fail2ban: %w", err)
 		}
-		jailsRetryAfter = time.Time{}
+		// A fresh start reads the actions as they are written.
+		jailsRetryAfter, jailsChecked = time.Time{}, true
 		return nil
 	}
 	if changed {
 		if err := fail2banCtl.Reload(); err != nil {
 			return fmt.Errorf("reload fail2ban: %w", err)
 		}
+		jailsChecked = false
+	}
+	if jailsChecked {
+		return nil
+	}
+	return checkActions(j)
+}
+
+// checkActions restarts fail2ban when one of our jails runs without an
+// action (#152). fail2ban (1.0.2 and 1.1.0 alike) drops a jail's action on a
+// reload that changes the action's name and adds it back on no later reload:
+// the jail goes on logging bans and blocks nothing. The name changes when the
+// default action does — nftables-multiport written on a box without iptables,
+// iptables-multiport once install_front_firewall has put it there. A restart
+// reads the action anew and puts the bans the jail logged meanwhile back in
+// place from fail2ban's database.
+//
+// It runs after every reload and once per process, which is what heals a box
+// upgraded with the action already lost: its files do not change. A restart
+// that does not help is reported once, not retried every half minute.
+func checkActions(j Jails) error {
+	bare := bareJails(j)
+	if len(bare) == 0 {
+		jailsChecked = true
+		return nil
+	}
+	if err := fail2banCtl.Restart(); err != nil {
+		return fmt.Errorf("restart fail2ban for the jails %s left without an action: %w", strings.Join(bare, ", "), err)
+	}
+	jailsChecked = true
+	if bare = bareJails(j); len(bare) != 0 {
+		return fmt.Errorf("fail2ban runs the jails %s without an action, so their bans block nothing", strings.Join(bare, ", "))
 	}
 	return nil
+}
+
+// bareJails are our jails that fail2ban runs without an action. A jail it
+// cannot tell about — one it did not load — is not among them: a restart
+// would not change that.
+func bareJails(j Jails) []string {
+	names := []string{"3ax-ui-probe"}
+	if j.LoginLog != "" {
+		names = append(names, "3ax-ui-login")
+	}
+	var bare []string
+	for _, name := range names {
+		if actions, err := fail2banCtl.Actions(name); err == nil && len(actions) == 0 {
+			bare = append(bare, name)
+		}
+	}
+	return bare
 }
 
 // RemoveJails takes our jails out again. fail2ban itself stays and keeps
@@ -332,6 +388,60 @@ func (systemFail2ban) Reload() error {
 		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
 	}
 	return nil
+}
+
+func (systemFail2ban) Restart() error {
+	var cmd *exec.Cmd
+	switch {
+	case hasSystemd():
+		cmd = exec.Command("systemctl", "restart", "fail2ban")
+	case commandExists("rc-service"):
+		cmd = exec.Command("rc-service", "fail2ban", "restart")
+	default:
+		cmd = exec.Command("fail2ban-client", "restart")
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("%s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+func (systemFail2ban) Actions(jail string) ([]string, error) {
+	return fail2banActions(exec.Command("fail2ban-client", "get", jail, "actions"))
+}
+
+// fail2banActions runs a `fail2ban-client get <jail> actions` and reads its
+// answer. Only stdout is read: fail2ban-client logs its warnings to stderr.
+func fail2banActions(cmd *exec.Cmd) ([]string, error) {
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", strings.Join(cmd.Args, " "), err)
+	}
+	actions := parseJailActions(string(out))
+	if actions == nil && !strings.Contains(string(out), "No actions for jail") {
+		return nil, fmt.Errorf("%s: unexpected answer %q", strings.Join(cmd.Args, " "), out)
+	}
+	return actions, nil
+}
+
+// parseJailActions reads fail2ban-client's `get <jail> actions`:
+//
+//	The jail sshd has the following actions:
+//	nftables, sendmail
+//
+// or "No actions for jail sshd", which is nil.
+func parseJailActions(out string) []string {
+	_, list, found := strings.Cut(out, "has the following actions:\n")
+	if !found {
+		return nil
+	}
+	var actions []string
+	for _, name := range strings.Split(strings.TrimSpace(list), ",") {
+		if name = strings.TrimSpace(name); name != "" {
+			actions = append(actions, name)
+		}
+	}
+	return actions
 }
 
 func commandExists(name string) bool {
