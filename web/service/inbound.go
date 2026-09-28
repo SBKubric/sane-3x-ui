@@ -1766,6 +1766,9 @@ func (s *InboundService) UpdateInboundClient(data *model.Inbound, clientId strin
 	if err := s.rejectProbeLookalikes(oldInbound, clients[:1]); err != nil {
 		return false, err
 	}
+	if err := s.validateUserRules(oldEmail, clients[:1]); err != nil {
+		return false, err
+	}
 
 	if len(clients[0].Email) > 0 && clients[0].Email != oldEmail {
 		existEmail, err := s.checkEmailsExistForClients(clients)

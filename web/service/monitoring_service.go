@@ -594,10 +594,7 @@ func (s *MonitoringService) ensureXrayProbe(ib *model.Inbound, subId string) (bo
 // is reported in unallocated with its reason; any other failure stops the
 // ensure.
 //
-// The shared subId is not bound to the peers: tunnel clients carry no subId
-// until the tunnel subscription feature (docs/spec/tunnel-subscription.md)
-// lands; its TunnelSubscriptionService.Set is the hook to call here when it
-// does.
+// The shared subId is bound to the peers afterwards, by linkTunnelProbes.
 func (s *MonitoringService) ensureTunnelProbes(snapshot []MonClient) (created []MonProbeRef, present int, unallocated []MonUnallocated, err error) {
 	chain, err := monChainTx(nil)
 	if err != nil {
@@ -738,6 +735,9 @@ func (s *MonitoringService) EnsureProbeSet(snapshot []MonClient) (*MonEnsureResu
 			present++
 		case ib.Protocol == model.AmneziaWG:
 			made, peers, missed, err := s.ensureTunnelProbes(snapshot)
+			if err == nil {
+				err = linkTunnelProbes(subId)
+			}
 			if err != nil {
 				return nil, errXrayUnavailable(err)
 			}

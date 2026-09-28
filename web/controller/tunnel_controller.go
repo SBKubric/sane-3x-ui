@@ -205,21 +205,34 @@ func (a *TunnelController) getClients(c *gin.Context) {
 		jsonMsg(c, fmt.Sprintf("get %s clients", a.kind.Title), err)
 		return
 	}
-	jsonObj(c, clients, nil)
+	withSubs, err := a.withSubIds(clients)
+	jsonObj(c, withSubs, err)
 }
 
 func (a *TunnelController) addClient(c *gin.Context) {
-	var client model.TunnelClient
-	if err := c.ShouldBindJSON(&client); err != nil {
+	var req tunnelClientReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		jsonMsg(c, "invalid request", err)
 		return
 	}
-	err := a.svc.AddClient(&client)
+	client := req.TunnelClient
+	err := a.guardClientWrite(0, "", &req)
+	if err == nil {
+		err = a.svc.AddClient(&client)
+	}
+	if err == nil {
+		err = a.linkClient(client.UUID, req.SubId)
+	}
 	if err != nil {
 		jsonMsg(c, fmt.Sprintf("add %s client", a.kind.Title), err)
 		return
 	}
-	jsonObj(c, client, nil)
+	withSub, err := a.withSubIds([]model.TunnelClient{client})
+	if err != nil {
+		jsonMsg(c, fmt.Sprintf("add %s client", a.kind.Title), err)
+		return
+	}
+	jsonObj(c, withSub[0], nil)
 }
 
 func (a *TunnelController) updateClient(c *gin.Context) {
@@ -228,13 +241,20 @@ func (a *TunnelController) updateClient(c *gin.Context) {
 		jsonMsg(c, "invalid id", err)
 		return
 	}
-	var client model.TunnelClient
-	if err := c.ShouldBindJSON(&client); err != nil {
+	var req tunnelClientReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		jsonMsg(c, "invalid request", err)
 		return
 	}
+	client := req.TunnelClient
 	client.Id = id
-	err = a.svc.UpdateClient(&client)
+	err = a.guardClientWrite(id, "", &req)
+	if err == nil {
+		err = a.svc.UpdateClient(&client)
+	}
+	if err == nil {
+		err = a.linkClient(client.UUID, req.SubId)
+	}
 	jsonMsg(c, fmt.Sprintf("%s client updated", a.kind.Title), err)
 }
 
@@ -244,12 +264,19 @@ func (a *TunnelController) updateClientByUUID(c *gin.Context) {
 		jsonMsg(c, "invalid uuid", errors.New("missing uuid"))
 		return
 	}
-	var client model.TunnelClient
-	if err := c.ShouldBindJSON(&client); err != nil {
+	var req tunnelClientReq
+	if err := c.ShouldBindJSON(&req); err != nil {
 		jsonMsg(c, "invalid request", err)
 		return
 	}
-	err := a.svc.UpdateClientByUUID(clientUUID, &client)
+	client := req.TunnelClient
+	err := a.guardClientWrite(0, clientUUID, &req)
+	if err == nil {
+		err = a.svc.UpdateClientByUUID(clientUUID, &client)
+	}
+	if err == nil {
+		err = a.linkClient(clientUUID, req.SubId)
+	}
 	jsonMsg(c, fmt.Sprintf("%s client updated", a.kind.Title), err)
 }
 

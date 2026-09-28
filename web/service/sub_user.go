@@ -7,6 +7,7 @@ import (
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
+	"github.com/coinman-dev/3ax-ui/v2/util/common"
 	"github.com/coinman-dev/3ax-ui/v2/xray"
 )
 
@@ -266,4 +267,67 @@ func (idx *subUserIndex) sortedUsers() []*model.SubUser {
 		return strings.ToLower(out[i].Name) < strings.ToLower(out[j].Name)
 	})
 	return out
+}
+
+// SubUserView is a user with its clients and their sums, as the bot and the
+// users API show it.
+type SubUserView struct {
+	model.SubUser
+	Technical bool            `json:"technical"`
+	Enable    bool            `json:"enable"` // at least one client is enabled
+	Clients   []SubUserClient `json:"clients"`
+	Up        int64           `json:"up"`
+	Down      int64           `json:"down"`
+	AllTime   int64           `json:"allTime"`
+	// Total is the sum of the clients' limits, 0 when any is unlimited;
+	// ExpiryTime is the clients' common expiry, 0 when they differ. Both as
+	// the subscription's Subscription-Userinfo counts them.
+	Total      int64 `json:"total"`
+	ExpiryTime int64 `json:"expiryTime"`
+}
+
+// view builds the view of the user under key.
+func (idx *subUserIndex) view(u *model.SubUser) *SubUserView {
+	v := &SubUserView{SubUser: *u, Technical: u.IsTechnical(), Clients: idx.clientsOf(u.SubId)}
+	if v.Clients == nil {
+		v.Clients = []SubUserClient{}
+	}
+	unlimited := false
+	for i, c := range v.Clients {
+		v.Enable = v.Enable || c.Enable
+		v.Up += c.Up
+		v.Down += c.Down
+		v.AllTime += c.AllTime
+		v.Total += c.TotalGB
+		unlimited = unlimited || c.TotalGB == 0
+		if i == 0 {
+			v.ExpiryTime = c.ExpiryTime
+		} else if c.ExpiryTime != v.ExpiryTime {
+			v.ExpiryTime = 0
+		}
+	}
+	if unlimited {
+		v.Total = 0
+	}
+	return v
+}
+
+// Get returns the user under key: its subId, or a technical user's key.
+func (s *SubUserService) Get(key string) (*SubUserView, error) {
+	idx, err := s.synced()
+	if err != nil {
+		return nil, err
+	}
+	u := idx.users[key]
+	if u == nil {
+		return nil, common.NewErrorf("user with subId %q not found", key)
+	}
+	return idx.view(u), nil
+}
+
+// synced runs Sync and returns the index.
+func (s *SubUserService) synced() (*subUserIndex, error) {
+	subUserMu.Lock()
+	defer subUserMu.Unlock()
+	return s.syncLocked()
 }
