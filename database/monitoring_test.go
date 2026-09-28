@@ -25,7 +25,7 @@ func TestMonitoringSchema(t *testing.T) {
 
 	columns := map[string][]string{
 		"mon_targets": {"id", "mon_client_id", "inbound_kind", "inbound_id", "path",
-			"state", "since", "reason", "updated_at"},
+			"state", "since", "reason", "event_seen", "updated_at"},
 		"mon_events": {"id", "ts", "received_at", "kind", "mon_client_id", "inbound_kind",
 			"inbound_id", "path", "from_state", "to_state", "reason", "notified"},
 		"mon_stats_current": {"id", "mon_client_id", "inbound_kind", "inbound_id", "path",
@@ -175,4 +175,33 @@ func TestDeleteMonitoringByInbound(t *testing.T) {
 func uuidLike(i int, path string) string {
 	base := "019254a0-0000-7000-8000-00000000000"
 	return base[:len(base)-1-len(path)] + path + string(rune('0'+i))
+}
+
+// TestUpgradeAddsMonTargetEventSeen walks the upgrade path of the state
+// resync marker: a mon_targets written by an older panel has no event_seen,
+// opening it adds the column, and the rows already there read false — so a
+// target stuck in UNKNOWN before the upgrade is asked about too.
+func TestUpgradeAddsMonTargetEventSeen(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x-ui.db")
+	if err := InitDB(path); err != nil {
+		t.Fatalf("first init: %v", err)
+	}
+	t.Cleanup(func() { CloseDB() })
+	if err := db.Exec("ALTER TABLE mon_targets DROP COLUMN event_seen").Error; err != nil {
+		t.Fatalf("drop column: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO mon_targets (mon_client_id, inbound_kind, inbound_id, path, state, since, reason, updated_at)
+		VALUES ('ams-1', 'xray', 1, 'direct', 'UNKNOWN', 1, '', 1)`).Error; err != nil {
+		t.Fatalf("old row: %v", err)
+	}
+	if err := InitDB(path); err != nil {
+		t.Fatalf("upgrade failed: %v", err)
+	}
+	var target model.MonTarget
+	if err := db.First(&target).Error; err != nil {
+		t.Fatalf("the old row after the upgrade: %v", err)
+	}
+	if target.EventSeen {
+		t.Error("a row from before the upgrade reads event_seen = true, want false")
+	}
 }

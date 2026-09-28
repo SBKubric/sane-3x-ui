@@ -146,6 +146,10 @@ _Avoid_: ping, healthcheck
 Ежеминутный запрос mon-client к mon-server мимо туннеля; несёт результаты tunnel probes и диагностику, а в ответ получает номер актуальной ревизии конфига. Отсутствие heartbeat означает, что мёртв сам mon-client, а не туннель.
 _Avoid_: keepalive, ping
 
+**Сверка состояния** (state resync):
+Событие, которым mon-server подтверждает текущее состояние target'а без перехода; панель просит о нём, когда у неё нет состояния target'а, и применяет его молча — без ленты событий и без Telegram.
+_Avoid_: resend, replay, full sync
+
 **Stale**:
 Состояние target в панели, когда mon-server не присылал статистику дольше порога; отличается от DOWN тем, что молчит мониторинг, а не inbound.
 _Avoid_: unknown, expired

@@ -85,12 +85,28 @@ type MonEventsResult struct {
 	Ignored    []MonIgnored  `json:"ignored"`
 }
 
-// MonStatsResult is the body of a successful POST /stats.
+// MonStatsResult is the body of a successful POST /stats. Resync asks
+// mon-server for a state resync of the targets the panel holds no state for
+// (contract §4.7); an older mon-server ignores the field.
 type MonStatsResult struct {
-	Accepted int           `json:"accepted"`
-	Rejected []MonRejected `json:"rejected"`
-	Ignored  []MonIgnored  `json:"ignored"`
+	Accepted int            `json:"accepted"`
+	Rejected []MonRejected  `json:"rejected"`
+	Ignored  []MonIgnored   `json:"ignored"`
+	Resync   []MonTargetKey `json:"resync,omitempty"`
 }
+
+// MonTargetKey names one target, with the field names of a stats element.
+type MonTargetKey struct {
+	MonClientId string `json:"monClientId"`
+	InboundKind string `json:"inboundKind"`
+	InboundId   int    `json:"inboundId"`
+	Path        string `json:"path"`
+}
+
+// MonReasonResync marks a target event as a state resync (contract §4.6):
+// mon-server restating the current state of a target the panel named in
+// the answer to POST /stats.
+const MonReasonResync = "resync"
 
 // Reasons an element lands in ignored.
 const (
@@ -321,9 +337,10 @@ func (s *MonitoringService) ApplyEventsRaw(raw []json.RawMessage) (*MonEventsRes
 // are applied in ts order inside one transaction: each event goes into the
 // feed once (a repeated id is a duplicate, not an error), a target event
 // moves its mon_targets row forward unless it is older than the state already
-// there, and events of unknown inbounds are skipped and named in ignored.
-// After the commit the Telegram hook sees the stored events that still want a
-// notification.
+// there, and events of unknown inbounds are skipped and named in ignored. A
+// state resync (reason resync) only moves its target: no feed row, no
+// notification. After the commit the Telegram hook sees the stored events
+// that still want a notification.
 func (s *MonitoringService) ApplyEvents(batch []MonEventIn) (*MonEventsResult, error) {
 	indexes := make([]int, len(batch))
 	for i := range indexes {
@@ -371,6 +388,17 @@ func (s *MonitoringService) applyEvents(batch []MonEventIn, indexes []int, rejec
 			if in.Kind == model.MonEventKindPanel {
 				ev.Notified = true // mon-server already told the operator
 			}
+			if isTarget && in.Reason == MonReasonResync {
+				// A state resync confirms a state, it is not a transition: it
+				// moves the target and nothing else — no feed row, no message.
+				// Without a row there is no dedup by id either; a repeat is
+				// harmless, the since guard keeps it from rolling anything back.
+				if err := applyTargetEvent(tx, &ev); err != nil {
+					return err
+				}
+				res.Accepted++
+				continue
+			}
 			ins := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&ev)
 			if ins.Error != nil {
 				return ins.Error
@@ -402,8 +430,9 @@ func (s *MonitoringService) applyEvents(batch []MonEventIn, indexes []int, rejec
 }
 
 // applyTargetEvent moves the target's row to the event's state, creating it
-// on first sight. An event older than the state already recorded (a late
-// arrival after PANEL_DOWN) stays in the feed only.
+// on first sight, and marks it as having mon-server's word for its state. An
+// event older than the state already recorded (a late arrival after
+// PANEL_DOWN) stays in the feed only and moves nothing, the mark included.
 func applyTargetEvent(tx *gorm.DB, ev *model.MonEvent) error {
 	var target model.MonTarget
 	err := tx.Where("mon_client_id = ? AND inbound_kind = ? AND inbound_id = ? AND path = ?",
@@ -414,13 +443,13 @@ func applyTargetEvent(tx *gorm.DB, ev *model.MonEvent) error {
 	if database.IsNotFound(err) {
 		return tx.Create(&model.MonTarget{
 			MonClientId: ev.MonClientId, InboundKind: ev.InboundKind, InboundId: ev.InboundId, Path: ev.Path,
-			State: ev.To, Since: ev.Ts, Reason: ev.Reason,
+			State: ev.To, Since: ev.Ts, Reason: ev.Reason, EventSeen: true,
 		}).Error
 	}
 	if ev.Ts < target.Since {
 		return nil
 	}
-	return tx.Model(&target).Updates(map[string]any{"state": ev.To, "since": ev.Ts, "reason": ev.Reason}).Error
+	return tx.Model(&target).Updates(map[string]any{"state": ev.To, "since": ev.Ts, "reason": ev.Reason, "event_seen": true}).Error
 }
 
 // markNotified records that the hook delivered these events.
@@ -475,7 +504,8 @@ func (s *MonitoringService) UpsertStatsRaw(raw []json.RawMessage) (*MonStatsResu
 // invalid one is named in rejected by its index; buckets older than
 // monRetentionDays or for unknown inbounds are named in ignored; the rest
 // replace their current-stats row by key, and every rollup bucket they touch
-// is recomputed from current rows in the same transaction.
+// is recomputed from current rows in the same transaction. The answer names
+// in resync every target the panel holds no state for.
 func (s *MonitoringService) UpsertStats(batch []MonStatIn) (*MonStatsResult, error) {
 	indexes := make([]int, len(batch))
 	for i := range indexes {
@@ -551,7 +581,26 @@ func (s *MonitoringService) upsertStats(batch []MonStatIn, indexes []int, reject
 	if err != nil {
 		return nil, err
 	}
+	if res.Resync, err = targetsWithoutState(); err != nil {
+		return nil, err
+	}
 	return res, nil
+}
+
+// targetsWithoutState lists the targets to ask mon-server a state resync
+// for: UNKNOWN and not moved by a single event since the row was created —
+// in practice a row re-created from an aggregate after its path dropped out
+// for a moment, or after the panel lost its database. It is named again in
+// every answer until an event arrives, so the list is at most the number of
+// targets.
+func targetsWithoutState() ([]MonTargetKey, error) {
+	var keys []MonTargetKey
+	err := database.GetDB().Model(&model.MonTarget{}).
+		Select("mon_client_id, inbound_kind, inbound_id, path").
+		Where("state = ? AND event_seen = ?", model.MonStateUnknown, false).
+		Order("mon_client_id, inbound_kind, inbound_id, path").
+		Scan(&keys).Error
+	return keys, err
 }
 
 // recomputeRollupBucket rebuilds one rollup row from the current-stats rows
