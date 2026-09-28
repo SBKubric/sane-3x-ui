@@ -136,9 +136,10 @@ func (s *InboundService) rejectAddedProbeClients(old, updated *model.Inbound) er
 	return s.rejectProbeLookalikes(old, clients)
 }
 
-// rejectNewProbeClients is the guard of AddInboundClient: no probe email, and
-// no probe identity under another name (rejectProbeLookalikes) against the
-// probe the target inbound holds.
+// rejectNewProbeClients is the guard of AddInboundClient: no probe email, no
+// probe identity under another name (rejectProbeLookalikes) against the probe
+// the target inbound holds, and the user rules (validateUserRules), which
+// ride on this guard so the add path needs no hunk of its own.
 func (s *InboundService) rejectNewProbeClients(inboundId int, clients []model.Client) error {
 	if err := rejectProbeEmails(clientEmails(clients)...); err != nil {
 		return err
@@ -147,7 +148,10 @@ func (s *InboundService) rejectNewProbeClients(inboundId int, clients []model.Cl
 	if err != nil {
 		return err
 	}
-	return s.rejectProbeLookalikes(inbound, clients)
+	if err := s.rejectProbeLookalikes(inbound, clients); err != nil {
+		return err
+	}
+	return s.validateUserRules("", clients)
 }
 
 // rejectProbeLookalikes closes the gap the email guard leaves (#115): a probe
@@ -234,4 +238,25 @@ func monitoringKey(inbound *model.Inbound) (string, int) {
 		return model.MonInboundKindAwg, 0
 	}
 	return model.MonInboundKindXray, inbound.Id
+}
+
+// linkTunnelProbes links every AmneziaWG probe peer to the shared probe
+// subId (docs/spec/tunnel-subscription.md §4), the way every xray probe
+// carries it, so the peers are monitoring's like the rest of the probe set
+// (docs/spec/users.md). Peers made before links existed get theirs too.
+func linkTunnelProbes(subId string) error {
+	peers, err := (&AwgService{}).GetClients()
+	if err != nil {
+		return err
+	}
+	links := &TunnelSubscriptionService{}
+	for _, p := range peers {
+		if !IsProbeAccount(p.Email) {
+			continue
+		}
+		if err := links.Set(p.UUID, model.TunnelKindAwg, subId); err != nil {
+			return err
+		}
+	}
+	return nil
 }

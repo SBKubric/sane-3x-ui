@@ -2,6 +2,8 @@
 
 Спека и план реализации. Итог карты [Tunnel subscription: AWG/WG-конфиги в подписке без breaking changes к upstream](https://github.com/SBKubric/3ax-ui-proxy/issues/30); решения приняты в её тикетах, здесь они только собраны. Термины по [CONTEXT.md](../../CONTEXT.md): **tunnel subscription**, host override, proxy front, probe account. Принцип совместимости с upstream зафиксирован в [ADR 0002](../adr/0002-additive-upstream-compatibility.md).
 
+**Статус.** Реализованы модель связки (§2), `Set`/`Clear`/`SubIdsByUUIDs` (§3) и `subId` в AWG/WG API (§4) — их потребовали пользователи ([users.md](users.md) §7, #168). Маршрута `/tun`, `Userinfo`, кэша, настроек, UI и proxy front ещё нет.
+
 ## 1. Цель и границы
 
 **Tunnel subscription** — публичный маршрут подписки, который по subId отдаёт клиентские конфиги AmneziaWG и WireGuard той же подписки. Он дополняет xray-подписку (`/sub`, `/json`, `/clash`), не меняя её. Потребители: страница подписки для людей (панель и proxy front) и mon-server карты мониторинга, которому нужен .conf probe account'а без входа в панель.
