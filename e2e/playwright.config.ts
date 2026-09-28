@@ -18,7 +18,7 @@ export default defineConfig({
     baseURL: process.env.E2E_BASE_URL || 'http://127.0.0.1:2053',
     trace: 'on-first-retry',
   },
-  // Three projects, not one: monitoring-settings.spec.ts and
+  // Several projects, not one: monitoring-settings.spec.ts and
   // monitoring-cli.spec.ts talk to the mon-server contract (`GET /mon/v1/state`
   // with a real token), and every authorised contract request stamps the
   // panel's monLastContact. The other specs assert the "no monitoring data yet"
@@ -39,16 +39,35 @@ export default defineConfig({
   // comes after them: it turns monitoring on, issues its own token and leaves
   // targets behind. monitoring-probe-configs.spec.ts drives the same
   // monEnable/monToken, so it follows the events spec.
+  //
+  // tests/shared-state.spec.ts checks this layout against the specs' sources:
+  // a spec that touches the chain registry or the monitoring switch must sit in
+  // a one-worker project ordered against every other such project.
   projects: [
     {
       name: 'panel',
-      testIgnore: /(monitoring-(settings|cli|api|probe-configs)|inbounds-probe-guard)\.spec\.ts/,
+      testIgnore:
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
+    // The chain registry (its hops and the active edge) is one per panel, and
+    // both these specs read and change it: chain-editor.spec.ts expects an empty
+    // registry to begin with and makes an edge active, monitoring-page.spec.ts
+    // adds a hop and expects no active edge. Beside each other each sees the
+    // other's hops (#150), so they share one worker. The panel project never
+    // touches the registry, so this one runs alongside it rather than after.
+    {
+      name: 'chain-registry',
+      testMatch: /(chain-editor|monitoring-page)\.spec\.ts/,
+      workers: 1,
+      use: { ...devices['Desktop Chrome'] },
+    },
+    // monitoring-page.spec.ts asserts "no monitoring data yet", so the contract
+    // specs wait for the chain-registry project as they wait for the panel one.
     {
       name: 'mon-server-contact',
       testMatch: /monitoring-settings\.spec\.ts/,
-      dependencies: ['panel'],
+      dependencies: ['panel', 'chain-registry'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
