@@ -171,7 +171,9 @@
                 ></a-icon>
             </a-tooltip>
         </template>
-        <a-input v-model.trim="client.subId"></a-input>
+        <a-input v-model.trim="client.subId" data-testid="client-subid"></a-input>
+        <!-- users (#170): whose subscription this subId is (component/aSubUserHint) -->
+        <a-sub-user-hint :sub-id="client.subId"></a-sub-user-hint>
     </a-form-item>
     <a-form-item v-if="client.email && app.tgBotEnable">
         <template slot="label">

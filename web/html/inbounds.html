@@ -1492,6 +1492,8 @@
 <script src="{{ .base_path }}assets/js/model/dbinbound.js?{{ .cur_ver }}"></script>
 <!-- monitoring: MonUtil, MonApi and MonHealthMixin behind the Health column and the "down" filter -->
 <script src="{{ .base_path }}assets/js/util/monitoring.js?{{ .cur_ver }}"></script>
+<!-- users (#170): the "User: …" hint under a client's subId -->
+{{template "component/aSubUserHint" .}}
 {{template "component/aSidebar" .}} {{template "component/aThemeSwitch" .}}
 {{template "component/aCustomStatistic" .}} {{template
 "component/aPersianDatepicker" .}} {{template "modals/inboundModal"}} {{template
