@@ -284,3 +284,36 @@ func TestMonEventsAndStatsPerElement(t *testing.T) {
 		t.Errorf("ensure with unknown fields: %d %s", w.Code, w.Body.String())
 	}
 }
+
+// TestMonStatsAsksForStateResync: the answer to POST /stats names the
+// targets the panel holds no state for under "resync", with the field names
+// of a stats element; once an event arrived the field is gone, so the body is
+// the one an older mon-server always got. A resync event is accepted.
+func TestMonStatsAsksForStateResync(t *testing.T) {
+	r := newMonRouter(t)
+	enableMonitoring(t)
+	if err := database.GetDB().Create(&model.Inbound{Id: 1, Port: 10001, Protocol: model.VLESS, Tag: "in-1", Remark: "r", Enable: true,
+		Settings: `{"clients":[],"decryption":"none"}`, StreamSettings: `{"network":"tcp","security":"none"}`, Sniffing: "{}"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	bucket := (time.Now().UnixMilli() / 300000) * 300000
+	stats := `{"stats":[{"monClientId":"ams-1","inboundKind":"xray","inboundId":1,"path":"inner:bridge","bucketStart":` +
+		strconv.FormatInt(bucket, 10) + `,"nOk":5,"nFail":0,"latencyMinMs":41,"latencyAvgMs":47,"latencyMaxMs":58,"handshakeMs":null}]}`
+
+	w := monRequest(r, "POST", "/mon/v1/stats", monTestToken, stats)
+	if w.Code != http.StatusOK ||
+		!strings.Contains(w.Body.String(), `"resync":[{"monClientId":"ams-1","inboundKind":"xray","inboundId":1,"path":"inner:bridge"}]`) {
+		t.Fatalf("stats for a target without state: %d %s", w.Code, w.Body.String())
+	}
+
+	w = monRequest(r, "POST", "/mon/v1/events", monTestToken, `{"events":[{"id":"019254a0-7c3e-7d2a-9b4f-1f2e3d4c5b6a","ts":`+
+		strconv.FormatInt(bucket+1000, 10)+`,"kind":"target","monClientId":"ams-1","inboundKind":"xray","inboundId":1,"path":"inner:bridge","from":"UP","to":"UP","reason":"resync","notified":true}]}`)
+	if w.Code != http.StatusOK || !strings.Contains(w.Body.String(), `"accepted":1`) {
+		t.Fatalf("resync event: %d %s", w.Code, w.Body.String())
+	}
+
+	w = monRequest(r, "POST", "/mon/v1/stats", monTestToken, stats)
+	if w.Code != http.StatusOK || strings.Contains(w.Body.String(), `"resync"`) {
+		t.Errorf("stats after the resync: %d %s, want no resync field", w.Code, w.Body.String())
+	}
+}

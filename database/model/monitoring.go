@@ -62,6 +62,13 @@ type MonTarget struct {
 	State  string `json:"state" gorm:"size:16;not null"` // one of the MonState* constants
 	Since  int64  `json:"since"`                         // when the current state began, ms
 	Reason string `json:"reason"`                        // snake_case diagnosis behind the current state
+	// EventSeen is set once an event from mon-server has moved the row. A row
+	// created from an aggregate starts without it; while such a row is still
+	// UNKNOWN the panel holds no state for it and asks mon-server for a state
+	// resync in the answer to POST /stats (contract §4.7). Rows that predate
+	// the column read false, so a target stuck in UNKNOWN before the upgrade
+	// is asked about too.
+	EventSeen bool `json:"-" gorm:"not null;default:false"`
 	// UpdatedAt is kept by gorm in milliseconds, matching every other time here.
 	UpdatedAt int64 `json:"updatedAt" gorm:"autoUpdateTime:milli"`
 }
