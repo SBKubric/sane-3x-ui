@@ -792,6 +792,9 @@ func (s *NginxService) subProxy() (*nginx.Proxy, error) {
 			paths = append(paths, p)
 		}
 	}
+	if p := s.settingService.publishedTunPath(); p != "" {
+		paths = append(paths, p)
+	}
 	if len(paths) == 0 {
 		return nil, fmt.Errorf("the subscription server has no path to publish")
 	}

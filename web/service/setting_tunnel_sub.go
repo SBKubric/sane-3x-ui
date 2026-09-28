@@ -21,3 +21,17 @@ func (s *SettingService) GetSubTunPath() (string, error) {
 func (s *SettingService) GetSubTunURI() (string, error) {
 	return s.getString("subTunURI")
 }
+
+// publishedTunPath is the tunnel subscription's path while the route is on,
+// "" otherwise: what the chain document tells the hops to serve (spec §7) and
+// what nginx publishes.
+func (s *SettingService) publishedTunPath() string {
+	if on, err := s.GetSubTunEnable(); err != nil || !on {
+		return ""
+	}
+	path, err := s.GetSubTunPath()
+	if err != nil || path == "/" {
+		return ""
+	}
+	return path
+}
