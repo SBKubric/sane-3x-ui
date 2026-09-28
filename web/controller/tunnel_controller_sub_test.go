@@ -42,6 +42,7 @@ func newUsersRouter(t *testing.T) (*gin.Engine, string) {
 	api.Use(a.checkAPIAuth)
 	NewAwgController(api.Group("/awg"))
 	NewWgController(api.Group("/wg"))
+	NewSubUserController(api.Group("/users"))
 	return r, monUILogin(t, r)
 }
 

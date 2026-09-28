@@ -74,6 +74,9 @@ func (a *APIController) initRouter(g *gin.RouterGroup, customGeo *service.Custom
 	// Chain registry API (docs/spec/proxy-chain.md §2.4)
 	NewChainController(api.Group("/chain"))
 
+	// Users API (docs/spec/users.md §6)
+	NewSubUserController(api.Group("/users"))
+
 	// Custom Geo API
 	NewCustomGeoController(api.Group("/custom-geo"), customGeo)
 
