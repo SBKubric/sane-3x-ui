@@ -29,6 +29,12 @@ jobs:
             - name: Build
               run: go build ./...
 
+            # The release and the Docker image build main.go on its own, not the
+            # package: a helper of package main in another file breaks them while
+            # `go build ./...` stays green (v1.9.0-chain.14).
+            - name: Build main.go as the release does
+              run: go build -o /dev/null main.go
+
             - name: Vet
               run: go vet ./...
 
