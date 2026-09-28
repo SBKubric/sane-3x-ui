@@ -212,12 +212,17 @@ func activeEdgeServerName(doc *chain.Document) string {
 }
 
 // frontSubPaths is what the HTTP side passes to the box's sub server under
-// the subscription limit: the subscription paths of the document and the
+// the subscription limit: the subscription paths of the document, the tunnel
+// subscription's (the default one for a document that names none), and the
 // wave. The join page goes to the same server under a limit of its own.
 func frontSubPaths(doc *chain.Document) []string {
 	seen := map[string]bool{}
 	var paths []string
-	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, ChainPathPrefix + "/"} {
+	tunPath := doc.NextHop.TunPath
+	if tunPath == "" {
+		tunPath = fallbackTunPath
+	}
+	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, tunPath, ChainPathPrefix + "/"} {
 		if path == "" || path == "/" || seen[path] {
 			continue
 		}

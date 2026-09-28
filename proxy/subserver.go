@@ -30,6 +30,9 @@ var subpageHTML string
 const (
 	fallbackSubPath  = "/sub/"
 	fallbackJsonPath = "/json/"
+	// fallbackTunPath is also the path of a document from a panel that did
+	// not name tunPath yet: the panel's default.
+	fallbackTunPath = "/tun/"
 )
 
 // app is one recommended client app shown on the proxy subscription page.
@@ -42,6 +45,9 @@ type app struct {
 // recommendedApps is the curated client list shown on the proxy page.
 var recommendedApps = []app{
 	{Name: "Amnezia", Platform: "Android", URL: "https://github.com/amnezia-vpn/amnezia-client/releases"},
+	// For the tunnels: AmneziaVPN and AmneziaWG import a .conf (spec §8).
+	{Name: "AmneziaVPN", Platform: "all platforms", URL: "https://amnezia.org/downloads"},
+	{Name: "AmneziaWG", Platform: "Android", URL: "https://github.com/amnezia-vpn/amneziawg-android/releases"},
 	{Name: "V2rayNG", Platform: "Android", URL: "https://github.com/2dust/v2rayNG/releases"},
 	{Name: "DefaultVPN", Platform: "iOS", URL: "https://apps.apple.com/ru/app/defaultvpn/id6744725017"},
 	{Name: "SongBird", Platform: "Windows", URL: "https://github.com/o3ku/SongBird/releases/"},
@@ -296,6 +302,14 @@ func (s *SubServer) route(c *gin.Context) {
 		s.handleJson(c, id)
 		return
 	}
+	if id, ok := subscriptionID(path, s.tunPath(), fallbackTunPath); ok {
+		if doc == nil {
+			c.String(http.StatusServiceUnavailable, "this box has not joined the chain yet")
+			return
+		}
+		s.handleTun(c, id)
+		return
+	}
 	c.Status(http.StatusNotFound)
 }
 
@@ -318,6 +332,11 @@ func (s *SubServer) handleSub(c *gin.Context, subid string) {
 	base, subPath, _ := s.nextHop()
 	body, header, status, err := s.fetchUpstream(base, subPath, subid)
 	if err == nil && isRefusal(status) {
+		// A subscription of tunnels alone has no xray links for the panel to
+		// answer with, but still a page (#167 Q7).
+		if wantsHTML(c) && s.renderTunnelsOnlyPage(c, subid) {
+			return
+		}
 		passRefusal(c, status, header, body)
 		return
 	}
@@ -438,10 +457,16 @@ type pageData struct {
 	JsonURL string
 	QR      template.URL
 	Configs []string
-	Used    string
-	Total   string
-	Expire  string
-	Apps    []app
+	// Tunnels are the subscription's AmneziaWG/WireGuard configs, shown when
+	// TunnelSection is set: the next hop answered /tun (spec §7).
+	Tunnels       []pageTunnel
+	TunnelSection bool
+	// TunnelsOnly is a page of a subscription with no xray links.
+	TunnelsOnly bool
+	Used        string
+	Total       string
+	Expire      string
+	Apps        []app
 }
 
 func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header http.Header) {
@@ -455,17 +480,22 @@ func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header
 		qr = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
 	}
 
+	tunnels, _, tunnelSection := s.pageTunnels(subid)
 	c.Header("Content-Type", "text/html; charset=utf-8")
+	// NoRoute leaves 404 on the writer; the page is a success.
+	c.Status(http.StatusOK)
 	if err := s.tmpl.Execute(c.Writer, pageData{
-		Title:   "Subscription",
-		SubURL:  subURL,
-		JsonURL: jsonURL,
-		QR:      qr,
-		Configs: decodeConfigs(body),
-		Used:    used,
-		Total:   total,
-		Expire:  expire,
-		Apps:    recommendedApps,
+		Title:         "Subscription",
+		SubURL:        subURL,
+		JsonURL:       jsonURL,
+		QR:            qr,
+		Configs:       decodeConfigs(body),
+		Tunnels:       tunnels,
+		TunnelSection: tunnelSection,
+		Used:          used,
+		Total:         total,
+		Expire:        expire,
+		Apps:          recommendedApps,
 	}); err != nil {
 		logger.Warning("proxy-front: render page:", err)
 	}
