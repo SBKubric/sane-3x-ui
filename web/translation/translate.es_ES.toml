@@ -88,6 +88,11 @@
 "inactive" = "Inactivo"
 "unlimited" = "Ilimitado"
 "noExpiry" = "Sin caducidad"
+"tunnels" = "Túneles"
+"downloadConf" = "Descargar"
+"copyConf" = "Copiar configuración"
+"tunnelHint" = "Ábrelo con AmneziaVPN o la app AmneziaWG / WireGuard. Los cambios no se envían: descárgalo de nuevo tras cambios en el servidor."
+"noTunnels" = "No hay configuraciones de túnel en esta suscripción"
 
 [menu]
 "wg" = "Ajustes WG"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "Déjalo vacío para que este peer no esté en ninguna suscripción. Usa el mismo ID que un cliente de Xray para compartir una suscripción."
+"tunnelSubscription" = "Suscripción"
+"notInSubscription" = "Sin suscripción"
 
 [pages.client]
 "copyFromInbound" = "Copiar clientes desde una entrada"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "Activar suscripción de túneles"
+"subTunPath" = "Ruta de la suscripción de túneles"
+"subTunPathDesc" = "Sirve las configuraciones AmneziaWG y WireGuard de una suscripción en JSON"
+"subTunURI" = "URI de la suscripción de túneles"
 
 [pages.xray]
 "nordRouting" = "Enrutamiento NordVPN"

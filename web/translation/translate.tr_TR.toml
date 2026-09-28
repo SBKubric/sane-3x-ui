@@ -88,6 +88,11 @@
 "unlimited" = "Sınırsız"
 "noExpiry" = "Süresiz"
 "pageThemeDesc" = "Abonelik bilgi sayfası için varsayılan tema."
+"tunnels" = "Tüneller"
+"downloadConf" = "İndir"
+"copyConf" = "Yapılandırmayı kopyala"
+"tunnelHint" = "AmneziaVPN veya AmneziaWG / WireGuard uygulamasıyla açın. Değişiklikler otomatik gelmez: sunucu değiştikten sonra yeniden indirin."
+"noTunnels" = "Bu abonelikte tünel yapılandırması yok"
 
 [menu]
 "theme" = "Tema"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "Bu eşi hiçbir aboneliğe dahil etmemek için boş bırakın. Tek bir aboneliği paylaşmak için bir Xray istemcisiyle aynı ID’yi kullanın."
+"tunnelSubscription" = "Abonelik"
+"notInSubscription" = "Abonelikte değil"
 
 [pages.client]
 "add" = "Müşteri Ekle"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "Tünel aboneliğini etkinleştir"
+"subTunPath" = "Tünel aboneliği yolu"
+"subTunPathDesc" = "Bir aboneliğin AmneziaWG ve WireGuard yapılandırmalarını JSON olarak sunar"
+"subTunURI" = "Tünel aboneliği URI"
 
 [pages.xray]
 "title" = "Xray Yapılandırmaları"

@@ -88,6 +88,11 @@
 "inactive" = "Không hoạt động"
 "unlimited" = "Không giới hạn"
 "noExpiry" = "Không hết hạn"
+"tunnels" = "Đường hầm"
+"downloadConf" = "Tải xuống"
+"copyConf" = "Sao chép cấu hình"
+"tunnelHint" = "Mở bằng AmneziaVPN hoặc ứng dụng AmneziaWG / WireGuard. Thay đổi không tự cập nhật: hãy tải lại sau khi máy chủ thay đổi."
+"noTunnels" = "Không có cấu hình đường hầm trong gói đăng ký này"
 
 [menu]
 "wg" = "Cài đặt WG"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "Để trống để peer này không thuộc gói đăng ký nào. Dùng cùng ID với một client Xray để chia sẻ một gói đăng ký."
+"tunnelSubscription" = "Gói đăng ký"
+"notInSubscription" = "Không thuộc gói đăng ký"
 
 [pages.client]
 "copyFromInbound" = "Sao chép client từ inbound"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "Bật gói đăng ký đường hầm"
+"subTunPath" = "Đường dẫn gói đăng ký đường hầm"
+"subTunPathDesc" = "Cung cấp cấu hình AmneziaWG và WireGuard của gói đăng ký dưới dạng JSON"
+"subTunURI" = "URI gói đăng ký đường hầm"
 
 [pages.xray]
 "nordRouting" = "Định tuyến NordVPN"

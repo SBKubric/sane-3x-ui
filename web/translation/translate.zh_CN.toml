@@ -88,6 +88,11 @@
 "unlimited" = "无限制"
 "noExpiry" = "无到期"
 "pageThemeDesc" = "订阅信息页面的默认主题。"
+"tunnels" = "隧道"
+"downloadConf" = "下载"
+"copyConf" = "复制配置"
+"tunnelHint" = "请使用 AmneziaVPN 或 AmneziaWG / WireGuard 应用打开。更改不会自动推送：服务器变更后请重新下载。"
+"noTunnels" = "此订阅中没有隧道配置"
 
 [menu]
 "theme" = "主题"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "留空则此对端不属于任何订阅。使用与 Xray 客户端相同的 ID 以共享同一订阅。"
+"tunnelSubscription" = "订阅"
+"notInSubscription" = "不在订阅中"
 
 [pages.client]
 "add" = "添加客户端"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "启用隧道订阅"
+"subTunPath" = "隧道订阅路径"
+"subTunPathDesc" = "以 JSON 提供订阅的 AmneziaWG 和 WireGuard 配置"
+"subTunURI" = "隧道订阅 URI"
 
 [pages.xray]
 "title" = "Xray 配置"

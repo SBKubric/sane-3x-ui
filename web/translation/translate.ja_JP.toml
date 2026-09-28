@@ -88,6 +88,11 @@
 "unlimited" = "無制限"
 "noExpiry" = "期限なし"
 "pageThemeDesc" = "サブスクリプション情報ページの既定テーマ。"
+"tunnels" = "トンネル"
+"downloadConf" = "ダウンロード"
+"copyConf" = "設定をコピー"
+"tunnelHint" = "AmneziaVPN または AmneziaWG / WireGuard アプリで開いてください。変更は自動では届きません。サーバー変更後に再度ダウンロードしてください。"
+"noTunnels" = "このサブスクリプションにトンネル設定はありません"
 
 [menu]
 "theme" = "テーマ"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "空欄にするとこのピアはどのサブスクリプションにも含まれません。Xray クライアントと同じ ID を使うと 1 つのサブスクリプションを共有できます。"
+"tunnelSubscription" = "サブスクリプション"
+"notInSubscription" = "サブスクリプションなし"
 
 [pages.client]
 "add" = "クライアント追加"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "トンネルサブスクリプションを有効にする"
+"subTunPath" = "トンネルサブスクリプションのパス"
+"subTunPathDesc" = "サブスクリプションの AmneziaWG と WireGuard の設定を JSON で配信します"
+"subTunURI" = "トンネルサブスクリプション URI"
 
 [pages.xray]
 "title" = "Xray 設定"

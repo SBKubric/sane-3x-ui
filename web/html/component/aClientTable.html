@@ -15,6 +15,10 @@
     <template slot="title">{{ i18n "info" }}</template>
     <a-icon :style="{ fontSize: '22px' }" class="normal-icon" type="info-circle" @click="showInfo(record.id,client);"></a-icon>
   </a-tooltip>
+  <a-tooltip v-if="(record.isAmneziawg || record.isNativewg) && client.subId && subSettings.enable">
+    <template slot="title">{{ i18n "pages.inbounds.tunnelSubscription" }}</template>
+    <a-icon :style="{ fontSize: '22px' }" class="normal-icon" type="link" @click="copyTunnelSubLink(client)"></a-icon>
+  </a-tooltip>
   <a-tooltip>
     <template slot="title">{{ i18n "pages.inbounds.resetTraffic" }}</template>
     <a-popconfirm @confirm="resetClientTraffic(client,record.id,false)" title='{{ i18n "pages.inbounds.resetTrafficContent"}}' :overlay-class-name="themeSwitcher.currentTheme" ok-text='{{ i18n "reset"}}' cancel-text='{{ i18n "cancel"}}'>
@@ -84,6 +88,13 @@
   <template v-else>
     <a-tag :style="{ opacity: 0.5 }">—</a-tag>
   </template>
+</template>
+<template slot="tunnelSubId" slot-scope="text, client">
+  <a-tag v-if="client.subId" color="purple" data-testid="tunnel-sub-id">[[ client.subId ]]</a-tag>
+  <a-tooltip v-else>
+    <template slot="title">{{ i18n "pages.inbounds.notInSubscription" }}</template>
+    <a-tag :style="{ opacity: 0.5 }">—</a-tag>
+  </a-tooltip>
 </template>
 <template slot="traffic" slot-scope="text, client">
   <a-popover :overlay-class-name="themeSwitcher.currentTheme">

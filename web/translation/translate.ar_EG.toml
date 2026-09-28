@@ -88,6 +88,11 @@
 "unlimited" = "غير محدود"
 "noExpiry" = "بدون انتهاء"
 "pageThemeDesc" = "المظهر الافتراضي لصفحة معلومات الاشتراك."
+"tunnels" = "الأنفاق"
+"downloadConf" = "تنزيل"
+"copyConf" = "نسخ الإعداد"
+"tunnelHint" = "افتحه باستخدام AmneziaVPN أو تطبيق AmneziaWG / WireGuard. التغييرات لا تصل تلقائيًا: نزّله مجددًا بعد تغيّر الخادم."
+"noTunnels" = "لا توجد إعدادات أنفاق في هذا الاشتراك"
 
 [menu]
 "theme" = "الثيم"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "اتركه فارغًا لإبقاء هذا النظير خارج أي اشتراك. استخدم نفس المعرّف الخاص بعميل Xray لمشاركة اشتراك واحد."
+"tunnelSubscription" = "الاشتراك"
+"notInSubscription" = "ليس ضمن اشتراك"
 
 [pages.client]
 "add" = "أضف عميل"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "تفعيل اشتراك الأنفاق"
+"subTunPath" = "مسار اشتراك الأنفاق"
+"subTunPathDesc" = "يقدّم إعدادات AmneziaWG وWireGuard للاشتراك بصيغة JSON"
+"subTunURI" = "رابط URI لاشتراك الأنفاق"
 
 [pages.xray]
 "title" = "إعدادات Xray"

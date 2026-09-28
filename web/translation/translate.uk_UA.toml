@@ -88,6 +88,11 @@
 "unlimited" = "Безліміт"
 "noExpiry" = "Без строку"
 "pageThemeDesc" = "Типова тема для сторінки інформації про підписку."
+"tunnels" = "Тунелі"
+"downloadConf" = "Завантажити"
+"copyConf" = "Скопіювати конфіг"
+"tunnelHint" = "Відкрийте в AmneziaVPN або в застосунку AmneziaWG / WireGuard. Зміни не надходять самі: після змін на сервері завантажте конфіг знову."
+"noTunnels" = "У цій підписці немає тунельних конфігів"
 
 [menu]
 "theme" = "Тема"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "Залиште порожнім, щоб пір не входив до жодної підписки. Вкажіть той самий ID, що й у Xray-клієнта, щоб підписка була спільною."
+"tunnelSubscription" = "Підписка"
+"notInSubscription" = "Не в підписці"
 
 [pages.client]
 "add" = "Додати клієнта"
@@ -850,6 +858,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "Увімкнути тунельну підписку"
+"subTunPath" = "Шлях тунельної підписки"
+"subTunPathDesc" = "Віддає конфіги AmneziaWG і WireGuard підписки у JSON"
+"subTunURI" = "URI тунельної підписки"
 
 [pages.xray]
 "title" = "Xray конфігурації"

@@ -411,6 +411,19 @@
               <a :href="[[ infoModal.subJsonLink ]]" target="_blank">[[
                 infoModal.subJsonLink ]]</a>
             </tr-info-row>
+            <!-- tunnel subscription (docs/spec/tunnel-subscription.md §8): this peer's configs as JSON -->
+            <tr-info-row class="tr-info-row"
+              v-if="(dbInbound.isAmneziawg || dbInbound.isNativewg) && app.subSettings.subTunEnable">
+              <tr-info-title class="tr-info-title">
+                <a-tag color="purple">Tunnel Link</a-tag>
+                <a-tooltip title='{{ i18n "copy" }}'>
+                  <a-button size="small" icon="snippets"
+                    @click="copy(app.subSettings.subTunURI + infoModal.clientSettings.subId)"></a-button>
+                </a-tooltip>
+              </tr-info-title>
+              <a :href="app.subSettings.subTunURI + infoModal.clientSettings.subId" target="_blank"
+                data-testid="info-tunnel-link">[[ app.subSettings.subTunURI + infoModal.clientSettings.subId ]]</a>
+            </tr-info-row>
           </template>
           <template v-if="app.tgBotEnable && infoModal.clientSettings.tgId">
             <a-divider>Telegram ChatID</a-divider>

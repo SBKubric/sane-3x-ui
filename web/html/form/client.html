@@ -157,12 +157,13 @@
         </a-select>
     </a-form-item>
     <a-form-item
-        v-if="client.email && app.subSettings?.enable && inbound.protocol !== Protocols.AMNEZIAWG && inbound.protocol !== Protocols.NATIVEWG"
+        v-if="client.email && app.subSettings?.enable"
     >
         <template slot="label">
             <a-tooltip>
                 <template slot="title">
-                    <span>{{ i18n "pages.inbounds.subscriptionDesc" }}</span>
+                    <span v-if="inbound.protocol === Protocols.AMNEZIAWG || inbound.protocol === Protocols.NATIVEWG">{{ i18n "pages.inbounds.subscriptionTunnelDesc" }}</span>
+                    <span v-else>{{ i18n "pages.inbounds.subscriptionDesc" }}</span>
                 </template>
                 Subscription
                 <a-icon
