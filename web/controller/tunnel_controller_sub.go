@@ -29,9 +29,13 @@ func (a *TunnelController) guardClientWrite(id int, clientUUID string, req *tunn
 	return (&service.SubUserService{}).ValidateTunnelClientWrite(id, clientUUID, req.Email, req.SubId)
 }
 
-// linkClient applies the request's subId to the client, if it sent one.
+// linkClient applies the request's subId to the client, if it sent one. It
+// runs after every successful add and update, so it is also where /tun learns
+// that a client changed: Set drops the subscription cache itself, and an edit
+// that leaves the link alone drops it here.
 func (a *TunnelController) linkClient(clientUUID string, subId *string) error {
 	if subId == nil {
+		service.InvalidateTunnelSubCache()
 		return nil
 	}
 	return (&service.TunnelSubscriptionService{}).Set(clientUUID, a.kind.Name, *subId)
