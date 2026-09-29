@@ -79,6 +79,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 .steps button{font:inherit;font-size:13px;text-align:left;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}
 .steps li.done button{color:var(--muted);text-decoration:line-through}
 .steps li.next button{border-color:var(--accent);color:var(--accent);font-weight:500}
+.feed.chan{max-height:180px;padding:0;background:transparent}
 .q{margin:0;padding-left:20px;display:grid;gap:6px}
 .q li{max-width:75ch}
 .foot{color:var(--muted);font-size:12.5px}
@@ -89,7 +90,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
 <div class="wrap">
   <header>
     <h1>Бот: один экран на диалог</h1>
-    <p class="lede"><b>Прототип для тикета «Прототип навигации бота: один экран на диалог» (sane-3x-ui #178 → #185).</b> Вопрос: хватает ли одного сообщения-экрана, которое бот правит на месте, чтобы админ и клиент дошли до всего нужного — пользователи, клиенты, подписка, админка, — не засоряя чат? Нажимайте кнопки под сообщениями бота слева или проходите сценарии справа. Данные вымышленные, ничего никуда не отправляется.</p>
+    <p class="lede"><b>Версия 2: учтены ответы владельца. Прототип для тикета «Прототип навигации бота: один экран на диалог» (sane-3x-ui #178 → #185).</b> Вопрос: хватает ли одного сообщения-экрана, которое бот правит на месте, чтобы админ и клиент дошли до всего нужного — пользователи, клиенты, подписка, админка, — не засоряя чат? Нажимайте кнопки под сообщениями бота слева или проходите сценарии справа. Данные вымышленные, ничего никуда не отправляется.</p>
   </header>
 
   <div class="grid">
@@ -107,6 +108,12 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
     </section>
 
     <div class="side">
+      <section class="card" aria-labelledby="chanH">
+        <h2 id="chanH">Канал уведомлений</h2>
+        <p class="foot" style="margin:0 0 8px">Отдельный Telegram-канал из настроек панели. В переписку с ботом уведомления не приходят.</p>
+        <div class="feed chan" id="chan"></div>
+      </section>
+
       <section class="card" aria-labelledby="stateH">
         <h2 id="stateH">Состояние</h2>
         <dl class="state" id="state"></dl>
@@ -121,7 +128,7 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
       <section class="card" aria-labelledby="freeH">
         <h2 id="freeH">Свободная игра</h2>
         <div class="row-tools">
-          <button class="btn ghost" type="button" data-free="notify">Прислать уведомление мониторинга</button>
+          <button class="btn ghost" type="button" data-free="notify">Прислать уведомление (в канал)</button>
           <button class="btn ghost" type="button" data-free="tick">Прошло 5 минут</button>
           <button class="btn ghost" type="button" data-free="reset">Сбросить чат</button>
         </div>
@@ -133,30 +140,18 @@ code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
               <option value="guest">Новый человек @new_person (не привязан)</option>
             </select>
           </label>
-          <label for="onNotice">Когда приходит уведомление, экран…
-            <select id="onNotice">
-              <option value="stay">остаётся на месте (уведомление ниже него)</option>
-              <option value="move">переезжает вниз (бот удаляет и присылает экран заново)</option>
-            </select>
-          </label>
-          <label for="onStale">После /start старый экран…
-            <select id="onStale">
-              <option value="disable">остаётся, но кнопки не работают («экран устарел»)</option>
-              <option value="delete">удаляется</option>
-            </select>
-          </label>
         </div>
       </section>
 
       <section class="card" aria-labelledby="qH">
-        <h2 id="qH">Что решить по прототипу</h2>
+        <h2 id="qH">Решено по первой версии (2026-09-29)</h2>
         <ol class="q">
-          <li>Уведомление посреди диалога: экран остаётся выше или переезжает вниз? (переключатель выше, сценарий «Уведомление»)</li>
-          <li>Старый экран после <code>/start</code>: удалять или оставлять неактивным? (сценарий «Старый экран»)</li>
-          <li>Ваш текст (поиск, имя) бот удаляет сразу после обработки — так и надо?</li>
-          <li>Файлы (.conf, QR) и ссылка на админку приходят отдельными сообщениями, файлы не удаляются — ок?</li>
-          <li>Строка в списке пользователей: <code>🟢 ivan · VLESS+AWG · 15.5/100 ГБ · до 01.11</code> — чего не хватает или что лишнее?</li>
-          <li>Состав и порядок главного меню админа и клиента.</li>
+          <li>Уведомления — только в отдельный канал из настроек панели, не в переписку.</li>
+          <li>Старого экрана нет: <code>/start</code> удаляет прежний. Всё, что умел старый бот, раскладывается по новым экранам.</li>
+          <li>Ваш текст (поиск, имя) бот удаляет после обработки.</li>
+          <li>Файлы и ссылка на админку — отдельными сообщениями, файлы остаются.</li>
+          <li>Строка списка пользователей — как есть. Добавлены экраны: Мониторинг, Отчёты, Онлайн, Новый пользователь, Входящие заявки, Сервер.</li>
+          <li>Главное меню — как есть, плюс «Входящие заявки».</li>
         </ol>
       </section>
       <p class="foot">Прототип выброшен после решения: ценность — в модуле логики (<code>BotModel</code> в коде страницы) и в ответах на вопросы выше.</p>
@@ -186,6 +181,8 @@ const BotModel = (() => {
         mk("test", "t0k1l2m3", null, null, true, "—", [c(1, 0, 0), c(2, 0, 0)]),
       ],
       probes: ["probe-1", "probe-awg-monclient-direct", "probe-awg-monclient-edge-proxy"],
+      requests: [{ nick: "new_person", tg: 612000, at: "сегодня 18:40" }, { nick: "kate_m", tg: 612044, at: "вчера 22:15" }],
+      online: ["ivan", "petr", "anna", "sergey"],
     };
   }
   const clientName = (u, c) => `${u.name}-${INBOUNDS.find(i => i.id === c.inb).remark}`;
@@ -195,8 +192,8 @@ const BotModel = (() => {
   const gb = n => (Math.round(n * 10) / 10).toString();
   const traffic = u => `${gb(sumUsed(u))}/${sumLimit(u) ? gb(sumLimit(u)) + " ГБ" : "∞"}`;
 
-  function initial(role = "admin", settings = { onNotice: "stay", onStale: "disable" }) {
-    return { role, settings, data: seedData(), chat: [], nextId: 1, screenId: null, view: null, back: [],
+  function initial(role = "admin", settings = {}) {
+    return { role, settings, data: seedData(), chat: [], channel: [], draft: null, nextId: 1, screenId: null, view: null, back: [],
       awaiting: null, clock: 0, toast: "", lastChange: "Чат пуст. Нажмите /start." };
   }
 
@@ -208,10 +205,11 @@ const BotModel = (() => {
     switch (v.v) {
       case "main":
         if (s.role === "admin") return { title: "Главное меню", text: "Главное меню\nСервер: 🟢 работает · онлайн 4 · мониторинг: всё UP",
-          rows: [[B("👥 Пользователи", { v: "users", p: 0 }), B("➕ Новый пользователь", { v: "stub", what: "Создание (сценарий из #169)" })],
-                 [B("📋 Inbounds и клиенты", { v: "inbounds" }), B("🟢 Онлайн", { v: "stub", what: "Кто онлайн" })],
-                 [B("📊 Отчёты", { v: "stub", what: "Отчёты по трафику" }), B("📡 Мониторинг", { v: "stub", what: "Мониторинг" })],
-                 [B("⚙️ Сервер", { v: "stub", what: "Статус, бэкап, рестарт" }), B("🔧 Админка", null, { a: "adminLink" })]] };
+          rows: [[B("👥 Пользователи", { v: "users", p: 0 }), B("➕ Новый пользователь", null, { a: "newUser" })],
+                 [B(`📥 Входящие заявки (${s.data.requests.length})`, { v: "requests" })],
+                 [B("📋 Inbounds и клиенты", { v: "inbounds" }), B(`🟢 Онлайн (${s.data.online.length})`, { v: "online" })],
+                 [B("📊 Отчёты", { v: "reports" }), B("📡 Мониторинг", { v: "monitoring" })],
+                 [B("⚙️ Сервер", { v: "server" }), B("🔧 Админка", null, { a: "adminLink" })]] };
         if (s.role === "client") { const u = user(s, "ivan");
           return { title: "Моя подписка", text: `Подписка ${u.enable ? "🟢 активна" : "⏸ приостановлена"}\nСрок: до ${u.exp}\nТрафик: ${traffic(u)}\nПротоколы: ${protoList(u)}`,
             rows: [[B("🔗 Show subscription", { v: "sub", u: "ivan" })], [B("📄 Мои конфиги", { v: "myconf" })], [B("🔄 Обновить", { v: "main" })]] }; }
@@ -265,6 +263,37 @@ const BotModel = (() => {
         rows: [[B("🔄 Обновить", { v: "probe", n: v.n }), B("⬅ Назад", { v: "@back" })]] };
       case "myconf": return { title: "Мои конфиги", text: "Ваши клиенты:\n  • VLESS ivan-vless-reality\n  • AWG ivan-awg",
         rows: [[B("📄 AWG .conf и QR", null, { a: "conf", n: "ivan-awg" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "online": return { title: "Онлайн", text: `🟢 Онлайн сейчас: ${s.data.online.length}`,
+        rows: [...s.data.online.map(n => [B(`🟢 ${n} · ${protoList(user(s, n) || { clients: [] })}`, { v: "user", u: n })]), [B("🔄 Обновить", { v: "online" }), B("⬅ Назад", { v: "@back" })]] };
+      case "reports": return { title: "Отчёты", text: "📊 Отчёты\nТрафик за всё время: 91.4 ГБ\nТоп: sergey 22.0 · maria 48.0 · ivan 15.5",
+        rows: [[B("📈 Трафик по пользователям", { v: "rep", what: "traffic" })], [B("⏳ Скоро закончатся (2)", { v: "rep", what: "deplete" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "rep": return v.what === "traffic"
+        ? { title: "Трафик", text: "📈 По убыванию:\n1. maria 48.0/50 ГБ\n2. sergey 22.0/∞\n3. ivan 15.5/100 ГБ\n4. petr 7.7/100 ГБ\n5. anna 1.4/60 ГБ", rows: [[B("⬅ Назад", { v: "@back" })]] }
+        : { title: "Скоро закончатся", text: "⏳ Скоро закончатся:\n• maria — трафик 96%\n• ivan — срок через 3 дня", rows: [[B("🟢 maria", { v: "user", u: "maria" }), B("🟢 ivan", { v: "user", u: "ivan" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "monitoring": return { title: "Мониторинг", text: "📡 Мониторинг · данные свежие (8 с назад)\nmonclient 🟢 ONLINE\nvless-reality: direct UP · bridge UP · proxy UP\nawg: direct UP · bridge UP · proxy UP · proxy2 UP\nUptime 24ч: 97.9–98.5% (vless), 96.2–97.2% (awg)",
+        rows: [[B("📜 События", { v: "stub", what: "Лента событий мониторинга" }), B("🔄 Обновить", { v: "monitoring" })], [B("📡 Probe accounts", { v: "probes" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "server": return { title: "Сервер", text: "⚙️ Сервер · 3x-ui v1.9.0-chain.16 · xray 26.3.27\nCPU 7% · RAM 41% · аптайм 3 д\nЦепочка: active edge proxy · звеньев 3",
+        rows: [[B("💾 Бэкап БД", null, { a: "backup" }), B("🔄 Перезапуск xray", null, { a: "toast", msg: "xray перезапущен (в прототипе — только сообщение)" })],
+               [B("🔗 Цепочка (/proxy)", { v: "stub", what: "Звенья и active edge" }), B("🚫 Бан-логи", null, { a: "backup", file: "ban.log" })],
+               [B("♻️ Сбросить весь трафик", { v: "stub", what: "Сброс трафика всех клиентов — с подтверждением" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "requests": return { title: "Входящие заявки", text: s.data.requests.length ? `📥 Заявки: ${s.data.requests.length}` : "📥 Новых заявок нет",
+        rows: [...s.data.requests.map(r => [B(`@${r.nick} · ${r.at}`, { v: "request", nick: r.nick })]), [B("⬅ Назад", { v: "@back" })]] };
+      case "request": { const r = s.data.requests.find(x => x.nick === v.nick); if (!r) return render(s, { v: "requests" });
+        return { title: `Заявка @${r.nick}`, text: `📥 Заявка от @${r.nick} (tg ${r.tg}), ${r.at}\nДетали одобрения — тикет «Заявка на подписку через бота».`,
+          rows: [[B("✅ Одобрить", null, { a: "approve", nick: r.nick }), B("❌ Отклонить", null, { a: "reject", nick: r.nick })], [B("⬅ Назад", { v: "@back" })]] }; }
+      case "new": { const d = s.draft || {};
+        const pick = i => (d.inb.includes(i.id) ? "✅ " : "⬜ ") + i.proto;
+        const summary = `Имя: ${d.name || "—"}\nПротоколы: ${d.inb.map(id => INBOUNDS.find(i => i.id === id).proto).join("+") || "—"}\nТрафик: ${d.gb ? d.gb + " ГБ на протокол" : "∞"} · срок: ${d.days ? d.days + " дн." : "∞"}\nTelegram: ${d.tg || "позже"}`;
+        if (d.step === "name") return { title: "Новый: имя", text: `➕ Новый пользователь · шаг 1/4\nПришлите имя.${d.err ? "\n⚠️ " + d.err : ""}`, rows: [[B("✖ Отмена", null, { a: "cancelNew" })]], awaiting: "name" };
+        if (d.step === "protos") return { title: "Новый: протоколы", text: `➕ ${d.name} · шаг 2/4\nВыберите протоколы.`,
+          rows: [INBOUNDS.map(i => B(pick(i), null, { a: "toggleInb", id: i.id })), [B("Далее ▶", null, { a: "draftStep", step: "limits" })], [B("✖ Отмена", null, { a: "cancelNew" })]] };
+        if (d.step === "limits") return { title: "Новый: лимиты", text: `➕ ${d.name} · шаг 3/4\nТрафик на протокол и срок.\n${summary}`,
+          rows: [[50, 100, 0].map(g => B((d.gb === g ? "● " : "") + (g ? g + " ГБ" : "∞"), null, { a: "setDraft", k: "gb", val: g })),
+                 [30, 90, 0].map(n => B((d.days === n ? "● " : "") + (n ? n + " дн." : "∞"), null, { a: "setDraft", k: "days", val: n })),
+                 [B("Далее ▶", null, { a: "draftStep", step: "tg" })], [B("✖ Отмена", null, { a: "cancelNew" })]] };
+        if (d.step === "tg") return { title: "Новый: Telegram", text: `➕ ${d.name} · шаг 4/4\nПривязать Telegram?\n${summary}`,
+          rows: [[B("🔗 Ссылка-приглашение", null, { a: "toast", msg: "Способ привязки — тикет «Привязка Telegram при создании пользователя»" }), B("Позже", null, { a: "draftStep", step: "confirm" })], [B("✖ Отмена", null, { a: "cancelNew" })]] };
+        return { title: "Новый: проверка", text: `➕ Проверьте:\n${summary}`, rows: [[B("✅ Создать", null, { a: "createUser" })], [B("◀ Изменить", null, { a: "draftStep", step: "protos" }), B("✖ Отмена", null, { a: "cancelNew" })]] }; }
       case "stub": return { title: v.what, text: `${v.what}\n(в прототипе не раскрыто)`, rows: [[B("⬅ Назад", { v: "@back" })]] };
     }
     return { title: "?", text: "?", rows: [home] };
@@ -303,9 +332,9 @@ const BotModel = (() => {
       case "start": {
         push(s, { kind: "me", text: "/start" });
         const old = s.chat.find(m => m.id === s.screenId && !m.deleted);
-        if (old) { if (s.settings.onStale === "delete") old.deleted = true; else { old.stale = true; } }
+        if (old) { old.deleted = true; old.why = "удалено: новый /start"; }
         s.screenId = null; s.back = []; paint(s, { v: "main" }, "new");
-        s.lastChange = old ? `Новый экран снизу; старый ${s.settings.onStale === "delete" ? "удалён" : "помечен «устарел»"}` : "Бот прислал экран с главным меню";
+        s.lastChange = old ? "Новый экран снизу; старый удалён" : "Бот прислал экран с главным меню";
         return s;
       }
       case "press": {
@@ -332,16 +361,17 @@ const BotModel = (() => {
       case "text": {
         const id = push(s, { kind: "me", text: action.text });
         if (!s.awaiting) { s.toast = "Бот не ждёт текста на этом экране"; s.lastChange = "Текст вне поиска — бот его игнорирует"; return s; }
-        s.chat.find(m => m.id === id).deleted = true; s.chat.find(m => m.id === id).why = "удалено ботом после поиска";
+        s.chat.find(m => m.id === id).deleted = true; s.chat.find(m => m.id === id).why = "удалено ботом после обработки";
+        if (s.awaiting === "name") { const n = action.text.trim();
+          if (s.data.users.some(u => u.name.toLowerCase() === n.toLowerCase()) || ["robot", "monitoring"].includes(n.toLowerCase())) { s.draft.err = `Имя «${n}» занято`; paint(s, s.view); s.lastChange = "Имя занято — бот просит другое"; return s; }
+          s.draft.name = n; s.draft.err = null; s.draft.step = "protos"; paint(s, { v: "new" }); s.lastChange = `Имя «${n}» принято; экран — шаг 2`; return s; }
         goto(s, search(s, action.text)); s.lastChange = `Поиск «${action.text}» → ${s.chat.find(x => x.id === s.screenId).title}; ваше сообщение удалено`;
         return s;
       }
       case "notify": {
-        push(s, { kind: "notice", text: "⚠️ Мониторинг: DOWN · vless-reality via proxy · tls_timeout" });
-        const live = s.chat.find(m => m.id === s.screenId && !m.deleted);
-        if (live && s.settings.onNotice === "move") { live.deleted = true; live.why = "перенесён вниз"; paint(s, s.view, "new"); s.lastChange = "Уведомление; экран удалён и прислан заново ниже"; }
-        else s.lastChange = "Уведомление пришло отдельным сообщением; экран остался выше";
-        return s;
+        const texts = ["⚠️ Мониторинг: DOWN · vless-reality via proxy · tls_timeout", "✅ Мониторинг: UP · vless-reality via proxy", "📥 Новая заявка: @kate_m", "⏳ maria: осталось 4% трафика", "🔐 Вход в панель: admin с 203.0.113.7"];
+        s.channel.push({ id: s.channel.length + 1, text: texts[s.channel.length % texts.length] });
+        s.lastChange = "Уведомление ушло в канал; переписка с ботом не тронута"; return s;
       }
       case "tick": {
         s.clock += 5; let n = 0;
@@ -370,6 +400,19 @@ const BotModel = (() => {
       case "cEnable": { const c = u.clients.find(x => x.inb === a.inb); c.enable = !c.enable; paint(s, s.view); s.lastChange = `Клиент ${c.enable ? "включён" : "выключен"}`; return s; }
       case "conf": push(s, { kind: "file", text: `📄 ${a.n}.conf\n🖼 ${a.n}.png (QR)` }); s.toast = "Файлы отправлены"; s.lastChange = "Файлы — отдельными сообщениями, остаются в чате"; return s;
       case "toast": s.toast = a.msg; s.lastChange = a.msg; return s;
+      case "newUser": s.draft = { step: "name", inb: INBOUNDS.map(i => i.id), gb: 50, days: 30, name: "", tg: null }; goto(s, { v: "new" }); s.lastChange = "Диалог создания: шаг 1, бот ждёт имя"; return s;
+      case "toggleInb": { const i = s.draft.inb.indexOf(a.id); if (i >= 0) s.draft.inb.splice(i, 1); else s.draft.inb.push(a.id); paint(s, s.view); s.lastChange = "Протоколы: " + s.draft.inb.length; return s; }
+      case "setDraft": s.draft[a.k] = a.val; paint(s, s.view); s.lastChange = `Черновик: ${a.k} = ${a.val || "∞"}`; return s;
+      case "draftStep": if (a.step === "limits" && !s.draft.inb.length) { s.toast = "Выберите хотя бы один протокол"; return s; }
+        s.draft.step = a.step; paint(s, { v: "new" }); s.lastChange = `Диалог создания: ${a.step}`; return s;
+      case "cancelNew": s.draft = null; s.back = []; paint(s, { v: "main" }); s.toast = "Создание отменено"; s.lastChange = "Черновик выброшен, экран — главное меню"; return s;
+      case "createUser": { const d = s.draft;
+        s.data.users.push({ name: d.name, sub: Math.random().toString(36).slice(2, 10), tg: null, nick: null, enable: true, exp: d.days ? `+${d.days} дн.` : "—", technical: false,
+          clients: d.inb.map(id => ({ inb: id, used: 0, limit: d.gb, enable: true })) });
+        s.draft = null; s.back = [{ v: "main" }]; paint(s, { v: "user", u: d.name }); s.toast = `Создан ${d.name}`; s.lastChange = `Пользователь ${d.name} создан; экран — его карточка`; return s; }
+      case "approve": s.data.requests = s.data.requests.filter(r => r.nick !== a.nick); s.back = [{ v: "main" }]; paint(s, { v: "requests" }); s.toast = `@${a.nick}: одобрено (детали — тикет заявок)`; s.lastChange = "Заявка одобрена"; return s;
+      case "reject": s.data.requests = s.data.requests.filter(r => r.nick !== a.nick); s.back = [{ v: "main" }]; paint(s, { v: "requests" }); s.toast = `@${a.nick}: отклонено`; s.lastChange = "Заявка отклонена"; return s;
+      case "backup": push(s, { kind: "file", text: `💾 ${a.file || "x-ui.db"}` }); s.toast = "Файл отправлен"; s.lastChange = "Файл — отдельным сообщением в переписку админа"; return s;
     }
     return s;
   }
@@ -434,7 +477,10 @@ function draw() {
   const dl = $("state"); dl.textContent = "";
   rows.forEach(([k, v]) => { const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v;
     if (prevShown[k] !== undefined && prevShown[k] !== v && k !== "Что изменилось") dd.classList.add("chg"); dl.append(dt, dd); prevShown[k] = v; });
-  $("role").value = S.role; $("onNotice").value = S.settings.onNotice; $("onStale").value = S.settings.onStale;
+  $("role").value = S.role;
+  const ch = $("chan"); ch.textContent = "";
+  if (!S.channel.length) { const e = document.createElement("div"); e.className = "foot"; e.textContent = "Пока пусто. Нажмите «Прислать уведомление»."; ch.appendChild(e); }
+  S.channel.forEach(n => { const e = document.createElement("div"); e.className = "msg notice"; e.textContent = n.text; ch.appendChild(e); });
   drawScenario();
 }
 
@@ -449,15 +495,24 @@ const SCEN = [
     steps: [["Отправить /start", { type: "start" }], ["📋 Inbounds и клиенты", { type: "pressLabel", label: "📋" }], ["AWG · awg", { type: "pressLabel", label: "AWG · awg" }],
             ["ivan-awg", { type: "pressLabel", label: "ivan-awg" }], ["👤 Пользователь ivan", { type: "pressLabel", label: "👤" }], ["🔗 Show subscription", { type: "pressLabel", label: "🔗" }],
             ["⬅ К пользователю", { type: "pressLabel", label: "⬅" }], ["VLESS · ivan-vless-reality", { type: "pressLabel", label: "VLESS · ivan" }]] },
-  { key: "notice", name: "Уведомление", role: "admin",
-    desc: "Посреди работы с карточкой приходит уведомление мониторинга. Где теперь экран? Прогоните дважды с разной настройкой «Когда приходит уведомление».",
-    steps: [["Отправить /start", { type: "start" }], ["👥 Пользователи", { type: "pressLabel", label: "👥" }], ["Открыть maria", { type: "pressLabel", label: "🟢 maria" }],
-            ["Пришло уведомление", { type: "notify" }], ["➕ Протокол", { type: "pressLabel", label: "➕" }]] },
+  { key: "new", name: "Новый пользователь", role: "admin",
+    desc: "Диалог создания в одном экране: имя текстом (бот удалит сообщение), галочки протоколов, лимиты кнопками, Telegram — позже, проверка и создание. Попробуйте занятое имя «ivan».",
+    steps: [["Отправить /start", { type: "start" }], ["➕ Новый пользователь", { type: "pressLabel", label: "➕ Новый" }], ["Написать «ivan» (занято)", { type: "text", text: "ivan" }],
+            ["Написать «kate»", { type: "text", text: "kate" }], ["Снять ⬜/✅ AWG", { type: "pressLabel", label: "✅ AWG" }], ["Далее ▶", { type: "pressLabel", label: "Далее" }],
+            ["100 ГБ", { type: "pressLabel", label: "100 ГБ" }], ["Далее ▶", { type: "pressLabel", label: "Далее" }], ["Позже", { type: "pressLabel", label: "Позже" }], ["✅ Создать", { type: "pressLabel", label: "✅ Создать" }]] },
+  { key: "req", name: "Входящие заявки", role: "admin",
+    desc: "Заявки из главного меню. Одобрение здесь только обозначено: что именно создаётся, решается в тикете заявок.",
+    steps: [["Отправить /start", { type: "start" }], ["📥 Входящие заявки", { type: "pressLabel", label: "📥" }], ["@new_person", { type: "pressLabel", label: "@new_person" }], ["✅ Одобрить", { type: "pressLabel", label: "✅ Одобрить" }]] },
+  { key: "menus", name: "Мониторинг, отчёты, онлайн, сервер", role: "admin",
+    desc: "Экраны, куда переезжает старый функционал бота. Уведомления тем временем идут в канал справа, переписка не трогается.",
+    steps: [["Отправить /start", { type: "start" }], ["📡 Мониторинг", { type: "pressLabel", label: "📡 Мониторинг" }], ["Уведомление (в канал)", { type: "notify" }], ["⬅ Назад", { type: "pressLabel", label: "⬅" }],
+            ["📊 Отчёты", { type: "pressLabel", label: "📊" }], ["⏳ Скоро закончатся", { type: "pressLabel", label: "⏳" }], ["🏠 → /start", { type: "start" }], ["🟢 Онлайн", { type: "pressLabel", label: "🟢 Онлайн" }],
+            ["⬅ Назад", { type: "pressLabel", label: "⬅" }], ["⚙️ Сервер", { type: "pressLabel", label: "⚙️" }], ["💾 Бэкап БД", { type: "pressLabel", label: "💾" }]] },
   { key: "admin", name: "Ссылка на админку", role: "admin",
     desc: "Ссылка приходит отдельным сообщением и через 5 минут исчезает. Экран при этом не меняется.",
     steps: [["Отправить /start", { type: "start" }], ["🔧 Админка", { type: "pressLabel", label: "🔧" }], ["Прошло 5 минут", { type: "tick" }]] },
-  { key: "stale", name: "Старый экран", role: "admin",
-    desc: "Админ снова отправил /start, а потом нажал кнопку на старом экране. Это не должно ничего менять. Сравните «удалять» и «оставлять неактивным».",
+  { key: "stale", name: "Повторный /start", role: "admin",
+    desc: "Админ снова отправил /start. Старый экран удаляется, нажимать на нём нечего.",
     steps: [["Отправить /start", { type: "start" }], ["👥 Пользователи", { type: "pressLabel", label: "👥" }], ["Снова /start", { type: "start" }], ["Нажать кнопку на старом экране", { type: "pressOld" }]] },
   { key: "client", name: "Клиент", role: "client",
     desc: "Бота открывает клиент, привязанный к пользователю ivan. Он видит свою подписку и конфиги, админских кнопок нет.",
@@ -490,8 +545,7 @@ document.querySelectorAll("[data-free]").forEach(b => b.addEventListener("click"
   const k = b.dataset.free; if (k === "reset") { S = BotModel.initial(S.role, S.settings); prevShown = {}; stepIdx = 0; draw(); } else dispatch({ type: k });
 }));
 $("role").addEventListener("change", e => { S = BotModel.initial(e.target.value, S.settings); prevShown = {}; stepIdx = 0; draw(); });
-$("onNotice").addEventListener("change", e => dispatch({ type: "setting", key: "onNotice", value: e.target.value }));
-$("onStale").addEventListener("change", e => dispatch({ type: "setting", key: "onStale", value: e.target.value }));
+
 
 // open in a realistic working state: admin, first scenario started with /start
 S = BotModel.reduce(S, { type: "start" }); stepIdx = 1; draw();
