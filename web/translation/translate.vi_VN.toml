@@ -1493,6 +1493,11 @@
 "assignPrompt" = "👤 Whom should <code>{{ .Client }}</code> be assigned to? Enter a user name or subId."
 "clientWithoutSubscription" = "❗ <code>{{ .Client }}</code> has no subscription. Assign it to a user first: 👥 Users → robot."
 
+[tgbot.tunnel]
+"card" = "📡 <code>{{ .Name }}</code> · {{ .Inbound }}\r\n"
+"user" = "👤 User: {{ .Name }}\r\n"
+"config" = "📄 Config and QR"
+
 [tgbot.answers]
 "successfulOperation" = "✅ Thành công!"
 "errorOperation" = "❗ Lỗi Trong Quá Trình Thực Hiện."

@@ -806,6 +806,11 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		if t.answerUsersCallback(callbackQuery, decodedQuery) {
 			return
 		}
+		// The tunnel clients (#182) take their own buttons, and the client
+		// lists of the amneziawg and nativewg inbounds.
+		if t.answerTunnelCallback(callbackQuery, decodedQuery) {
+			return
+		}
 		dataArray := strings.Split(decodedQuery, " ")
 
 		if len(dataArray) >= 2 && len(dataArray[1]) > 0 {
@@ -2729,20 +2734,11 @@ func (t *Tgbot) SendAwgConfigsToClients() (int, error) {
 			logger.Warning("AWG notify: config unavailable for", c.Email, err)
 			continue
 		}
-		filename := c.Email + ".conf"
-		if filename == ".conf" {
-			filename = "amneziawg.conf"
-		}
 		t.SendMsgToTgbot(c.TgId, notice)
-		doc := tu.Document(tu.ID(c.TgId), tu.FileFromBytes([]byte(conf), filename))
-		if _, err := bot.SendDocument(context.Background(), doc); err != nil {
+		// The .conf and its QR, as the tunnel client card sends them (#182).
+		if err := t.sendTunnelFiles(c.TgId, tunnelConfigFiles(model.TunnelKindAwg, c.Email, conf)); err != nil {
 			logger.Warning("AWG notify: SendDocument failed for", c.Email, err)
 			continue
-		}
-		// Best-effort QR of the config for in-app scan import.
-		if png, qerr := qrcode.Encode(conf, qrcode.Medium, 320); qerr == nil {
-			qrDoc := tu.Document(tu.ID(c.TgId), tu.FileFromBytes(png, filename+".png"))
-			_, _ = bot.SendDocument(context.Background(), qrDoc)
 		}
 		notified++
 		time.Sleep(50 * time.Millisecond)

@@ -1497,6 +1497,11 @@
 "assignPrompt" = "👤 Кому назначить <code>{{ .Client }}</code>? Введите имя пользователя или subId."
 "clientWithoutSubscription" = "❗ У <code>{{ .Client }}</code> нет подписки. Сначала назначьте его пользователю: 👥 Пользователи → robot."
 
+[tgbot.tunnel]
+"card" = "📡 <code>{{ .Name }}</code> · {{ .Inbound }}\r\n"
+"user" = "👤 Пользователь: {{ .Name }}\r\n"
+"config" = "📄 Конфиг и QR"
+
 [tgbot.answers]
 "successfulOperation" = "✅ Успешно!"
 "errorOperation" = "❗ Ошибка в операции."
