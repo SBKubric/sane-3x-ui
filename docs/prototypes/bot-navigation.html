@@ -1,0 +1,498 @@
+<title>Бот: один экран</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#E9EDF1; --surface:#FFFFFF; --panel:#F6F8FA; --ink:#18212B; --muted:#5A6776; --line:#D3DAE2;
+  --accent:#2D6A9C; --accent-ink:#FFFFFF; --me:#DDEBD9; --notice:#FFF6DB; --notice-line:#E7C766;
+  --edited:#FFE9A8; --gone:#9AA5B1; --ok:#2E7D4F; --warn:#B26A00; --bad:#B23A3A;
+  --chat:#DCE3EA;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0F141A; --surface:#19212B; --panel:#141B23; --ink:#E3E9EF; --muted:#94A2B2; --line:#2A3542;
+    --accent:#6FA6D6; --accent-ink:#0F141A; --me:#23402E; --notice:#3A3218; --notice-line:#8A7128;
+    --edited:#5A4A12; --gone:#5E6A77; --ok:#5CC08A; --warn:#E0A443; --bad:#E07070; --chat:#111820;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0F141A; --surface:#19212B; --panel:#141B23; --ink:#E3E9EF; --muted:#94A2B2; --line:#2A3542;
+  --accent:#6FA6D6; --accent-ink:#0F141A; --me:#23402E; --notice:#3A3218; --notice-line:#8A7128;
+  --edited:#5A4A12; --gone:#5E6A77; --ok:#5CC08A; --warn:#E0A443; --bad:#E07070; --chat:#111820;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:14px/1.5 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;padding-inline:16px;padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+h1{font-size:22px;font-weight:600;margin:0;text-wrap:balance}
+.lede{color:var(--muted);max-width:75ch;margin:4px 0 0}
+.lede b{color:var(--ink);font-weight:600}
+.grid{display:grid;grid-template-columns:minmax(0,420px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:860px){.grid{grid-template-columns:minmax(0,1fr)}}
+.phone{background:var(--chat);border:1px solid var(--line);border-radius:14px;display:flex;flex-direction:column;height:640px;overflow:hidden}
+.phone-top{background:var(--surface);border-bottom:1px solid var(--line);padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.phone-top .who{font-weight:600}
+.phone-top .sub{color:var(--muted);font-size:12px}
+.feed{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.msg{max-width:92%;border-radius:10px;padding:8px 10px;background:var(--surface);border:1px solid var(--line);white-space:pre-wrap;word-wrap:break-word}
+.msg.me{align-self:flex-end;background:var(--me)}
+.msg.notice{background:var(--notice);border-color:var(--notice-line)}
+.msg.file{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
+.msg.live{outline:2px solid var(--accent);outline-offset:1px}
+.msg.flash{background:var(--edited)}
+.msg.gone{background:transparent;border-style:dashed;color:var(--gone);font-style:italic}
+.msg.stale{opacity:.6}
+.msg .meta{display:flex;gap:8px;justify-content:space-between;font-size:11px;color:var(--muted);margin-bottom:4px;font-family:"IBM Plex Mono",ui-monospace,monospace}
+.kb{display:grid;gap:4px;margin-top:8px}
+.kb .row{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px}
+.kb button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--accent);border-radius:7px;padding:6px 6px;cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.kb button:hover{border-color:var(--accent)}
+.kb button:disabled{color:var(--gone);cursor:not-allowed}
+.composer{display:flex;gap:6px;padding:10px;background:var(--surface);border-top:1px solid var(--line)}
+.composer input{flex:1;min-width:0;font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--ink)}
+button.btn{font:inherit;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);border-radius:8px;padding:7px 12px;cursor:pointer;font-weight:500}
+button.btn.ghost{background:transparent;color:var(--accent)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.toast{min-height:22px;font-size:13px;color:var(--warn);padding:0 12px 8px;background:var(--surface)}
+.side{display:flex;flex-direction:column;gap:14px;min-width:0}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
+.state{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:4px 14px;font-size:13.5px}
+.state dt{color:var(--muted)}
+.state dd{margin:0;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.state dd.chg{background:var(--edited);border-radius:4px;padding:0 4px}
+.pill{display:inline-block;border-radius:999px;padding:0 8px;font-size:12px;border:1px solid var(--line)}
+.pill.ok{color:var(--ok);border-color:var(--ok)}
+.pill.bad{color:var(--bad);border-color:var(--bad)}
+.row-tools{display:flex;flex-wrap:wrap;gap:6px}
+.settings{display:grid;gap:10px}
+.settings label{display:grid;gap:4px;font-size:13px}
+.settings select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);max-width:100%}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.tabs button{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:999px;padding:4px 10px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.scen p{margin:0 0 8px;color:var(--muted);max-width:70ch}
+.steps{display:flex;flex-direction:column;gap:6px;margin:0;padding:0;list-style:none}
+.steps li{display:flex;gap:8px;align-items:center}
+.steps .n{font-family:"IBM Plex Mono",ui-monospace,monospace;color:var(--muted);width:2ch;text-align:right}
+.steps button{font:inherit;font-size:13px;text-align:left;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:8px;padding:5px 10px;cursor:pointer}
+.steps li.done button{color:var(--muted);text-decoration:line-through}
+.steps li.next button{border-color:var(--accent);color:var(--accent);font-weight:500}
+.q{margin:0;padding-left:20px;display:grid;gap:6px}
+.q li{max-width:75ch}
+.foot{color:var(--muted);font-size:12.5px}
+code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:12.5px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Бот: один экран на диалог</h1>
+    <p class="lede"><b>Прототип для тикета «Прототип навигации бота: один экран на диалог» (sane-3x-ui #178 → #185).</b> Вопрос: хватает ли одного сообщения-экрана, которое бот правит на месте, чтобы админ и клиент дошли до всего нужного — пользователи, клиенты, подписка, админка, — не засоряя чат? Нажимайте кнопки под сообщениями бота слева или проходите сценарии справа. Данные вымышленные, ничего никуда не отправляется.</p>
+  </header>
+
+  <div class="grid">
+    <section class="phone" aria-label="Чат с ботом">
+      <div class="phone-top">
+        <div><div class="who">3x-ui бот</div><div class="sub" id="whoSub"></div></div>
+        <button class="btn ghost" id="startBtn" type="button">/start</button>
+      </div>
+      <div class="feed" id="feed"></div>
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <form class="composer" id="composer">
+        <input id="textIn" autocomplete="off" placeholder="Сообщение боту (поиск: @ник, tg_id, имя, xray email, subId)">
+        <button class="btn" type="submit">Отправить</button>
+      </form>
+    </section>
+
+    <div class="side">
+      <section class="card" aria-labelledby="stateH">
+        <h2 id="stateH">Состояние</h2>
+        <dl class="state" id="state"></dl>
+      </section>
+
+      <section class="card" aria-labelledby="walkH">
+        <h2 id="walkH">Сценарии</h2>
+        <div class="tabs" role="tablist" id="tabs"></div>
+        <div class="scen" id="scen"></div>
+      </section>
+
+      <section class="card" aria-labelledby="freeH">
+        <h2 id="freeH">Свободная игра</h2>
+        <div class="row-tools">
+          <button class="btn ghost" type="button" data-free="notify">Прислать уведомление мониторинга</button>
+          <button class="btn ghost" type="button" data-free="tick">Прошло 5 минут</button>
+          <button class="btn ghost" type="button" data-free="reset">Сбросить чат</button>
+        </div>
+        <div class="settings" style="margin-top:12px">
+          <label for="role">Кто пишет боту
+            <select id="role">
+              <option value="admin">Админ</option>
+              <option value="client">Клиент @ivan_petrov (привязан к пользователю ivan)</option>
+              <option value="guest">Новый человек @new_person (не привязан)</option>
+            </select>
+          </label>
+          <label for="onNotice">Когда приходит уведомление, экран…
+            <select id="onNotice">
+              <option value="stay">остаётся на месте (уведомление ниже него)</option>
+              <option value="move">переезжает вниз (бот удаляет и присылает экран заново)</option>
+            </select>
+          </label>
+          <label for="onStale">После /start старый экран…
+            <select id="onStale">
+              <option value="disable">остаётся, но кнопки не работают («экран устарел»)</option>
+              <option value="delete">удаляется</option>
+            </select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="qH">
+        <h2 id="qH">Что решить по прототипу</h2>
+        <ol class="q">
+          <li>Уведомление посреди диалога: экран остаётся выше или переезжает вниз? (переключатель выше, сценарий «Уведомление»)</li>
+          <li>Старый экран после <code>/start</code>: удалять или оставлять неактивным? (сценарий «Старый экран»)</li>
+          <li>Ваш текст (поиск, имя) бот удаляет сразу после обработки — так и надо?</li>
+          <li>Файлы (.conf, QR) и ссылка на админку приходят отдельными сообщениями, файлы не удаляются — ок?</li>
+          <li>Строка в списке пользователей: <code>🟢 ivan · VLESS+AWG · 15.5/100 ГБ · до 01.11</code> — чего не хватает или что лишнее?</li>
+          <li>Состав и порядок главного меню админа и клиента.</li>
+        </ol>
+      </section>
+      <p class="foot">Прототип выброшен после решения: ценность — в модуле логики (<code>BotModel</code> в коде страницы) и в ответах на вопросы выше.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== BotModel: pure logic, no DOM ===================== */
+const BotModel = (() => {
+  const PAGE = 5;
+  const INBOUNDS = [
+    { id: 1, remark: "vless-reality", proto: "VLESS" },
+    { id: 2, remark: "awg", proto: "AWG" },
+  ];
+  function seedData() {
+    const mk = (name, sub, tg, nick, enable, exp, clients) => ({ name, sub, tg, nick, enable, exp, clients, technical: false });
+    const c = (inb, used, limit) => ({ inb, used, limit, enable: true });
+    return {
+      users: [
+        mk("ivan", "k3f9ab27", 481516, "ivan_petrov", true, "01.11", [c(1, 12.4, 50), c(2, 3.1, 50)]),
+        mk("maria", "m9x2c1d0", 234200, "masha_k", true, "15.10", [c(1, 48.0, 50)]),
+        mk("oleg", "o1z7q4w8", null, null, false, "—", [c(1, 0.2, 0), c(2, 0, 0)]),
+        mk("petr", "p5t6y7u8", 999001, "petr_s", true, "20.12", [c(2, 7.7, 100)]),
+        mk("anna", "a2s3d4f5", 777002, "anna_v", true, "03.01", [c(1, 1.0, 30), c(2, 0.4, 30)]),
+        mk("sergey", "s6g7h8j9", 555003, "serg", true, "—", [c(1, 22.0, 0)]),
+        mk("test", "t0k1l2m3", null, null, true, "—", [c(1, 0, 0), c(2, 0, 0)]),
+      ],
+      probes: ["probe-1", "probe-awg-monclient-direct", "probe-awg-monclient-edge-proxy"],
+    };
+  }
+  const clientName = (u, c) => `${u.name}-${INBOUNDS.find(i => i.id === c.inb).remark}`;
+  const protoList = u => u.clients.map(c => INBOUNDS.find(i => i.id === c.inb).proto).join("+") || "—";
+  const sumUsed = u => u.clients.reduce((a, c) => a + c.used, 0);
+  const sumLimit = u => u.clients.some(c => !c.limit) ? 0 : u.clients.reduce((a, c) => a + c.limit, 0);
+  const gb = n => (Math.round(n * 10) / 10).toString();
+  const traffic = u => `${gb(sumUsed(u))}/${sumLimit(u) ? gb(sumLimit(u)) + " ГБ" : "∞"}`;
+
+  function initial(role = "admin", settings = { onNotice: "stay", onStale: "disable" }) {
+    return { role, settings, data: seedData(), chat: [], nextId: 1, screenId: null, view: null, back: [],
+      awaiting: null, clock: 0, toast: "", lastChange: "Чат пуст. Нажмите /start." };
+  }
+
+  // ---- views: (state, view) -> {title, text, rows} ; rows = [[{label, go|act}]] ----
+  const user = (s, name) => s.data.users.find(u => u.name === name);
+  function render(s, v) {
+    const B = (label, go, act) => ({ label, go, act });
+    const home = [B("🏠 Меню", { v: "main" })];
+    switch (v.v) {
+      case "main":
+        if (s.role === "admin") return { title: "Главное меню", text: "Главное меню\nСервер: 🟢 работает · онлайн 4 · мониторинг: всё UP",
+          rows: [[B("👥 Пользователи", { v: "users", p: 0 }), B("➕ Новый пользователь", { v: "stub", what: "Создание (сценарий из #169)" })],
+                 [B("📋 Inbounds и клиенты", { v: "inbounds" }), B("🟢 Онлайн", { v: "stub", what: "Кто онлайн" })],
+                 [B("📊 Отчёты", { v: "stub", what: "Отчёты по трафику" }), B("📡 Мониторинг", { v: "stub", what: "Мониторинг" })],
+                 [B("⚙️ Сервер", { v: "stub", what: "Статус, бэкап, рестарт" }), B("🔧 Админка", null, { a: "adminLink" })]] };
+        if (s.role === "client") { const u = user(s, "ivan");
+          return { title: "Моя подписка", text: `Подписка ${u.enable ? "🟢 активна" : "⏸ приостановлена"}\nСрок: до ${u.exp}\nТрафик: ${traffic(u)}\nПротоколы: ${protoList(u)}`,
+            rows: [[B("🔗 Show subscription", { v: "sub", u: "ivan" })], [B("📄 Мои конфиги", { v: "myconf" })], [B("🔄 Обновить", { v: "main" })]] }; }
+        return { title: "Нет подписки", text: "Здравствуйте! У вас пока нет подписки.",
+          rows: [[B("📝 Оставить заявку", null, { a: "toast", msg: "Заявки — отдельный тикет «Заявка на подписку через бота»" })]] };
+      case "users": {
+        const list = s.data.users, pages = Math.max(1, Math.ceil(list.length / PAGE)), p = Math.min(v.p || 0, pages - 1);
+        const slice = list.slice(p * PAGE, p * PAGE + PAGE);
+        const rows = slice.map(u => [B(`${u.enable ? "🟢" : "⏸"} ${u.name} · ${protoList(u)} · ${traffic(u)} · до ${u.exp}`, { v: "user", u: u.name })]);
+        const nav = []; if (p > 0) nav.push(B("◀", { v: "users", p: p - 1 })); nav.push(B(`${p + 1}/${pages}`, { v: "users", p })); if (p < pages - 1) nav.push(B("▶", { v: "users", p: p + 1 }));
+        rows.push(nav, [B("🤖 robot", { v: "stub", what: "Клиенты без подписки" }), B("📡 monitoring", { v: "probes" })], home);
+        return { title: `Пользователи ${p + 1}/${pages}`, text: `Пользователи (${list.length})\n🔎 Чтобы найти, пришлите @ник, tg_id, имя, xray email или subId.`, rows, awaiting: "search" };
+      }
+      case "found": return { title: "Найдено несколько", text: `По «${v.q}» найдено: ${v.names.length}`,
+        rows: [...v.names.map(n => [B(n, { v: "user", u: n })]), [B("⬅ Назад", { v: "users", p: 0 })]], awaiting: "search" };
+      case "notfound": return { title: "Не найдено", text: `По «${v.q}» никого не нашёл.\nПоиск точный, без учёта регистра. Пришлите другой запрос.`,
+        rows: [[B("⬅ К списку", { v: "users", p: 0 })], home], awaiting: "search" };
+      case "user": { const u = user(s, v.u); if (!u) return render(s, { v: "users", p: 0 });
+        const tg = u.tg ? `@${u.nick} · ${u.tg}` : "не привязан";
+        const lines = u.clients.map(c => `  • ${INBOUNDS.find(i => i.id === c.inb).proto}: ${clientName(u, c)} · ${gb(c.used)}/${c.limit ? c.limit + " ГБ" : "∞"}`).join("\n") || "  нет клиентов";
+        return { title: `Пользователь ${u.name}`, text: `👤 ${u.name}\nПодписка: ${u.enable ? "🟢 активна" : "⏸ приостановлена"} · до ${u.exp} · ${traffic(u)}\nTelegram: ${tg}\nКлиенты:\n${lines}`,
+          rows: [[B("🔗 Show subscription", { v: "sub", u: u.name })],
+                 ...u.clients.map(c => [B(`${INBOUNDS.find(i => i.id === c.inb).proto} · ${clientName(u, c)}`, { v: "client", u: u.name, inb: c.inb })]),
+                 [B("➕ Протокол", null, { a: "addProto", u: u.name }), B("➖ Протокол", { v: "remove", u: u.name })],
+                 [u.enable ? B("⏸ Приостановить", null, { a: "enable", u: u.name, on: false }) : B("▶ Возобновить", null, { a: "enable", u: u.name, on: true }),
+                  B("🗑 Удалить", { v: "confirmDel", u: u.name })],
+                 [B("⬅ Назад", { v: "@back" }), ...home]] }; }
+      case "sub": { const u = user(s, v.u);
+        return { title: `Подписка ${u.name}`, text: `🔗 Подписка ${u.name}\nhttps://<edge>/sub/${u.sub}\n[QR-код]\nСтатус: ${u.enable ? "активна" : "приостановлена"} · до ${u.exp} · ${traffic(u)}\nВ приложении: v2rayN / Hiddify / AmneziaVPN (AWG — .conf на странице подписки)`,
+          rows: [[B(s.role === "admin" ? "⬅ К пользователю" : "⬅ Назад", { v: "@back" })], ...(s.role === "admin" ? [home] : [])] }; }
+      case "client": { const u = user(s, v.u), c = u.clients.find(x => x.inb === v.inb); if (!c) return render(s, { v: "user", u: v.u });
+        const inb = INBOUNDS.find(i => i.id === c.inb);
+        return { title: `Клиент ${clientName(u, c)}`, text: `${inb.proto} · ${clientName(u, c)}\nxray email: ${clientName(u, c)}\nТрафик: ${gb(c.used)}/${c.limit ? c.limit + " ГБ" : "∞"} · ${c.enable ? "вкл" : "выкл"}`,
+          rows: [[B(`👤 Пользователь ${u.name}`, { v: "user", u: u.name })],
+                 [B("🔄 Сбросить трафик", null, { a: "reset", u: u.name, inb: c.inb }), B(c.enable ? "⏸ Выкл" : "▶ Вкл", null, { a: "cEnable", u: u.name, inb: c.inb })],
+                 ...(inb.proto === "AWG" ? [[B("📄 Конфиг и QR", null, { a: "conf", n: clientName(u, c) })]] : []),
+                 [B("⬅ Назад", { v: "@back" }), ...home]] }; }
+      case "remove": { const u = user(s, v.u);
+        return { title: "Убрать протокол", text: `Какой протокол убрать у ${u.name}?`,
+          rows: [...u.clients.map(c => [B(`➖ ${clientName(u, c)}`, null, { a: "remove", u: u.name, inb: c.inb })]), [B("⬅ Отмена", { v: "@back" })]] }; }
+      case "confirmDel": return { title: "Удалить?", text: `Удалить пользователя ${v.u} и всех его клиентов? Ссылка подписки перестанет работать.`,
+        rows: [[B("🗑 Да, удалить", null, { a: "delete", u: v.u }), B("Отмена", { v: "@back" })]] };
+      case "inbounds": return { title: "Inbounds", text: "Inbounds",
+        rows: [...INBOUNDS.map(i => [B(`${i.proto} · ${i.remark}`, { v: "inbound", id: i.id })]), home] };
+      case "inbound": { const i = INBOUNDS.find(x => x.id === v.id);
+        const rows = []; s.data.users.forEach(u => u.clients.filter(c => c.inb === i.id).forEach(c => rows.push([B(clientName(u, c), { v: "client", u: u.name, inb: i.id })])));
+        return { title: `Клиенты ${i.remark}`, text: `Клиенты ${i.remark} (${rows.length})`, rows: [...rows, [B("⬅ Назад", { v: "@back" }), ...home]] }; }
+      case "probes": return { title: "monitoring", text: "📡 monitoring (технический)\nProbe accounts — только чтение.",
+        rows: [...s.data.probes.map(p => [B(p, { v: "probe", n: p })]), [B("⬅ Назад", { v: "@back" }), ...home]] };
+      case "probe": return { title: `Probe ${v.n}`, text: `📡 ${v.n} (только чтение)\nТрафик ↑0.4 ↓1.2 ГБ · онлайн · пользователь monitoring`,
+        rows: [[B("🔄 Обновить", { v: "probe", n: v.n }), B("⬅ Назад", { v: "@back" })]] };
+      case "myconf": return { title: "Мои конфиги", text: "Ваши клиенты:\n  • VLESS ivan-vless-reality\n  • AWG ivan-awg",
+        rows: [[B("📄 AWG .conf и QR", null, { a: "conf", n: "ivan-awg" })], [B("⬅ Назад", { v: "@back" })]] };
+      case "stub": return { title: v.what, text: `${v.what}\n(в прототипе не раскрыто)`, rows: [[B("⬅ Назад", { v: "@back" })]] };
+    }
+    return { title: "?", text: "?", rows: [home] };
+  }
+
+  // ---- reducer helpers (return new state; never touch the DOM) ----
+  const clone = s => JSON.parse(JSON.stringify(s));
+  function push(s, m) { const id = s.nextId++; s.chat.push({ id, edits: 0, ...m }); return id; }
+  function paint(s, view, how = "edit") {
+    const r = render(s, view); s.view = view; s.awaiting = r.awaiting || null;
+    const live = s.chat.find(m => m.id === s.screenId && !m.deleted);
+    if (how === "edit" && live) { live.text = r.text; live.rows = r.rows; live.title = r.title; live.edits++; live.flash = true; }
+    else s.screenId = push(s, { kind: "screen", text: r.text, rows: r.rows, title: r.title });
+  }
+  function goto(s, target) {
+    if (target.v === "@back") { const prev = s.back.pop() || { v: "main" }; paint(s, prev); return; }
+    if (s.view && JSON.stringify(s.view) !== JSON.stringify(target) && target.v !== "main") s.back.push(s.view);
+    if (target.v === "main") s.back = [];
+    paint(s, target);
+  }
+  function search(s, q) {
+    const t = q.trim(), low = t.toLowerCase(); let hits;
+    if (t.startsWith("@")) hits = s.data.users.filter(u => u.nick && u.nick.toLowerCase() === low.slice(1));
+    else if (/^\d+$/.test(t)) hits = s.data.users.filter(u => String(u.tg) === t);
+    else hits = s.data.users.filter(u => u.name.toLowerCase() === low || u.sub.toLowerCase() === low || u.clients.some(c => clientName(u, c).toLowerCase() === low));
+    if (hits.length === 1) return { v: "user", u: hits[0].name };
+    if (hits.length > 1) return { v: "found", q: t, names: hits.map(u => u.name) };
+    return { v: "notfound", q: t };
+  }
+
+  function reduce(prev, action) {
+    const s = clone(prev); s.toast = ""; s.chat.forEach(m => { m.flash = false; });
+    switch (action.type) {
+      case "reset": return initial(action.role || s.role, s.settings);
+      case "setting": s.settings[action.key] = action.value; s.lastChange = `Настройка: ${action.key} = ${action.value}`; return s;
+      case "start": {
+        push(s, { kind: "me", text: "/start" });
+        const old = s.chat.find(m => m.id === s.screenId && !m.deleted);
+        if (old) { if (s.settings.onStale === "delete") old.deleted = true; else { old.stale = true; } }
+        s.screenId = null; s.back = []; paint(s, { v: "main" }, "new");
+        s.lastChange = old ? `Новый экран снизу; старый ${s.settings.onStale === "delete" ? "удалён" : "помечен «устарел»"}` : "Бот прислал экран с главным меню";
+        return s;
+      }
+      case "press": {
+        const m = s.chat.find(x => x.id === action.msgId);
+        if (!m || m.deleted) return s;
+        if (m.stale || m.id !== s.screenId) { s.toast = "Этот экран устарел — пользуйтесь нижним."; s.lastChange = "Нажатие на старом экране отклонено"; return s; }
+        const b = m.rows[action.r][action.c];
+        if (b.go) { goto(s, b.go); s.lastChange = `Экран исправлен на месте → ${s.chat.find(x => x.id === s.screenId).title}`; return s; }
+        return act(s, b.act);
+      }
+      case "pressLabel": {
+        const m = s.chat.find(x => x.id === s.screenId && !x.deleted);
+        if (!m) { s.toast = "Нет живого экрана — отправьте /start"; return s; }
+        for (let r = 0; r < m.rows.length; r++) for (let c = 0; c < m.rows[r].length; c++)
+          if (m.rows[r][c].label.startsWith(action.label)) return reduce(prev, { type: "press", msgId: m.id, r, c });
+        s.toast = `Кнопки «${action.label}» на экране нет`; return s;
+      }
+      case "pressOld": {
+        const m = [...s.chat].reverse().find(x => x.kind === "screen" && x.id !== s.screenId);
+        if (!m) { s.toast = "Старого экрана нет"; return s; }
+        if (m.deleted) { s.toast = "Старый экран удалён — нажимать нечего"; s.lastChange = "Старого экрана больше нет в чате"; return s; }
+        return reduce(prev, { type: "press", msgId: m.id, r: 0, c: 0 });
+      }
+      case "text": {
+        const id = push(s, { kind: "me", text: action.text });
+        if (!s.awaiting) { s.toast = "Бот не ждёт текста на этом экране"; s.lastChange = "Текст вне поиска — бот его игнорирует"; return s; }
+        s.chat.find(m => m.id === id).deleted = true; s.chat.find(m => m.id === id).why = "удалено ботом после поиска";
+        goto(s, search(s, action.text)); s.lastChange = `Поиск «${action.text}» → ${s.chat.find(x => x.id === s.screenId).title}; ваше сообщение удалено`;
+        return s;
+      }
+      case "notify": {
+        push(s, { kind: "notice", text: "⚠️ Мониторинг: DOWN · vless-reality via proxy · tls_timeout" });
+        const live = s.chat.find(m => m.id === s.screenId && !m.deleted);
+        if (live && s.settings.onNotice === "move") { live.deleted = true; live.why = "перенесён вниз"; paint(s, s.view, "new"); s.lastChange = "Уведомление; экран удалён и прислан заново ниже"; }
+        else s.lastChange = "Уведомление пришло отдельным сообщением; экран остался выше";
+        return s;
+      }
+      case "tick": {
+        s.clock += 5; let n = 0;
+        s.chat.forEach(m => { if (m.expiresAt != null && m.expiresAt <= s.clock && !m.deleted) { m.deleted = true; m.why = "удалено по таймеру"; n++; } });
+        s.lastChange = `Прошло 5 минут (сейчас +${s.clock} мин)` + (n ? `; удалено сообщений: ${n}` : ""); return s;
+      }
+    }
+    return s;
+  }
+  function act(s, a) {
+    const u = a.u ? user(s, a.u) : null;
+    switch (a.a) {
+      case "adminLink": push(s, { kind: "file", text: "🔧 Админка: https://<real>/<base-path>/\nСообщение удалится через 5 минут.", expiresAt: s.clock + 5 });
+        s.toast = "Ссылка отправлена отдельным сообщением"; s.lastChange = "Ссылка на админку — отдельное сообщение с таймером 5 мин; экран не тронут"; return s;
+      case "enable": u.enable = a.on; u.clients.forEach(c => c.enable = a.on); paint(s, s.view); s.toast = a.on ? "Возобновлён" : "Приостановлен";
+        s.lastChange = `${u.name}: ${a.on ? "возобновлён" : "приостановлен"} (все клиенты)`; return s;
+      case "addProto": { const missing = INBOUNDS.filter(i => !u.clients.some(c => c.inb === i.id));
+        if (!missing.length) { s.toast = "Все протоколы уже есть"; return s; }
+        u.clients.push({ inb: missing[0].id, used: 0, limit: u.clients[0] ? u.clients[0].limit : 0, enable: u.enable });
+        paint(s, s.view); s.toast = `Добавлен ${missing[0].proto}`; s.lastChange = `${u.name}: добавлен ${missing[0].proto}`; return s; }
+      case "remove": u.clients = u.clients.filter(c => c.inb !== a.inb); s.back.pop(); paint(s, { v: "user", u: u.name });
+        s.toast = "Протокол убран"; s.lastChange = `${u.name}: протокол убран, ссылка подписки та же`; return s;
+      case "delete": s.data.users = s.data.users.filter(x => x.name !== a.u); s.back = []; paint(s, { v: "users", p: 0 });
+        s.toast = `Пользователь ${a.u} удалён`; s.lastChange = `${a.u} удалён; экран вернулся к списку`; return s;
+      case "reset": { const c = u.clients.find(x => x.inb === a.inb); c.used = 0; paint(s, s.view); s.toast = "Трафик сброшен"; s.lastChange = "Трафик клиента сброшен"; return s; }
+      case "cEnable": { const c = u.clients.find(x => x.inb === a.inb); c.enable = !c.enable; paint(s, s.view); s.lastChange = `Клиент ${c.enable ? "включён" : "выключен"}`; return s; }
+      case "conf": push(s, { kind: "file", text: `📄 ${a.n}.conf\n🖼 ${a.n}.png (QR)` }); s.toast = "Файлы отправлены"; s.lastChange = "Файлы — отдельными сообщениями, остаются в чате"; return s;
+      case "toast": s.toast = a.msg; s.lastChange = a.msg; return s;
+    }
+    return s;
+  }
+  function metrics(s) {
+    const visible = s.chat.filter(m => !m.deleted);
+    return { botVisible: visible.filter(m => m.kind !== "me").length, screensVisible: visible.filter(m => m.kind === "screen").length,
+      live: s.chat.find(m => m.id === s.screenId && !m.deleted) || null,
+      timers: s.chat.filter(m => m.expiresAt != null && !m.deleted).map(m => `#${m.id} → +${m.expiresAt} мин`) };
+  }
+  return { initial, reduce, metrics };
+})();
+
+/* ===================== page shell ===================== */
+const ROLE_SUB = { admin: "вы — админ", client: "вы — клиент @ivan_petrov", guest: "вы — @new_person, без подписки" };
+let S = BotModel.initial();
+let prevShown = {};
+const $ = id => document.getElementById(id);
+
+function dispatch(a) { S = BotModel.reduce(S, a); draw(); }
+
+function draw() {
+  $("whoSub").textContent = ROLE_SUB[S.role];
+  const feed = $("feed"); feed.textContent = "";
+  S.chat.forEach(m => {
+    const el = document.createElement("div");
+    el.className = "msg " + (m.kind === "me" ? "me" : m.kind === "notice" ? "notice" : m.kind === "file" ? "file" : "");
+    if (m.deleted) { el.className = "msg gone" + (m.kind === "me" ? " me" : ""); el.textContent = `сообщение #${m.id} ${m.why || "удалено"}`; feed.appendChild(el); return; }
+    if (m.id === S.screenId) el.classList.add("live");
+    if (m.flash) el.classList.add("flash");
+    if (m.stale) el.classList.add("stale");
+    if (m.kind !== "me") {
+      const meta = document.createElement("div"); meta.className = "meta";
+      const l = document.createElement("span"); l.textContent = `#${m.id}` + (m.kind === "screen" ? (m.id === S.screenId ? " · живой экран" : " · экран") : m.kind === "notice" ? " · уведомление" : " · отдельное сообщение");
+      const r = document.createElement("span"); r.textContent = m.stale ? "устарел" : m.edits ? `правок: ${m.edits}` : m.expiresAt != null ? `удалится в +${m.expiresAt} мин` : "";
+      meta.append(l, r); el.appendChild(meta);
+    }
+    const body = document.createElement("div"); body.textContent = m.text; el.appendChild(body);
+    if (m.rows) {
+      const kb = document.createElement("div"); kb.className = "kb";
+      m.rows.forEach((row, ri) => { const rw = document.createElement("div"); rw.className = "row";
+        row.forEach((b, ci) => { const bt = document.createElement("button"); bt.type = "button"; bt.textContent = b.label; bt.title = b.label;
+          bt.addEventListener("click", () => dispatch({ type: "press", msgId: m.id, r: ri, c: ci })); rw.appendChild(bt); });
+        kb.appendChild(rw); });
+      el.appendChild(kb);
+    }
+    feed.appendChild(el);
+  });
+  feed.scrollTop = feed.scrollHeight;
+  $("toast").textContent = S.toast || "";
+  const mt = BotModel.metrics(S);
+  const rows = [
+    ["Кто пишет", ROLE_SUB[S.role]],
+    ["Живой экран", mt.live ? `#${mt.live.id} «${mt.live.title}» · правок ${mt.live.edits}` : "нет"],
+    ["Путь «Назад»", S.back.length ? S.back.map(v => v.v + (v.u ? ":" + v.u : "")).join(" → ") : "—"],
+    ["Сообщений бота видно", String(mt.botVisible)],
+    ["Экранов в чате", String(mt.screensVisible)],
+    ["Бот ждёт текст", S.awaiting ? "да — поиск" : "нет"],
+    ["Таймеры удаления", mt.timers.join(", ") || "—"],
+    ["Время", `+${S.clock} мин`],
+    ["Что изменилось", S.lastChange],
+  ];
+  const dl = $("state"); dl.textContent = "";
+  rows.forEach(([k, v]) => { const dt = document.createElement("dt"); dt.textContent = k; const dd = document.createElement("dd"); dd.textContent = v;
+    if (prevShown[k] !== undefined && prevShown[k] !== v && k !== "Что изменилось") dd.classList.add("chg"); dl.append(dt, dd); prevShown[k] = v; });
+  $("role").value = S.role; $("onNotice").value = S.settings.onNotice; $("onStale").value = S.settings.onStale;
+  drawScenario();
+}
+
+/* ----- walkthroughs ----- */
+const SCEN = [
+  { key: "find", name: "Найти и приостановить", role: "admin",
+    desc: "Админ ищет пользователя по нику в Telegram и приостанавливает его. Следите: в чате всё время один экран бота, он правится на месте; ваш поисковый запрос бот удаляет.",
+    steps: [["Отправить /start", { type: "start" }], ["👥 Пользователи", { type: "pressLabel", label: "👥" }], ["Написать «@ivan_petrov»", { type: "text", text: "@ivan_petrov" }],
+            ["⏸ Приостановить", { type: "pressLabel", label: "⏸ Приостановить" }], ["⬅ Назад (к списку)", { type: "pressLabel", label: "⬅ Назад" }], ["🏠 Меню", { type: "pressLabel", label: "🏠" }]] },
+  { key: "nav", name: "Клиент ↔ пользователь ↔ подписка", role: "admin",
+    desc: "Путь в обе стороны: от AWG-клиента к его пользователю, от пользователя к подписке и обратно, затем к другому клиенту того же пользователя.",
+    steps: [["Отправить /start", { type: "start" }], ["📋 Inbounds и клиенты", { type: "pressLabel", label: "📋" }], ["AWG · awg", { type: "pressLabel", label: "AWG · awg" }],
+            ["ivan-awg", { type: "pressLabel", label: "ivan-awg" }], ["👤 Пользователь ivan", { type: "pressLabel", label: "👤" }], ["🔗 Show subscription", { type: "pressLabel", label: "🔗" }],
+            ["⬅ К пользователю", { type: "pressLabel", label: "⬅" }], ["VLESS · ivan-vless-reality", { type: "pressLabel", label: "VLESS · ivan" }]] },
+  { key: "notice", name: "Уведомление", role: "admin",
+    desc: "Посреди работы с карточкой приходит уведомление мониторинга. Где теперь экран? Прогоните дважды с разной настройкой «Когда приходит уведомление».",
+    steps: [["Отправить /start", { type: "start" }], ["👥 Пользователи", { type: "pressLabel", label: "👥" }], ["Открыть maria", { type: "pressLabel", label: "🟢 maria" }],
+            ["Пришло уведомление", { type: "notify" }], ["➕ Протокол", { type: "pressLabel", label: "➕" }]] },
+  { key: "admin", name: "Ссылка на админку", role: "admin",
+    desc: "Ссылка приходит отдельным сообщением и через 5 минут исчезает. Экран при этом не меняется.",
+    steps: [["Отправить /start", { type: "start" }], ["🔧 Админка", { type: "pressLabel", label: "🔧" }], ["Прошло 5 минут", { type: "tick" }]] },
+  { key: "stale", name: "Старый экран", role: "admin",
+    desc: "Админ снова отправил /start, а потом нажал кнопку на старом экране. Это не должно ничего менять. Сравните «удалять» и «оставлять неактивным».",
+    steps: [["Отправить /start", { type: "start" }], ["👥 Пользователи", { type: "pressLabel", label: "👥" }], ["Снова /start", { type: "start" }], ["Нажать кнопку на старом экране", { type: "pressOld" }]] },
+  { key: "client", name: "Клиент", role: "client",
+    desc: "Бота открывает клиент, привязанный к пользователю ivan. Он видит свою подписку и конфиги, админских кнопок нет.",
+    steps: [["Отправить /start", { type: "start" }], ["🔗 Show subscription", { type: "pressLabel", label: "🔗" }], ["⬅ Назад", { type: "pressLabel", label: "⬅" }], ["📄 Мои конфиги", { type: "pressLabel", label: "📄 Мои" }], ["📄 AWG .conf и QR", { type: "pressLabel", label: "📄 AWG" }]] },
+  { key: "guest", name: "Без подписки", role: "guest",
+    desc: "Бота открывает человек, чей Telegram ни к кому не привязан. Заявка — отдельный тикет; здесь только вход.",
+    steps: [["Отправить /start", { type: "start" }], ["📝 Оставить заявку", { type: "pressLabel", label: "📝" }]] },
+];
+let cur = 0, stepIdx = 0;
+function startScenario(i) { cur = i; stepIdx = 0; S = BotModel.initial(SCEN[i].role, S.settings); prevShown = {}; draw(); }
+function drawScenario() {
+  const tabs = $("tabs"); tabs.textContent = "";
+  SCEN.forEach((sc, i) => { const b = document.createElement("button"); b.type = "button"; b.role = "tab"; b.textContent = sc.name; b.setAttribute("aria-selected", String(i === cur));
+    b.addEventListener("click", () => startScenario(i)); tabs.appendChild(b); });
+  const box = $("scen"); box.textContent = "";
+  const sc = SCEN[cur]; const p = document.createElement("p"); p.textContent = sc.desc; box.appendChild(p);
+  const ol = document.createElement("ol"); ol.className = "steps";
+  sc.steps.forEach(([label, action], i) => { const li = document.createElement("li"); li.className = i < stepIdx ? "done" : i === stepIdx ? "next" : "";
+    const n = document.createElement("span"); n.className = "n"; n.textContent = String(i + 1);
+    const b = document.createElement("button"); b.type = "button"; b.textContent = label;
+    b.addEventListener("click", () => { stepIdx = i + 1; dispatch(action); }); li.append(n, b); ol.appendChild(li); });
+  box.appendChild(ol);
+  const again = document.createElement("button"); again.type = "button"; again.className = "btn ghost"; again.style.marginTop = "10px"; again.textContent = "Начать сценарий заново";
+  again.addEventListener("click", () => startScenario(cur)); box.appendChild(again);
+}
+
+$("startBtn").addEventListener("click", () => dispatch({ type: "start" }));
+$("composer").addEventListener("submit", e => { e.preventDefault(); const v = $("textIn").value.trim(); if (!v) return; $("textIn").value = ""; dispatch({ type: "text", text: v }); });
+document.querySelectorAll("[data-free]").forEach(b => b.addEventListener("click", () => {
+  const k = b.dataset.free; if (k === "reset") { S = BotModel.initial(S.role, S.settings); prevShown = {}; stepIdx = 0; draw(); } else dispatch({ type: k });
+}));
+$("role").addEventListener("change", e => { S = BotModel.initial(e.target.value, S.settings); prevShown = {}; stepIdx = 0; draw(); });
+$("onNotice").addEventListener("change", e => dispatch({ type: "setting", key: "onNotice", value: e.target.value }));
+$("onStale").addEventListener("change", e => dispatch({ type: "setting", key: "onStale", value: e.target.value }));
+
+// open in a realistic working state: admin, first scenario started with /start
+S = BotModel.reduce(S, { type: "start" }); stepIdx = 1; draw();
+</script>
