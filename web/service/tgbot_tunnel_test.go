@@ -14,7 +14,7 @@ import (
 
 // tunnelPress runs a button of the tunnel clients flows and fails when
 // nothing handles it.
-func tunnelPress(t *testing.T, bot *Tgbot, data string) tunnelReply {
+func tunnelPress(t *testing.T, bot *Tgbot, data string) screenReply {
 	t.Helper()
 	reply, ok := bot.tunnelCallback(data)
 	if !ok {
@@ -23,9 +23,16 @@ func tunnelPress(t *testing.T, bot *Tgbot, data string) tunnelReply {
 	return reply
 }
 
-// TestTunnelInboundListsItsClients: «All clients» → the AmneziaWG inbound
-// lists its tunnel clients, probe accounts left out, each button opening the
-// client's card; the WireGuard inbound lists its own.
+// screenPressData runs a button of the admin's screen, as the screen does,
+// and returns what the screen would show.
+func screenPressData(t *testing.T, bot *Tgbot, data string) screenReply {
+	t.Helper()
+	return bot.screenRoute(usersTestChat, data)
+}
+
+// TestTunnelInboundListsItsClients: Inbounds and clients → the AmneziaWG
+// inbound lists its tunnel clients, probe accounts left out, each button
+// opening the client's card; the WireGuard inbound lists its own.
 func TestTunnelInboundListsItsClients(t *testing.T) {
 	bot := usersBotFixture(t)
 	awgPeer(t, 1, "anna-awg", "")
@@ -33,39 +40,39 @@ func TestTunnelInboundListsItsClients(t *testing.T) {
 	awgPeer(t, 3, "boris-awg", "")
 	wgPeer(t, 4, "vera-wg", "")
 
-	reply := tunnelPress(t, bot, "get_clients 5")
-	if got := strings.Join(buttonTexts(t, reply.keyboard), "|"); got != "anna-awg|boris-awg" {
+	reply := screenPressData(t, bot, "s_ib 5 0")
+	if got := strings.Join(buttonTexts(t, reply.keyboard), "|"); got != "🟢 anna-awg|🟢 boris-awg" {
 		t.Fatalf("awg list: %q", got)
 	}
-	if !strings.Contains(reply.text, "awg") || reply.edit {
+	if !strings.Contains(reply.text, "awg (AWG)") || !strings.Contains(reply.text, "Clients: 2") || reply.route != "s_ib 5 0" {
 		t.Errorf("awg list message: %+v", reply.usersReply)
 	}
 	if open := button(t, reply.keyboard, "boris-awg"); open != "tun_c "+uuidN(3) {
 		t.Errorf("boris-awg opens %q", open)
 	}
 
-	reply = tunnelPress(t, bot, "get_clients 6")
-	if got := strings.Join(buttonTexts(t, reply.keyboard), "|"); got != "vera-wg" {
+	reply = screenPressData(t, bot, "s_ib 6 0")
+	if got := strings.Join(buttonTexts(t, reply.keyboard), "|"); got != "🟢 vera-wg" {
 		t.Fatalf("wg list: %q", got)
 	}
 }
 
-// TestTunnelInboundWithoutClients answers as the xray lists do.
+// TestTunnelInboundWithoutClients says there are none.
 func TestTunnelInboundWithoutClients(t *testing.T) {
 	bot := usersBotFixture(t)
 	awgPeer(t, 2, ProbeTunnelEmail("mc1", "direct"), "")
 
-	reply := tunnelPress(t, bot, "get_clients 5")
-	if reply.keyboard != nil || reply.toast != "❌ Failed to get clients." {
+	reply := screenPressData(t, bot, "s_ib 5 0")
+	if reply.keyboard != nil || !strings.Contains(reply.text, "Clients: 0") {
 		t.Errorf("empty awg list: %+v", reply.usersReply)
 	}
 }
 
-// TestXrayInboundsStayWithTheUpstreamList: the tunnel flows leave the other
-// inbounds and the other buttons alone.
-func TestXrayInboundsStayWithTheUpstreamList(t *testing.T) {
+// TestTunnelFlowsLeaveOtherButtons: the tunnel flows leave the other buttons
+// alone.
+func TestTunnelFlowsLeaveOtherButtons(t *testing.T) {
 	bot := usersBotFixture(t)
-	for _, data := range []string{"get_clients 1", "get_clients_for_qr 2", "get_clients x", "client_get_usage other-nl", "get_inbounds"} {
+	for _, data := range []string{"s_ib 1 0", "client_get_usage other-nl", "usr_c x", "tun_x 1"} {
 		if _, ok := bot.tunnelCallback(data); ok {
 			t.Errorf("%q taken by the tunnel flows", data)
 		}
@@ -106,9 +113,6 @@ func TestTunnelClientCard(t *testing.T) {
 				if !strings.Contains(reply.text, want) {
 					t.Errorf("card lacks %q:\n%s", want, reply.text)
 				}
-			}
-			if reply.edit {
-				t.Error("a card opened from the list replaces the list")
 			}
 			if refresh := button(t, reply.keyboard, "Refresh"); refresh != "tun_r "+tc.uuid {
 				t.Errorf("refresh = %q", refresh)
@@ -155,7 +159,7 @@ func TestTunnelClientEnableDisable(t *testing.T) {
 	awgPeer(t, 1, "anna-awg", "")
 
 	reply := tunnelPress(t, bot, button(t, tunnelPress(t, bot, "tun_c "+uuidN(1)).keyboard, "Disable"))
-	if !reply.edit || reply.toast != "✅ anna-awg: Disabled successfully." || !strings.Contains(reply.text, "Enabled: ❌ No") {
+	if reply.route != "tun_c "+uuidN(1) || reply.toast != "✅ anna-awg: Disabled successfully." || !strings.Contains(reply.text, "Enabled: ❌ No") {
 		t.Errorf("after Disable: %+v", reply.usersReply)
 	}
 	if c, _ := (&AwgService{}).GetClientByUUID(uuidN(1)); c.Enable {
@@ -180,7 +184,7 @@ func TestTunnelClientResetTraffic(t *testing.T) {
 	}
 
 	ask := tunnelPress(t, bot, button(t, tunnelPress(t, bot, "tun_c "+uuidN(1)).keyboard, "Reset Traffic"))
-	if !ask.edit || ask.text != "" {
+	if ask.route != "" || ask.text != "" {
 		t.Errorf("the question replaces the card's keyboard only: %+v", ask.usersReply)
 	}
 	if cancel := button(t, ask.keyboard, "Cancel Reset"); cancel != "tun_r "+uuidN(1) {
@@ -190,7 +194,7 @@ func TestTunnelClientResetTraffic(t *testing.T) {
 		t.Fatal("asking reset the traffic already")
 	}
 	reply := tunnelPress(t, bot, button(t, ask.keyboard, "Confirm Reset Traffic"))
-	if !reply.edit || reply.toast != "✅ anna-awg: Traffic reset successfully." || !strings.Contains(reply.text, "Traffic: ↑↓0.00B") {
+	if reply.route != "tun_c "+uuidN(1) || reply.toast != "✅ anna-awg: Traffic reset successfully." || !strings.Contains(reply.text, "Traffic: ↑↓0.00B") {
 		t.Errorf("after the reset: %+v", reply.usersReply)
 	}
 	if got, _ := (&AwgService{}).GetClientByUUID(uuidN(1)); got.Upload+got.Download != 0 {
@@ -214,44 +218,8 @@ func TestTunnelClientConfig(t *testing.T) {
 	if qr := reply.files[1]; qr.name != "anna-awg.conf.png" || !strings.HasPrefix(string(qr.data), "\x89PNG") {
 		t.Errorf("qr: %s", qr.name)
 	}
-	if reply.text != "" || reply.edit {
+	if reply.text != "" || reply.keyboard != nil {
 		t.Errorf("the card stays as it is: %+v", reply.usersReply)
-	}
-}
-
-// TestTunnelLinkLists: the admin's sub, individual and QR link lists work for
-// the tunnel inbounds too: the subscription of the client's user, the client's
-// .conf and its QR.
-func TestTunnelLinkLists(t *testing.T) {
-	bot := usersBotFixture(t)
-	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", InboundIds: []int{5}})
-	ivanAwg := clientByName(t, ivan, "ivan-awg").Key
-	wgPeer(t, 1, "vera-wg", "")
-
-	list := tunnelPress(t, bot, "get_clients_for_sub 5")
-	reply := tunnelPress(t, bot, button(t, list.keyboard, "ivan-awg"))
-	if !strings.Contains(reply.text, "http://localhost:2096/sub/"+ivan.SubId) || reply.edit || len(reply.files) != 0 {
-		t.Errorf("sub link: %+v", reply)
-	}
-	list = tunnelPress(t, bot, "get_clients_for_sub 6")
-	reply = tunnelPress(t, bot, button(t, list.keyboard, "vera-wg"))
-	if !strings.Contains(reply.text, "<code>vera-wg</code> has no subscription") {
-		t.Errorf("sub link of a client without one: %+v", reply)
-	}
-
-	list = tunnelPress(t, bot, "get_clients_for_individual 5")
-	if open := button(t, list.keyboard, "ivan-awg"); open != "tun_ind "+ivanAwg {
-		t.Errorf("individual opens %q", open)
-	}
-	reply = tunnelPress(t, bot, "tun_ind "+ivanAwg)
-	if len(reply.files) != 1 || reply.files[0].name != "ivan-awg.conf" || reply.text != "" {
-		t.Errorf("individual link: %+v", reply)
-	}
-
-	list = tunnelPress(t, bot, "get_clients_for_qr 6")
-	reply = tunnelPress(t, bot, button(t, list.keyboard, "vera-wg"))
-	if len(reply.files) != 1 || reply.files[0].name != "vera-wg.conf.png" {
-		t.Errorf("QR: %+v", reply)
 	}
 }
 
@@ -262,9 +230,8 @@ func TestTunnelCallbacksFitTelegram(t *testing.T) {
 	long := mustCreateUser(t, SubUserCreate{Name: "long", SubId: strings.Repeat("s", 60), InboundIds: []int{5}})
 	uuid := clientByName(t, long, "long-awg").Key
 
-	for _, data := range []string{"get_clients 5", "get_clients_for_sub 5", "get_clients_for_individual 5", "get_clients_for_qr 5",
-		"tun_c " + uuid, "tun_rt " + uuid} {
-		buttons(t, tunnelPress(t, bot, data).keyboard) // fails on data over 64 bytes
+	for _, data := range []string{"s_ib 5 0", "tun_c " + uuid, "tun_rt " + uuid} {
+		buttons(t, screenPressData(t, bot, data).keyboard) // fails on data over 64 bytes
 	}
 	if open := button(t, tunnelPress(t, bot, "tun_c "+uuid).keyboard, "👤 long"); open != "usr_c "+long.SubId {
 		t.Errorf("user button = %q", open)

@@ -42,6 +42,7 @@ func usersBotFixture(t *testing.T) *Tgbot {
 	t.Cleanup(func() {
 		hashStorage = prevHash
 		usersSessions.drop(usersTestChat)
+		botScreens.drop(usersTestChat)
 		delete(userStates, usersTestChat)
 	})
 	return &Tgbot{}
@@ -123,8 +124,8 @@ func TestUserCreateToggleKeyboard(t *testing.T) {
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("after two taps:\n got %q\nwant %q", got, want)
 	}
-	if !reply.edit {
-		t.Error("a tap should edit the keyboard in place")
+	if reply.text != "" {
+		t.Error("a tap should change the keyboard only")
 	}
 }
 
@@ -251,7 +252,7 @@ func TestUserCreateRollsBackThroughTheBot(t *testing.T) {
 	before := mustInbound(t, &InboundService{}, 1).Settings
 
 	reply := createViaBot(t, bot, "ivan", "NL Amsterdam", "de (trojan)", "awg")
-	if !strings.Contains(reply.text, "injected failure") || reply.edit {
+	if !strings.Contains(reply.text, "injected failure") || reply.route != "" {
 		t.Errorf("failed create: %+v", reply)
 	}
 	if _, err := (&SubUserService{}).Find("ivan"); err == nil {
@@ -321,14 +322,15 @@ func TestUserCardButtons(t *testing.T) {
 		want []string
 		text []string
 	}{
-		{"regular", ivan.SubId, []string{"➕ Add protocol", "➖ Remove protocol", "🔴 Disable", "🗑 Delete user", "🔄 Refresh"},
-			[]string{"<b>ivan</b>", "http://localhost:2096/sub/" + ivan.SubId, "<b>trojan</b>", "<code>ivan-de</code>"}},
-		{"every inbound taken", full.SubId, []string{"➖ Remove protocol", "🔴 Disable", "🗑 Delete user", "🔄 Refresh"}, nil},
-		{"no clients", empty.SubId, []string{"➕ Add protocol", "🗑 Delete user", "🔄 Refresh"}, []string{"No clients"}},
-		{"long subId", long.SubId, []string{"➕ Add protocol", "➖ Remove protocol", "🔴 Disable", "🗑 Delete user", "🔄 Refresh"}, nil},
-		{"robot", model.SubUserRobotKey, []string{"📋 Clients without a subscription", "🔄 Refresh"},
+		{"regular", ivan.SubId, []string{"🔗 Show subscription", "Trojan · ivan-de", "➕ Protocol", "➖ Protocol", "⏸ Suspend", "🗑 Delete"},
+			[]string{"<b>ivan</b>", "Subscription: 🟢 active · until — · 0/∞", "<b>trojan</b>", "<code>ivan-de</code>"}},
+		{"every inbound taken", full.SubId, []string{"🔗 Show subscription", "VLESS · full-NL-Amsterdam-1", "Trojan · full-de",
+			"VMess · full-vm-off", "AWG · full-awg", "➖ Protocol", "⏸ Suspend", "🗑 Delete"}, nil},
+		{"no clients", empty.SubId, []string{"🔗 Show subscription", "➕ Protocol", "🗑 Delete"}, []string{"No clients", "⏸ paused"}},
+		{"long subId", long.SubId, []string{"🔗 Show subscription", "Trojan · long-de", "➕ Protocol", "➖ Protocol", "⏸ Suspend", "🗑 Delete"}, nil},
+		{"robot", model.SubUserRobotKey, []string{"📋 Clients without a subscription"},
 			[]string{"<b>robot</b>", "Technical user", "No subscription"}},
-		{"monitoring", model.SubUserMonitoringKey, []string{"🔄 Refresh"}, []string{"Technical user"}},
+		{"monitoring", model.SubUserMonitoringKey, nil, []string{"Technical user"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -341,17 +343,33 @@ func TestUserCardButtons(t *testing.T) {
 					t.Errorf("card lacks %q:\n%s", want, reply.text)
 				}
 			}
+			if reply.route != "usr_c "+tc.key {
+				t.Errorf("route = %q", reply.route)
+			}
 			// Every button acts on this user, whatever the length of its key.
-			if refresh := button(t, reply.keyboard, "Refresh"); refresh != "usr_c "+tc.key {
-				t.Errorf("refresh = %q", refresh)
+			if tc.key[0] != '@' {
+				if del := button(t, reply.keyboard, "Delete"); del != "usr_del "+tc.key {
+					t.Errorf("delete = %q", del)
+				}
+				if sub := button(t, reply.keyboard, "Show subscription"); sub != "usr_sub "+tc.key {
+					t.Errorf("show subscription = %q", sub)
+				}
 			}
 		})
 	}
 
+	// A client opens its own card.
+	if open := button(t, press(t, bot, "usr_c "+full.SubId).keyboard, "AWG · full-awg"); open != "tun_c "+clientByName(t, full, "full-awg").Key {
+		t.Errorf("AWG client button = %q", open)
+	}
+	if open := button(t, press(t, bot, "usr_c "+full.SubId).keyboard, "Trojan · full-de"); open != "client_get_usage full-de" {
+		t.Errorf("xray client button = %q", open)
+	}
+
 	// A switched-off user offers to switch it back on.
-	reply := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "Disable"))
-	if got := buttonTexts(t, reply.keyboard); !strings.Contains(strings.Join(got, "|"), "🟢 Enable") {
-		t.Errorf("after Disable: %q", got)
+	reply := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "Suspend"))
+	if got := buttonTexts(t, reply.keyboard); !strings.Contains(strings.Join(got, "|"), "▶ Resume") {
+		t.Errorf("after Suspend: %q", got)
 	}
 	if v, _ := (&SubUserService{}).Get(ivan.SubId); v.Enable {
 		t.Error("Disable left the user enabled")
@@ -364,38 +382,18 @@ func TestUserAddProtocolFromTheCard(t *testing.T) {
 	bot := usersBotFixture(t)
 	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", InboundIds: []int{2}, SubUserParams: SubUserParams{TotalGB: 10 << 30, LimitIp: 3}})
 
-	reply := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "Add protocol"))
-	want := []string{"NL Amsterdam #1 (vless)", "vm-off (vmess)", "awg (amneziawg)", "⬅️ Back"}
+	reply := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "➕ Protocol"))
+	want := []string{"NL Amsterdam #1 (vless)", "vm-off (vmess)", "awg (amneziawg)"}
 	if got := buttonTexts(t, reply.keyboard); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Fatalf("add menu:\n got %q\nwant %q", got, want)
 	}
 	reply = press(t, bot, button(t, reply.keyboard, "NL Amsterdam"))
-	if !reply.edit || !strings.Contains(reply.text, "ivan-NL-Amsterdam-1") {
+	if reply.route != "usr_c "+ivan.SubId || !strings.Contains(reply.text, "ivan-NL-Amsterdam-1") {
 		t.Errorf("after adding: %+v", reply)
 	}
 	v, _ := (&SubUserService{}).Get(ivan.SubId)
 	if c := clientByName(t, v, "ivan-NL-Amsterdam-1"); c.TotalGB != 10<<30 || c.LimitIp != 3 {
 		t.Errorf("new client: %+v", c)
-	}
-}
-
-// TestUserAddProtocolFromAClientCard: the xray client card's ➕ opens the same
-// menu for the client's user; a client without a subscription is sent to
-// robot's list instead.
-func TestUserAddProtocolFromAClientCard(t *testing.T) {
-	bot := usersBotFixture(t)
-	mustCreateUser(t, SubUserCreate{Name: "ivan", InboundIds: []int{2}})
-	usersInbound(t, 11, model.VLESS, "extra", model.Client{ID: "aaaaaaaa-0000-0000-0000-000000000011", Email: "nosub", Enable: true})
-
-	reply := press(t, bot, "usr_apc ivan-de")
-	if !strings.Contains(reply.text, "Choose the protocol to add to ivan") || reply.edit {
-		t.Errorf("from ivan-de's card: %+v", reply)
-	}
-	button(t, reply.keyboard, "NL Amsterdam")
-
-	reply = press(t, bot, "usr_apc nosub")
-	if !strings.Contains(reply.text, "<code>nosub</code> has no subscription") {
-		t.Errorf("from a robot client's card: %+v", reply)
 	}
 }
 
@@ -405,7 +403,7 @@ func TestUserRemoveProtocol(t *testing.T) {
 	bot := usersBotFixture(t)
 	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", InboundIds: []int{2, 3}})
 
-	menu := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "Remove protocol"))
+	menu := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "➖ Protocol"))
 	confirm := press(t, bot, button(t, menu.keyboard, "de (trojan)"))
 	if !strings.Contains(confirm.text, "<code>ivan-de</code>") {
 		t.Errorf("confirmation: %+v", confirm)
@@ -419,14 +417,14 @@ func TestUserRemoveProtocol(t *testing.T) {
 	}
 
 	// ivan's vmess client is the only client of vm-off.
-	menu = press(t, bot, button(t, reply.keyboard, "Remove protocol"))
+	menu = press(t, bot, button(t, reply.keyboard, "➖ Protocol"))
 	confirm = press(t, bot, button(t, menu.keyboard, "vm-off"))
 	reply = press(t, bot, button(t, confirm.keyboard, "Confirm"))
-	if !strings.Contains(reply.text, "would be left without clients") || !reply.edit {
-		t.Errorf("refusal: %+v", reply)
+	if !strings.Contains(reply.text, "would be left without clients") || !strings.Contains(reply.text, "<b>ivan</b>") {
+		t.Errorf("refusal, on top of the card: %+v", reply)
 	}
-	if back := button(t, reply.keyboard, "Back"); back != "usr_c "+ivan.SubId {
-		t.Errorf("back = %q", back)
+	if reply.route != "usr_c "+ivan.SubId {
+		t.Errorf("the refusal shows the card: route %q", reply.route)
 	}
 }
 
@@ -435,13 +433,13 @@ func TestUserDelete(t *testing.T) {
 	bot := usersBotFixture(t)
 	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", InboundIds: []int{2}})
 
-	confirm := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "Delete user"))
+	confirm := press(t, bot, button(t, press(t, bot, "usr_c "+ivan.SubId).keyboard, "🗑 Delete"))
 	if _, err := (&SubUserService{}).Get(ivan.SubId); err != nil {
 		t.Fatal("asking deleted the user already")
 	}
 	reply := press(t, bot, button(t, confirm.keyboard, "Confirm"))
-	if !strings.Contains(reply.text, "deleted") || reply.keyboard != nil {
-		t.Errorf("after delete: %+v", reply)
+	if !strings.Contains(reply.text, "deleted") || reply.route != "usr_l 0" || !reply.root {
+		t.Errorf("after delete, the list with no way back to the card: %+v", reply)
 	}
 	if _, err := (&SubUserService{}).Get(ivan.SubId); err == nil {
 		t.Error("the user survived")
@@ -462,7 +460,7 @@ func TestUserSearch(t *testing.T) {
 	}
 	press(t, bot, "usr_menu")
 	reply := typeText(t, bot, "nobody")
-	if !strings.Contains(reply.text, `no user, subId or client named &#34;nobody&#34;`) || userStates[usersTestChat] != usersStateSearch {
+	if !strings.Contains(reply.text, "Nobody found for «nobody»") || userStates[usersTestChat] != usersStateSearch {
 		t.Errorf("search for nobody: %+v, state %q", reply, userStates[usersTestChat])
 	}
 }
@@ -501,7 +499,7 @@ func TestUserFlowsSpeakRussian(t *testing.T) {
 		t.Errorf("link question: %s", reply.text)
 	}
 	reply = press(t, bot, button(t, reply.keyboard, "Привязать"))
-	for _, want := range []string{"Подписка:", "Добавить протокол", "Убрать протокол", "Выключить", "Удалить пользователя"} {
+	for _, want := range []string{"Подписка: 🟢 активна", "➕ Протокол", "➖ Протокол", "⏸ Приостановить", "🗑 Удалить"} {
 		if !strings.Contains(reply.text+strings.Join(buttonTexts(t, reply.keyboard), "|"), want) {
 			t.Errorf("card lacks %q:\n%s\n%q", want, reply.text, buttonTexts(t, reply.keyboard))
 		}
