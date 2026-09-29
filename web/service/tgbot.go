@@ -515,6 +515,9 @@ func (t *Tgbot) OnReceive() {
 
 		h.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 			if userState, exists := userStates[message.Chat.ID]; exists {
+				if t.answerUsersText(&message, userState) {
+					return nil
+				}
 				switch userState {
 				case "awaiting_id":
 					if client_Id == strings.TrimSpace(message.Text) {
@@ -792,6 +795,10 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 		decodedQuery, err := t.decodeQuery(callbackQuery.Data)
 		if err != nil {
 			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
+			return
+		}
+		// The users flows (#169) take their own buttons, and «Add client».
+		if t.answerUsersCallback(callbackQuery, decodedQuery) {
 			return
 		}
 		dataArray := strings.Split(decodedQuery, " ")
@@ -2265,6 +2272,9 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool) {
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.addClient")).WithCallbackData(t.encodeQuery("add_client")),
 		),
 		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.users.menu")).WithCallbackData(t.encodeQuery("usr_menu")),
+		),
+		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("pages.settings.subSettings")).WithCallbackData(t.encodeQuery("admin_client_sub_links")),
 			tu.InlineKeyboardButton(t.I18nBot("subscription.individualLinks")).WithCallbackData(t.encodeQuery("admin_client_individual_links")),
 			tu.InlineKeyboardButton(t.I18nBot("qrCode")).WithCallbackData(t.encodeQuery("admin_client_qr_links")),
@@ -2382,7 +2392,13 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 	if err != nil || client == nil {
 		return "", "", errors.New("client not found")
 	}
+	subURL, subJsonURL := t.subscriptionURLs(client.SubID)
+	return subURL, subJsonURL, nil
+}
 
+// subscriptionURLs builds the HTML sub page URL and the JSON subscription URL
+// of a subId, as buildSubscriptionURLs hands them out for a client.
+func (t *Tgbot) subscriptionURLs(subId string) (string, string) {
 	// Gather settings to construct absolute URLs
 	subURI, _ := t.settingService.GetSubURI()
 	subJsonURI, _ := t.settingService.GetSubJsonURI()
@@ -2463,25 +2479,25 @@ func (t *Tgbot) buildSubscriptionURLs(email string) (string, string, error) {
 		if !strings.HasSuffix(subURI, "/") {
 			subURI = subURI + "/"
 		}
-		subURL = fmt.Sprintf("%s%s", subURI, client.SubID)
+		subURL = fmt.Sprintf("%s%s", subURI, subId)
 	} else {
-		subURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subPath, client.SubID)
+		subURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subPath, subId)
 	}
 
 	if subJsonURI != "" {
 		if !strings.HasSuffix(subJsonURI, "/") {
 			subJsonURI = subJsonURI + "/"
 		}
-		subJsonURL = fmt.Sprintf("%s%s", subJsonURI, client.SubID)
+		subJsonURL = fmt.Sprintf("%s%s", subJsonURI, subId)
 	} else {
 
-		subJsonURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subJsonPath, client.SubID)
+		subJsonURL = fmt.Sprintf("%s://%s%s%s", scheme, host, subJsonPath, subId)
 	}
 
 	if !subJsonEnable {
 		subJsonURL = ""
 	}
-	return subURL, subJsonURL, nil
+	return subURL, subJsonURL
 }
 
 // sendClientSubLinks sends the subscription links for the client to the chat.
@@ -3421,6 +3437,9 @@ func (t *Tgbot) searchClient(chatId int64, email string, messageID ...int) {
 		),
 		tu.InlineKeyboardRow(
 			tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.toggle")).WithCallbackData(t.encodeQuery("toggle_enable "+email)),
+		),
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(t.I18nBot("tgbot.users.addProtocol")).WithCallbackData(t.encodeQuery("usr_apc "+email)),
 		),
 	)
 	if len(messageID) > 0 {
