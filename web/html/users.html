@@ -1,0 +1,671 @@
+{{ template "page/head_start" .}}
+{{ template "page/head_end" .}}
+
+{{ template "page/body_start" .}}
+<!--
+  The users page (docs/spec/users.md §9, #170): the users of the panel's
+  subscriptions, and what the bot does to them — create with several
+  protocols, add or remove a protocol, switch on or off, delete, and give a
+  client of robot to a user.
+
+  The page decides nothing: everything it shows comes from /panel/api/users
+  and every change goes back through it, where SubUserService owns the rules.
+  A refusal is shown as the service words it.
+-->
+<a-layout id="app" v-cloak :class="themeSwitcher.currentTheme + ' settings-page'">
+  <a-sidebar></a-sidebar>
+  <a-layout id="content-layout">
+    <a-layout-content>
+      <a-spin :spinning="loadingStates.spinning" :delay="500" tip='{{ i18n "loading"}}' size="large">
+        <transition name="list" appear>
+          <template>
+            <a-row v-if="!loadingStates.fetched">
+              <div :style="{ minHeight: 'calc(100vh - 120px)' }"></div>
+            </a-row>
+            <a-row :gutter="[isMobile ? 8 : 16, isMobile ? 0 : 12]" v-else>
+              <a-col :span="24">
+                <a-card hoverable>
+                  <div class="users-head">
+                    <h2 data-testid="users-title" :style="{ margin: 0 }">{{ i18n "pages.subUsers.title" }}</h2>
+                    <a-button type="primary" icon="user-add" data-testid="users-create" @click="openCreate">{{ i18n
+                      "pages.subUsers.create" }}</a-button>
+                    <span class="users-head-spacer"></span>
+                    <a-input-search v-model.trim="search" allow-clear data-testid="users-search"
+                      :style="{ maxWidth: '320px' }" placeholder='{{ i18n "pages.subUsers.search" }}'></a-input-search>
+                  </div>
+
+                  <a-table :columns="columns" :data-source="shownUsers" :row-key="user => user.subId"
+                    :pagination="{ pageSize: 50, hideOnSinglePage: true }" :scroll="isMobile ? { x: 960 } : {}"
+                    size="middle" :style="{ marginTop: '12px' }">
+                    <template slot="name" slot-scope="text, user">
+                      <b :data-testid="'user-name-' + user.name">[[ user.name ]]</b>
+                      <a-tooltip v-if="user.technical" title='{{ i18n "pages.subUsers.technicalDesc" }}'>
+                        <a-tag color="orange" data-testid="user-technical" :style="{ marginInlineStart: '6px' }">{{
+                          i18n "pages.subUsers.technical" }}</a-tag>
+                      </a-tooltip>
+                      <div class="users-muted" v-if="user.comment">[[ user.comment ]]</div>
+                    </template>
+
+                    <template slot="protocols" slot-scope="text, user">
+                      <span class="users-muted" v-if="!user.clients.length">{{ i18n "pages.subUsers.noClients"
+                        }}</span>
+                      <a-tag v-for="group in protocolGroups(user)" :key="group.inboundId"
+                        :color="protocolColor(group.protocol)" :data-testid="'user-proto-' + group.inboundId"
+                        :title="group.names.join(', ')" :style="{ marginBottom: '4px' }">
+                        [[ group.remark ]] · [[ group.protocol ]]<template v-if="group.names.length > 1"> ×[[
+                          group.names.length ]]</template>
+                        <a-icon v-if="!user.technical" type="minus-circle" class="users-tag-action"
+                          :data-testid="'user-proto-remove-' + group.inboundId"
+                          @click="confirmRemoveProtocol(user, group)"></a-icon>
+                      </a-tag>
+                      <a-tooltip v-if="!user.technical" title='{{ i18n "pages.subUsers.addProtocol" }}'>
+                        <a-tag data-testid="user-proto-add" class="users-tag-add" @click="openAddProtocol(user)">
+                          <a-icon type="plus"></a-icon>
+                        </a-tag>
+                      </a-tooltip>
+                    </template>
+
+                    <template slot="traffic" slot-scope="text, user">
+                      <span data-testid="user-traffic">[[ trafficText(user) ]]</span>
+                    </template>
+
+                    <template slot="expiry" slot-scope="text, user">
+                      <span data-testid="user-expiry" :class="{ 'users-expired': isExpired(user) }">[[
+                        expiryText(user) ]]</span>
+                    </template>
+
+                    <template slot="subscription" slot-scope="text, user">
+                      <span class="users-muted" v-if="user.technical">—</span>
+                      <span v-else class="users-sub">
+                        <a v-if="subLink(user)" :href="subLink(user)" target="_blank" rel="noopener"
+                          data-testid="user-sub-link" class="users-sub-link">[[ subLink(user) ]]</a>
+                        <span v-else data-testid="user-sub-link" class="users-mono">[[ user.subId ]]</span>
+                        <a-tooltip title='{{ i18n "copy" }}'>
+                          <a-button size="small" icon="snippets" data-testid="user-sub-copy"
+                            @click="copy(subLink(user) || user.subId)"></a-button>
+                        </a-tooltip>
+                        <a-tooltip v-if="subLink(user)" title='{{ i18n "qrCode" }}'>
+                          <a-button size="small" icon="qrcode" data-testid="user-sub-qr"
+                            @click="openQr(user)"></a-button>
+                        </a-tooltip>
+                      </span>
+                    </template>
+
+                    <template slot="enable" slot-scope="text, user">
+                      <a-switch v-if="!user.technical" :checked="user.enable" :disabled="!user.clients.length"
+                        @change="checked => setEnable(user, checked)"></a-switch>
+                      <span class="users-muted" v-else>—</span>
+                    </template>
+
+                    <template slot="actions" slot-scope="text, user">
+                      <a-space size="small">
+                        <a-tooltip title='{{ i18n "pages.subUsers.clients" }}'>
+                          <a-button size="small" data-testid="user-clients" @click="openClients(user)">
+                            <a-icon type="unordered-list"></a-icon>[[ user.clients.length ]]
+                          </a-button>
+                        </a-tooltip>
+                        <a-tooltip v-if="!user.technical" title='{{ i18n "delete" }}'>
+                          <a-button size="small" type="danger" icon="delete" data-testid="user-delete"
+                            @click="confirmDelete(user)"></a-button>
+                        </a-tooltip>
+                      </a-space>
+                    </template>
+                  </a-table>
+                </a-card>
+              </a-col>
+            </a-row>
+          </template>
+        </transition>
+      </a-spin>
+    </a-layout-content>
+  </a-layout>
+
+  <!-- Create: a name, the inbounds (the enabled ones ticked), one set of limits for every client. -->
+  <a-modal v-model="createModal.visible" title='{{ i18n "pages.subUsers.create" }}' :class="themeSwitcher.currentTheme"
+    :mask-closable="false">
+    <a-form layout="vertical">
+      <a-form-item label='{{ i18n "pages.subUsers.name" }}'>
+        <a-input v-model.trim="createModal.name" data-testid="users-create-name"></a-input>
+      </a-form-item>
+      <a-form-item label='{{ i18n "pages.subUsers.inbounds" }}'>
+        <div v-if="!inbounds.length" class="users-muted">{{ i18n "pages.subUsers.noInbounds" }}</div>
+        <div v-for="inbound in inbounds" :key="inbound.id">
+          <a-checkbox :checked="createModal.inboundIds.includes(inbound.id)"
+            @change="event => toggleCreateInbound(inbound.id, event.target.checked)">[[ inbound.remark ]] ([[
+            inbound.protocol ]])<span class="users-muted" v-if="!inbound.enable"> — {{ i18n
+              "pages.subUsers.inboundOff" }}</span></a-checkbox>
+        </div>
+      </a-form-item>
+      <a-form-item label='{{ i18n "pages.subUsers.totalGB" }}'>
+        <a-input-number v-model="createModal.totalGB" :min="0" :step="1" data-testid="users-create-total"
+          :style="{ width: '100%' }"></a-input-number>
+      </a-form-item>
+      <a-form-item label='{{ i18n "pages.subUsers.expiryDate" }}'>
+        <a-date-picker v-model="createModal.expiry" :disabled-date="pastDate" data-testid="users-create-expiry"
+          :dropdown-class-name="themeSwitcher.currentTheme" :style="{ width: '100%' }"></a-date-picker>
+      </a-form-item>
+      <a-form-item label='{{ i18n "pages.subUsers.limitIp" }}'>
+        <a-input-number v-model="createModal.limitIp" :min="0" :step="1" data-testid="users-create-limitip"
+          :style="{ width: '100%' }"></a-input-number>
+      </a-form-item>
+      <a-form-item label="Telegram ChatID">
+        <a-input-number v-model="createModal.tgId" :min="0" :step="1" data-testid="users-create-tgid"
+          :style="{ width: '100%' }"></a-input-number>
+      </a-form-item>
+      <a-form-item label='{{ i18n "pages.subUsers.comment" }}'>
+        <a-input v-model="createModal.comment" data-testid="users-create-comment"></a-input>
+      </a-form-item>
+    </a-form>
+    <template slot="footer">
+      <a-button @click="createModal.visible = false">{{ i18n "close" }}</a-button>
+      <a-button type="primary" data-testid="users-create-ok" :loading="createModal.loading"
+        :disabled="!createModal.name" @click="submitCreate(false)">{{ i18n "pages.subUsers.create" }}</a-button>
+    </template>
+  </a-modal>
+
+  <!-- ➕: the inbounds the user has no client in yet. -->
+  <a-modal v-model="addModal.visible" :title="addModal.user ? TEXT.addProtocol + ': ' + addModal.user.name : ''"
+    :class="themeSwitcher.currentTheme" :footer="null">
+    <div v-if="addModal.user">
+      <div v-if="!missingInbounds(addModal.user).length" class="users-muted">{{ i18n "pages.subUsers.noMoreInbounds"
+        }}</div>
+      <a-space direction="vertical" :style="{ width: '100%' }">
+        <a-button v-for="inbound in missingInbounds(addModal.user)" :key="inbound.id" block
+          :data-testid="'users-add-inbound-' + inbound.id" :loading="addModal.loading === inbound.id"
+          @click="submitAddProtocol(addModal.user, inbound, false)">
+          [[ inbound.remark ]] ([[ inbound.protocol ]])<span class="users-muted" v-if="!inbound.enable"> — {{ i18n
+            "pages.subUsers.inboundOff" }}</span>
+        </a-button>
+      </a-space>
+    </div>
+  </a-modal>
+
+  <!-- A user's clients; robot's can each be given to a user. -->
+  <a-modal v-model="clientsModal.visible" :title="clientsModal.user ? TEXT.clients + ': ' + clientsModal.user.name : ''"
+    :class="themeSwitcher.currentTheme" :width="isMobile ? '100%' : 900">
+    <a-table v-if="clientsModal.user" :columns="clientColumns" :data-source="clientsModal.user.clients"
+      :row-key="client => client.kind + ':' + client.inboundId + ':' + client.key" :pagination="{ pageSize: 20, hideOnSinglePage: true }"
+      :scroll="isMobile ? { x: 700 } : {}" size="small">
+      <template slot="client" slot-scope="text, client">
+        <span :data-testid="'client-' + client.name">[[ client.name ]]</span>
+      </template>
+      <template slot="inbound" slot-scope="text, client">
+        <a-tag :color="protocolColor(client.protocol)">[[ client.inboundRemark ]] · [[ client.protocol ]]</a-tag>
+      </template>
+      <template slot="traffic" slot-scope="text, client">
+        [[ SizeFormatter.sizeFormat(client.up + client.down) ]] / [[ client.totalGB ?
+        SizeFormatter.sizeFormat(client.totalGB) : TEXT.unlimited ]]
+      </template>
+      <template slot="expiry" slot-scope="text, client">
+        [[ expiryOf(client.expiryTime) ]]
+      </template>
+      <template slot="enable" slot-scope="text, client">
+        <a-tag :color="client.enable ? 'green' : ''">[[ client.enable ? TEXT.on : TEXT.off ]]</a-tag>
+      </template>
+      <template slot="action" slot-scope="text, client">
+        <a-button v-if="clientsModal.user.subId === ROBOT_KEY" size="small" icon="user-add"
+          :data-testid="'client-assign-' + client.name" @click="openAssign(client)">{{ i18n "pages.subUsers.assign"
+          }}</a-button>
+      </template>
+    </a-table>
+    <template slot="footer">
+      <a-button data-testid="users-clients-close" @click="clientsModal.visible = false">{{ i18n "close" }}</a-button>
+    </template>
+  </a-modal>
+
+  <!-- Give a client of robot to a user: it keeps its name and joins the user's subscription. -->
+  <a-modal v-model="assignModal.visible" :title="assignModal.client ? TEXT.assign + ': ' + assignModal.client.name : ''"
+    :class="themeSwitcher.currentTheme">
+    <a-form layout="vertical">
+      <a-form-item label='{{ i18n "pages.subUsers.assignTo" }}'>
+        <a-select v-model="assignModal.target" show-search option-filter-prop="children" data-testid="users-assign-select"
+          :dropdown-class-name="themeSwitcher.currentTheme" :style="{ width: '100%' }">
+          <a-select-option v-for="user in regularUsers" :key="user.subId" :value="user.subId">[[ user.name
+            ]]</a-select-option>
+        </a-select>
+      </a-form-item>
+    </a-form>
+    <template slot="footer">
+      <a-button @click="assignModal.visible = false">{{ i18n "close" }}</a-button>
+      <a-button type="primary" data-testid="users-assign-ok" :disabled="!assignModal.target"
+        :loading="assignModal.loading" @click="submitAssign">{{ i18n "pages.subUsers.assign" }}</a-button>
+    </template>
+  </a-modal>
+
+  <!-- The subscription link as a QR code; a click on it copies the link. -->
+  <a-modal v-model="qrModal.visible" :title="qrModal.user ? qrModal.user.name : ''" :class="themeSwitcher.currentTheme"
+    width="fit-content">
+    <div class="users-qr">
+      <canvas ref="qrCanvas" data-testid="users-qr-canvas" @click="copy(qrModal.link)"></canvas>
+      <div class="users-mono users-muted">[[ qrModal.link ]]</div>
+    </div>
+    <template slot="footer">
+      <a-button data-testid="users-qr-close" @click="qrModal.visible = false">{{ i18n "close" }}</a-button>
+    </template>
+  </a-modal>
+</a-layout>
+
+{{template "page/body_scripts" .}}
+<script src="{{ .base_path }}assets/qrcode/qrious2.min.js?{{ .cur_ver }}"></script>
+{{template "component/aSidebar" .}}
+{{template "component/aThemeSwitch" .}}
+
+<style>
+  .users-head {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .users-head-spacer {
+    flex: 1;
+  }
+
+  .users-muted {
+    opacity: 0.6;
+  }
+
+  .users-mono {
+    font-family: monospace;
+    word-break: break-all;
+  }
+
+  .users-expired {
+    color: #f5222d;
+  }
+
+  .users-tag-action {
+    margin-inline-start: 4px;
+    cursor: pointer;
+  }
+
+  .users-tag-add {
+    cursor: pointer;
+    border-style: dashed;
+  }
+
+  .users-sub {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+
+  .users-sub-link {
+    display: inline-block;
+    max-width: 130px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .users-qr {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    max-width: 360px;
+  }
+
+  .users-qr canvas {
+    cursor: pointer;
+    background: #fff;
+    padding: 8px;
+    border-radius: 8px;
+  }
+</style>
+
+<script>
+  // The key robot is addressed by (model.SubUserRobotKey).
+  const ROBOT_KEY = '@robot';
+  const ONE_GB = 1024 * 1024 * 1024;
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  // The words the page prints from script rather than from the template.
+  const USERS_TEXT = {
+    addProtocol: '{{ i18n "pages.subUsers.addProtocol" }}',
+    clients: '{{ i18n "pages.subUsers.clients" }}',
+    assign: '{{ i18n "pages.subUsers.assign" }}',
+    unlimited: '{{ i18n "unlimited" }}',
+    on: '{{ i18n "enabled" }}',
+    off: '{{ i18n "disabled" }}',
+    expiryDiffers: '{{ i18n "pages.subUsers.expiryDiffers" }}',
+    afterFirstUse: '{{ i18n "pages.subUsers.afterFirstUse" }}',
+    removeProtocolTitle: '{{ i18n "pages.subUsers.removeProtocolTitle" }}',
+    removeProtocolContent: '{{ i18n "pages.subUsers.removeProtocolContent" }}',
+    remove: '{{ i18n "pages.subUsers.remove" }}',
+    deleteTitle: '{{ i18n "pages.subUsers.deleteTitle" }}',
+    deleteContent: '{{ i18n "pages.subUsers.deleteContent" }}',
+    delete: '{{ i18n "delete" }}',
+    cancel: '{{ i18n "cancel" }}',
+    linkTitle: '{{ i18n "pages.subUsers.linkTitle" }}',
+    link: '{{ i18n "pages.subUsers.link" }}',
+    copied: '{{ i18n "copied" }}',
+  };
+
+  // usersApi calls /panel/api/users/<path> and answers the panel envelope
+  // {success, msg, obj}. It does not go through HttpUtil, which toasts every
+  // refusal: an awg_linkable conflict is a question for the operator, not an
+  // error, so the page decides what each refusal shows.
+  async function usersApi(path, body) {
+    try {
+      const resp = body === undefined
+        ? await axios.get('/panel/api/users/' + path)
+        : await axios.post('/panel/api/users/' + path, body, { headers: { 'Content-Type': 'application/json' } });
+      return resp.data || { success: false, msg: 'No response data' };
+    } catch (error) {
+      return { success: false, msg: error.message || 'Request failed' };
+    }
+  }
+
+  const app = new Vue({
+    delimiters: ['[[', ']]'],
+    el: '#app',
+    mixins: [MediaQueryMixin],
+    data: {
+      themeSwitcher,
+      loadingStates: { fetched: false, spinning: false },
+      users: [],
+      // The inbounds a user can have a client in (GET /users/inbounds).
+      inbounds: [],
+      subSettings: { enable: false, subURI: '' },
+      qrCodeSize: 300,
+      search: '',
+      createModal: {
+        visible: false, loading: false,
+        name: '', inboundIds: [], totalGB: 0, expiry: null, limitIp: 0, tgId: 0, comment: '',
+      },
+      addModal: { visible: false, loading: null, user: null },
+      clientsModal: { visible: false, user: null },
+      assignModal: { visible: false, loading: false, client: null, target: undefined },
+      qrModal: { visible: false, user: null, link: '' },
+      columns: [
+        // Protocols and the subscription link take what the others leave.
+        { title: '{{ i18n "pages.subUsers.name" }}', width: 140, scopedSlots: { customRender: 'name' } },
+        { title: '{{ i18n "pages.subUsers.protocols" }}', scopedSlots: { customRender: 'protocols' } },
+        { title: '{{ i18n "pages.subUsers.traffic" }}', width: 140, scopedSlots: { customRender: 'traffic' } },
+        { title: '{{ i18n "pages.subUsers.expiry" }}', width: 110, scopedSlots: { customRender: 'expiry' } },
+        { title: '{{ i18n "pages.subUsers.subscription" }}', scopedSlots: { customRender: 'subscription' } },
+        { title: '{{ i18n "pages.subUsers.enable" }}', width: 80, scopedSlots: { customRender: 'enable' } },
+        { title: '', width: 100, scopedSlots: { customRender: 'actions' } },
+      ],
+      clientColumns: [
+        { title: '{{ i18n "pages.subUsers.client" }}', scopedSlots: { customRender: 'client' } },
+        { title: '{{ i18n "pages.subUsers.inbound" }}', scopedSlots: { customRender: 'inbound' } },
+        { title: '{{ i18n "pages.subUsers.traffic" }}', scopedSlots: { customRender: 'traffic' } },
+        { title: '{{ i18n "pages.subUsers.expiry" }}', scopedSlots: { customRender: 'expiry' } },
+        { title: '{{ i18n "pages.subUsers.enable" }}', scopedSlots: { customRender: 'enable' } },
+        { title: '', scopedSlots: { customRender: 'action' } },
+      ],
+    },
+    computed: {
+      // A Vue template only reaches properties of its own instance.
+      TEXT() { return USERS_TEXT; },
+      ROBOT_KEY() { return ROBOT_KEY; },
+      SizeFormatter() { return SizeFormatter; },
+      // The users the search keeps: by user name, subId or client name.
+      shownUsers() {
+        const q = this.search.toLowerCase();
+        if (!q) return this.users;
+        return this.users.filter(user =>
+          user.name.toLowerCase().includes(q) ||
+          user.subId.toLowerCase().includes(q) ||
+          user.clients.some(c => (c.name || '').toLowerCase().includes(q)));
+      },
+      regularUsers() {
+        return this.users.filter(user => !user.technical);
+      },
+    },
+    methods: {
+      loading(spinning = true) {
+        this.loadingStates.spinning = spinning;
+      },
+
+      // --- what the page asks for -------------------------------------------
+
+      async loadUsers() {
+        const msg = await usersApi('list');
+        if (!msg.success) {
+          this.$message.error(msg.msg);
+          return;
+        }
+        (msg.obj || []).forEach(user => user.clients = user.clients || []);
+        this.users = msg.obj || [];
+        // An open modal shows the fresh copy of its user.
+        const fresh = user => user && this.users.find(u => u.subId === user.subId) || null;
+        this.clientsModal.user = fresh(this.clientsModal.user);
+        this.addModal.user = fresh(this.addModal.user);
+      },
+      async loadInbounds() {
+        const msg = await usersApi('inbounds');
+        if (msg.success) this.inbounds = msg.obj || [];
+      },
+      async loadSubSettings() {
+        const msg = await HttpUtil.post('/panel/setting/defaultSettings');
+        if (!msg.success || !msg.obj) return;
+        this.subSettings = { enable: !!msg.obj.subEnable, subURI: msg.obj.subURI || '' };
+        this.qrCodeSize = Math.min(msg.obj.qrCodeSize || 300, 360);
+      },
+      // after runs once a change went through: the list is read again, and a
+      // refusal is shown as the service worded it.
+      async after(msg, success) {
+        if (!msg.success) {
+          this.$message.error(msg.msg);
+          return false;
+        }
+        if (success) this.$message.success(success);
+        await this.loadUsers();
+        return true;
+      },
+
+      // --- what the page shows ----------------------------------------------
+
+      // One tag per inbound the user has clients in.
+      protocolGroups(user) {
+        const groups = [];
+        user.clients.forEach(c => {
+          let group = groups.find(g => g.inboundId === c.inboundId && g.kind === c.kind);
+          if (!group) {
+            group = { inboundId: c.inboundId, kind: c.kind, remark: c.inboundRemark || c.protocol, protocol: c.protocol, names: [] };
+            groups.push(group);
+          }
+          group.names.push(c.name);
+        });
+        return groups;
+      },
+      protocolColor(protocol) {
+        switch (protocol) {
+          case 'vless': return 'blue';
+          case 'vmess': return 'geekblue';
+          case 'trojan': return 'purple';
+          case 'shadowsocks': return 'cyan';
+          case 'amneziawg': return 'green';
+          case 'wireguard': return 'lime';
+          default: return '';
+        }
+      },
+      // used / limit, summed over the clients; a limit of 0 on any client
+      // makes the user's unlimited, as Subscription-Userinfo counts it.
+      trafficText(user) {
+        const used = SizeFormatter.sizeFormat(user.up + user.down);
+        return used + ' / ' + (user.total > 0 ? SizeFormatter.sizeFormat(user.total) : USERS_TEXT.unlimited);
+      },
+      // The clients' common expiry; the view's own 0 cannot tell "never"
+      // from "they differ", so the page looks at the clients.
+      commonExpiry(user) {
+        if (!user.clients.length) return null;
+        const first = user.clients[0].expiryTime;
+        return user.clients.every(c => c.expiryTime === first) ? first : undefined;
+      },
+      expiryOf(ms) {
+        if (!ms) return USERS_TEXT.unlimited;
+        if (ms < 0) return Math.round(-ms / ONE_DAY) + ' ' + USERS_TEXT.afterFirstUse;
+        return IntlUtil.formatDate(ms);
+      },
+      expiryText(user) {
+        const expiry = this.commonExpiry(user);
+        if (expiry === null) return '—';
+        if (expiry === undefined) return USERS_TEXT.expiryDiffers;
+        return this.expiryOf(expiry);
+      },
+      isExpired(user) {
+        const expiry = this.commonExpiry(user);
+        return expiry > 0 && expiry < Date.now();
+      },
+      subLink(user) {
+        if (user.technical || !this.subSettings.enable || !this.subSettings.subURI) return '';
+        return this.subSettings.subURI + user.subId;
+      },
+      missingInbounds(user) {
+        return this.inbounds.filter(inbound => !user.clients.some(c => c.inboundId === inbound.id));
+      },
+      pastDate(date) {
+        return date && date.valueOf() < Date.now() - ONE_DAY;
+      },
+      copy(text) {
+        ClipboardManager.copyText(text).then(() => this.$message.success(USERS_TEXT.copied));
+      },
+
+      // --- create ------------------------------------------------------------
+
+      async openCreate() {
+        await this.loadInbounds();
+        this.createModal = {
+          visible: true, loading: false,
+          name: '',
+          // The enabled inbounds start ticked (#167).
+          inboundIds: this.inbounds.filter(inbound => inbound.enable).map(inbound => inbound.id),
+          totalGB: 0, expiry: null, limitIp: 0, tgId: 0, comment: '',
+        };
+      },
+      toggleCreateInbound(id, checked) {
+        const ids = this.createModal.inboundIds.filter(x => x !== id);
+        if (checked) ids.push(id);
+        this.createModal.inboundIds = ids;
+      },
+      async submitCreate(linkExisting) {
+        const m = this.createModal;
+        m.loading = true;
+        const msg = await usersApi('create', {
+          name: m.name,
+          tgId: Number(m.tgId) || 0,
+          comment: m.comment || '',
+          // In the order the inbounds are listed, whatever order they were ticked in.
+          inboundIds: this.inbounds.map(inbound => inbound.id).filter(id => m.inboundIds.includes(id)),
+          totalGB: Math.round((Number(m.totalGB) || 0) * ONE_GB),
+          expiryTime: m.expiry ? m.expiry.endOf('day').valueOf() : 0,
+          limitIp: Number(m.limitIp) || 0,
+          reset: 0,
+          linkExisting: linkExisting,
+        });
+        m.loading = false;
+        if (this.askToLink(msg, () => this.submitCreate(true))) return;
+        if (await this.after(msg)) m.visible = false;
+      },
+      // askToLink handles the awg_linkable refusal: an AmneziaWG client of the
+      // generated name exists without a subscription, and the operator says
+      // whether to link it instead of creating one (docs/spec/users.md §5).
+      askToLink(msg, retry) {
+        if (msg.success || !msg.obj || msg.obj.code !== 'awg_linkable') return false;
+        this.$confirm({
+          title: USERS_TEXT.linkTitle,
+          content: msg.msg,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.link,
+          cancelText: USERS_TEXT.cancel,
+          onOk: retry,
+        });
+        return true;
+      },
+
+      // --- ➕ / ➖ -------------------------------------------------------------
+
+      async openAddProtocol(user) {
+        await this.loadInbounds();
+        this.addModal = { visible: true, loading: null, user: user };
+      },
+      async submitAddProtocol(user, inbound, linkExisting) {
+        this.addModal.loading = inbound.id;
+        const msg = await usersApi('addProtocol/' + encodeURIComponent(user.subId), { inboundId: inbound.id, linkExisting: linkExisting });
+        this.addModal.loading = null;
+        if (this.askToLink(msg, () => this.submitAddProtocol(user, inbound, true))) return;
+        if (await this.after(msg)) this.addModal.visible = false;
+      },
+      confirmRemoveProtocol(user, group) {
+        this.$confirm({
+          title: USERS_TEXT.removeProtocolTitle + ': ' + group.remark + ' — ' + user.name,
+          content: USERS_TEXT.removeProtocolContent,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.remove,
+          okType: 'danger',
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            await this.after(await usersApi('removeProtocol/' + encodeURIComponent(user.subId), { inboundId: group.inboundId }));
+          },
+        });
+      },
+
+      // --- switch, delete ------------------------------------------------------
+
+      async setEnable(user, enable) {
+        await this.after(await usersApi('enable/' + encodeURIComponent(user.subId), { enable: enable }));
+      },
+      confirmDelete(user) {
+        this.$confirm({
+          title: USERS_TEXT.deleteTitle + ': ' + user.name,
+          content: USERS_TEXT.deleteContent,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.delete,
+          okType: 'danger',
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            await this.after(await usersApi('del/' + encodeURIComponent(user.subId), {}));
+          },
+        });
+      },
+
+      // --- clients, assign from robot -----------------------------------------
+
+      openClients(user) {
+        this.clientsModal = { visible: true, user: user };
+      },
+      openAssign(client) {
+        this.assignModal = { visible: true, loading: false, client: client, target: undefined };
+      },
+      async submitAssign() {
+        const m = this.assignModal;
+        m.loading = true;
+        const msg = await usersApi('assign/' + encodeURIComponent(m.target), { client: m.client.name });
+        m.loading = false;
+        if (await this.after(msg)) m.visible = false;
+      },
+
+      // --- QR ------------------------------------------------------------------
+
+      async openQr(user) {
+        this.qrModal = { visible: true, user: user, link: this.subLink(user) };
+        // The modal's body is drawn on its first opening, a tick later.
+        for (let i = 0; i < 20 && !this.$refs.qrCanvas; i++) {
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        if (!this.$refs.qrCanvas) return;
+        new QRious({
+          element: this.$refs.qrCanvas,
+          size: this.qrCodeSize,
+          value: this.qrModal.link,
+          background: 'white',
+          foreground: 'black',
+          padding: 2,
+          level: 'L',
+        });
+      },
+    },
+    async mounted() {
+      this.loading(true);
+      await Promise.all([this.loadSubSettings(), this.loadInbounds(), this.loadUsers()]);
+      this.loadingStates.fetched = true;
+      this.loading(false);
+    },
+  });
+</script>
+{{ template "page/body_end" .}}

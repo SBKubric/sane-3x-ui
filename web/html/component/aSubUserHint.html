@@ -1,0 +1,79 @@
+{{define "component/aSubUserHint"}}
+<script>
+  // The "User: …" hint under a client's subId in the client modal
+  // (docs/spec/users.md §9, #170): whose subscription the subId is, before
+  // the operator saves. An empty subId is robot's, a subId no user has yet is
+  // "new" — Sync gives it a user named after the client once it is saved.
+  //
+  // Who owns which subId comes from GET /panel/api/users/list: each user's
+  // own subId, and every subId its clients carry (monitoring's probe subId is
+  // not a key of any user). One list serves every hint on the page and is
+  // read again when it is older than SUB_USER_HINT_TTL_MS, so a modal opened
+  // after a change on another tab still tells the truth. The request goes
+  // round HttpUtil, which would toast a refusal: a hint that cannot load says
+  // nothing rather than raising an alarm in the middle of editing a client.
+  const SUB_USER_HINT_TTL_MS = 10000;
+  const SubUserHintOwners = {
+    at: 0,
+    owners: {},
+    pending: null,
+    load() {
+      if (Date.now() - this.at < SUB_USER_HINT_TTL_MS) return Promise.resolve(this.owners);
+      if (this.pending) return this.pending;
+      this.pending = axios.get('/panel/api/users/list')
+        .then(resp => {
+          const msg = resp.data || {};
+          if (!msg.success || !Array.isArray(msg.obj)) return this.owners;
+          const owners = {};
+          msg.obj.forEach(user => {
+            if (!user.technical) owners[user.subId] = user.name;
+            (user.clients || []).forEach(client => {
+              if (client.subId) owners[client.subId] = user.name;
+            });
+          });
+          this.owners = owners;
+          this.at = Date.now();
+          return owners;
+        })
+        .catch(() => this.owners)
+        .finally(() => { this.pending = null; });
+      return this.pending;
+    },
+  };
+
+  Vue.component('a-sub-user-hint', {
+    delimiters: ['[[', ']]'],
+    props: { subId: { type: String, default: '' } },
+    data() {
+      return { owners: SubUserHintOwners.owners };
+    },
+    computed: {
+      owner() {
+        if (!this.subId) return 'robot';
+        return this.owners[this.subId] || '{{ i18n "pages.subUsers.hintNew" }}';
+      },
+    },
+    watch: {
+      subId() {
+        this.refresh();
+      },
+    },
+    created() {
+      this.refresh();
+    },
+    methods: {
+      async refresh() {
+        this.owners = await SubUserHintOwners.load();
+      },
+    },
+    template: `<div data-testid="client-sub-user" class="sub-user-hint">{{ i18n "pages.subUsers.hintUser" }}: <b>[[ owner ]]</b></div>`,
+  });
+</script>
+<style>
+  .sub-user-hint {
+    line-height: 1.5;
+    margin-top: 4px;
+    opacity: 0.75;
+  }
+</style>
+{{end}}
