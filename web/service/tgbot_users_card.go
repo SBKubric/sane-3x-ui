@@ -71,8 +71,8 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		b.WriteString(t.I18nBot("tgbot.users.noClients"))
 	} else {
 		b.WriteString(t.I18nBot("tgbot.users.clients", "Count=="+strconv.Itoa(len(v.Clients))))
-		// The technical users can own hundreds of clients: robot lists them
-		// page by page, monitoring's probes are not the operator's business.
+		// The technical users can own hundreds of clients: both list them
+		// page by page, monitoring's probes read-only (#183).
 		if !v.Technical {
 			b.WriteString(t.usersClientLines(v.Clients))
 		}
@@ -86,6 +86,11 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 	case v.SubId == model.SubUserRobotKey:
 		if len(v.Clients) > 0 {
 			rows = append(rows, tu.InlineKeyboardRow(button(t.I18nBot("tgbot.users.robotClients"), "usr_rob 0")))
+		}
+	case v.SubId == model.SubUserMonitoringKey:
+		// Its probes open read-only (#183).
+		if row := t.probeListRow(v); row != nil {
+			rows = append(rows, row)
 		}
 	case !v.Technical:
 		var row []telego.InlineKeyboardButton
