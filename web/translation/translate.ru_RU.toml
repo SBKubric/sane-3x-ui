@@ -88,6 +88,11 @@
 "unlimited" = "Неограниченно"
 "noExpiry" = "Бессрочно"
 "pageThemeDesc" = "Тема по умолчанию для страницы подписки."
+"tunnels" = "Туннели"
+"downloadConf" = "Скачать"
+"copyConf" = "Скопировать конфиг"
+"tunnelHint" = "Откройте в AmneziaVPN или в приложении AmneziaWG / WireGuard. Изменения сами не приходят: после изменений на сервере скачайте конфиг заново."
+"noTunnels" = "В этой подписке нет туннельных конфигов"
 
 [menu]
 "theme" = "Тема"
@@ -446,6 +451,9 @@
 "probeBadge" = "проба"
 "followChain" = "Следовать за цепочкой"
 "followChainDesc" = "При каждой смене активного edge панель ставит Target и SNI из target-соседа этого edge. После этого клиентам нужно обновить подписку."
+"subscriptionTunnelDesc" = "Оставьте пустым, чтобы пир не входил ни в одну подписку. Укажите тот же ID, что у Xray-клиента, чтобы подписка была общей."
+"tunnelSubscription" = "Подписка"
+"notInSubscription" = "Не в подписке"
 
 [pages.client]
 "add" = "Добавить клиента"
@@ -888,6 +896,10 @@
 "chain.errors.invalid_reality_server_name" = "Имя сервера — доменное имя; для target, заданного IP-адресом, оно обязательно."
 "chain.errors.reality_target_edge_only" = "Target-сосед бывает только у edge."
 "chain.errors.no_neighbour_target" = "У этого edge нет target-соседа, а за цепочкой следуют inbound'ы. Сначала задайте его target."
+"subTunEnable" = "Включить туннельную подписку"
+"subTunPath" = "Путь туннельной подписки"
+"subTunPathDesc" = "Отдаёт конфиги AmneziaWG и WireGuard подписки в JSON"
+"subTunURI" = "URI туннельной подписки"
 
 [pages.xray]
 "title" = "Настройки Xray"

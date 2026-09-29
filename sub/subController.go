@@ -30,6 +30,10 @@ type SUBController struct {
 	subService      *SubService
 	subJsonService  *SubJsonService
 	subClashService *SubClashService
+
+	// tunnels is the tunnel subscription, nil while it is off; it adds the
+	// Tunnels section to the page (docs/spec/tunnel-subscription.md §8).
+	tunnels *TunnelSubController
 }
 
 // NewSUBController creates a new subscription controller with the given configuration.
@@ -100,7 +104,12 @@ func (a *SUBController) subs(c *gin.Context) {
 	subId := c.Param("subid")
 	scheme, host, hostWithPort, hostHeader := a.subService.ResolveRequest(c)
 	subs, lastOnline, traffic, err := a.subService.GetSubs(subId, host)
-	if err != nil || len(subs) == 0 {
+	tunnels, tunnelsJSON, tunnelOnly := a.tunnelsOfPage(c, subId, err != nil || len(subs) == 0)
+	if tunnelOnly {
+		traffic = a.tunnels.svc.Traffic(tunnels)
+		lastOnline = traffic.LastOnline
+	}
+	if (err != nil || len(subs) == 0) && !tunnelOnly {
 		c.String(400, "Error!")
 	} else {
 		result := ""
@@ -159,6 +168,7 @@ func (a *SUBController) subs(c *gin.Context) {
 				"subClashUrl":  page.SubClashUrl,
 				"result":       page.Result,
 				"defaultTheme": page.DefaultTheme,
+				"tunnels":      tunnelsJSON,
 			})
 			return
 		}

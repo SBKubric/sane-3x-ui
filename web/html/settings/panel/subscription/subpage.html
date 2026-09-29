@@ -58,6 +58,36 @@
         background: rgba(0, 0, 0, 0.05);
         border-color: rgba(0, 0, 0, 0.14);
     }
+
+    /* Tunnels (docs/spec/tunnel-subscription.md §8) */
+    .subscription-page .tunnel-card {
+        margin-bottom: 20px;
+        text-align: center;
+    }
+
+    .subscription-page .tunnel-conf {
+        text-align: left;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-size: 12px;
+        max-height: 220px;
+        overflow: auto;
+        margin: 8px 0;
+    }
+
+    .subscription-page .tunnel-qr {
+        max-width: 100%;
+        height: auto;
+        background: #fff;
+        padding: 8px;
+        border-radius: 8px;
+    }
+
+    .subscription-page .tunnel-hint {
+        text-align: center;
+        opacity: 0.75;
+        font-size: 12px;
+    }
 </style>
 {{ template "page/head_end" .}}
 
@@ -97,7 +127,7 @@
                     </template>
 
                     <a-form layout="vertical">
-                        <a-form-item>
+                        <a-form-item v-if="links.length">
                             <a-space direction="vertical" align="center">
                                 <a-row type="flex" :gutter="[8,8]" justify="center" style="width:100%">
                                     <a-col :xs="24" :sm="app.subJsonUrl || app.subClashUrl ? 12 : 24"
@@ -216,7 +246,7 @@
                     </div>
                     <br />
 
-                    <a-form layout="vertical">
+                    <a-form layout="vertical" v-if="links.length">
                         <a-form-item>
                             <a-row type="flex" justify="center" :gutter="[8,8]" style="width:100%">
                                 <a-col :xs="24" :sm="12" style="text-align:center;">
@@ -267,6 +297,34 @@
                             </a-row>
                         </a-form-item>
                     </a-form>
+
+                    <!-- Tunnels: the subscription's AmneziaWG / WireGuard configs,
+                         the /tun answer (docs/spec/tunnel-subscription.md §8) -->
+                    <div v-if="tunnels" data-testid="sub-tunnels">
+                        <a-divider>{{ i18n "subscription.tunnels" }}</a-divider>
+                        <p v-if="!tunnels.length" class="tunnel-hint" data-testid="sub-no-tunnels">{{ i18n
+                            "subscription.noTunnels" }}</p>
+                        <div v-for="(tun, idx) in tunnels" :key="tun.uuid" class="tunnel-card"
+                            data-testid="sub-tunnel">
+                            <a-space>
+                                <a-tag color="purple">[[ tun.kind === 'awg' ? 'AmneziaWG' : 'WireGuard' ]]</a-tag>
+                                <strong>[[ tun.name ]]</strong>
+                                <a-tag v-if="!tun.enable" color="red">{{ i18n "disabled" }}</a-tag>
+                            </a-space>
+                            <div>
+                                <canvas :id="'qrcode-tun-' + idx" class="tunnel-qr" title='{{ i18n "copy" }}'
+                                    @click="copy(tun.conf)"></canvas>
+                            </div>
+                            <pre class="subscription-link-box tunnel-conf" data-testid="sub-tunnel-conf">[[ tun.conf ]]</pre>
+                            <a-space wrap>
+                                <a-button type="primary" icon="download" @click="downloadConf(tun)">{{ i18n
+                                    "subscription.downloadConf" }} ([[ tun.filename ]].conf)</a-button>
+                                <a-button icon="copy" @click="copy(tun.conf)">{{ i18n "subscription.copyConf"
+                                    }}</a-button>
+                            </a-space>
+                        </div>
+                        <p v-if="tunnels.length" class="tunnel-hint">{{ i18n "subscription.tunnelHint" }}</p>
+                    </div>
                 </a-card>
             </a-col>
         </a-row>
@@ -278,7 +336,7 @@
     data-subclash-url="{{ .subClashUrl }}" data-download="{{ .download }}" data-upload="{{ .upload }}"
     data-used="{{ .used }}" data-total="{{ .total }}" data-remained="{{ .remained }}" data-expire="{{ .expire }}"
     data-lastonline="{{ .lastOnline }}" data-downloadbyte="{{ .downloadByte }}" data-uploadbyte="{{ .uploadByte }}"
-    data-totalbyte="{{ .totalByte }}" data-datepicker="{{ .datepicker }}" data-enabled="{{ .enabled }}"></template>
+    data-totalbyte="{{ .totalByte }}" data-datepicker="{{ .datepicker }}" data-enabled="{{ .enabled }}" {{ if .tunnels }}data-tunnels="{{ .tunnels }}"{{ end }}></template>
 <textarea id="subscription-links" style="display:none">{{ range .result }}{{ . }}
 {{ end }}</textarea>
 

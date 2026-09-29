@@ -94,6 +94,12 @@ var defaultValueMap = map[string]string{
 	"proxyOverrideEnable": "false",
 	"proxyOverrideHost":   "",
 
+	// Tunnel subscription (docs/spec/tunnel-subscription.md §5): the /tun
+	// route serving a subscription's AmneziaWG and WireGuard configs.
+	"subTunEnable": "true",
+	"subTunPath":   "/tun/",
+	"subTunURI":    "",
+
 	// Chain registry (docs/spec/proxy-chain.md §2.2). The host override above
 	// becomes derived from this registry: the address the panel publishes is
 	// the host of the active edge. chainRevision is state, not a preference —
@@ -930,6 +936,8 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 		"datepicker":     func() (any, error) { return s.GetDatepicker() },
 		"ipLimitEnable":  func() (any, error) { return s.GetIpLimitEnable() },
 		"hiddifyCompat":  func() (any, error) { return s.GetXrayHiddifyCompat() },
+		"subTunEnable":   func() (any, error) { return s.GetSubTunEnable() },
+		"subTunURI":      func() (any, error) { return s.GetSubTunURI() },
 	}
 
 	result := make(map[string]any)
@@ -955,7 +963,8 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 			subClashEnable = b
 		}
 	}
-	if (subEnable && result["subURI"].(string) == "") || (subJsonEnable && result["subJsonURI"].(string) == "") || (subClashEnable && result["subClashURI"].(string) == "") {
+	subTunEnable, _ := result["subTunEnable"].(bool)
+	if (subEnable && result["subURI"].(string) == "") || (subJsonEnable && result["subJsonURI"].(string) == "") || (subClashEnable && result["subClashURI"].(string) == "") || (subTunEnable && result["subTunURI"].(string) == "") {
 		subURI := ""
 		subTitle, _ := s.GetSubTitle()
 		subPort, _ := s.GetSubPort()
@@ -1009,6 +1018,10 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 		}
 		if subClashEnable && result["subClashURI"].(string) == "" {
 			result["subClashURI"] = subURI + subClashPath
+		}
+		if subTunEnable && result["subTunURI"].(string) == "" {
+			subTunPath, _ := s.GetSubTunPath()
+			result["subTunURI"] = subURI + subTunPath
 		}
 	}
 

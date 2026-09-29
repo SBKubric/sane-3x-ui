@@ -264,5 +264,6 @@ func (s *ChainDocumentService) panelAsNextHop(fallbackHost string) (chain.NextHo
 		SubScheme: scheme,
 		SubPath:   subPath,
 		JsonPath:  jsonPath,
+		TunPath:   s.settingService.publishedTunPath(),
 	}, nil
 }

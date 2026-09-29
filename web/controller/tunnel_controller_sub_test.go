@@ -150,3 +150,56 @@ func TestTunnelAPISubIdAndUserRules(t *testing.T) {
 		t.Errorf("update with subId \"\": %+v, link %q", env, clients()["petr-awg"].SubId)
 	}
 }
+
+// TestTunnelAPIWritesDropTheSubscriptionCache: an edit through the AWG/WG
+// client API shows on /tun at once, whether or not it sends subId
+// (docs/spec/tunnel-subscription.md §3).
+func TestTunnelAPIWritesDropTheSubscriptionCache(t *testing.T) {
+	r, cookie := newUsersRouter(t)
+	service.InvalidateTunnelSubCache()
+	t.Cleanup(service.InvalidateTunnelSubCache)
+	subs := &service.TunnelSubscriptionService{}
+	enabled := func() []bool {
+		t.Helper()
+		entries, err := subs.ClientsBySubId("s-ivan")
+		if err != nil {
+			t.Fatal(err)
+		}
+		var out []bool
+		for _, e := range entries {
+			out = append(out, e.Client.Enable)
+		}
+		return out
+	}
+
+	env := monUIDecode(t, chainPost(r, "/panel/api/awg/client/add", cookie, `{"name":"ivan-awg","email":"ivan-awg","enable":true,"subId":"s-ivan"}`))
+	if !env.Success {
+		t.Fatalf("add: %s", env.Msg)
+	}
+	var added tunnelClientJSON
+	if err := json.Unmarshal(env.Obj, &added); err != nil {
+		t.Fatal(err)
+	}
+	if got := enabled(); len(got) != 1 || !got[0] {
+		t.Fatalf("after add: %v", got)
+	}
+
+	server := strconv.Itoa(added.ServerId)
+	env = monUIDecode(t, chainPost(r, "/panel/api/awg/client/update/"+strconv.Itoa(added.Id), cookie,
+		`{"uuid":"`+added.UUID+`","serverId":`+server+`,"name":"ivan-awg","email":"ivan-awg","enable":false}`))
+	if !env.Success {
+		t.Fatalf("update: %s", env.Msg)
+	}
+	if got := enabled(); len(got) != 1 || got[0] {
+		t.Errorf("after update by id: %v, want the client off", got)
+	}
+
+	env = monUIDecode(t, chainPost(r, "/panel/api/awg/client/updateByUuid/"+added.UUID, cookie,
+		`{"serverId":`+server+`,"name":"ivan-awg","email":"ivan-awg","enable":true}`))
+	if !env.Success {
+		t.Fatalf("update by uuid: %s", env.Msg)
+	}
+	if got := enabled(); len(got) != 1 || !got[0] {
+		t.Errorf("after update by uuid: %v, want the client on", got)
+	}
+}

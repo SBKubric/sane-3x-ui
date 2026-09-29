@@ -24,6 +24,42 @@
     datepicker: el.getAttribute('data-datepicker') || 'gregorian',
   };
 
+  // Tunnels: the /tun answer the page was rendered with, null when the tunnel
+  // subscription is off (docs/spec/tunnel-subscription.md §8).
+  let tunnels = null;
+  if (el.hasAttribute('data-tunnels')) {
+    try {
+      tunnels = JSON.parse(el.getAttribute('data-tunnels') || '[]');
+    } catch (e) {
+      tunnels = [];
+    }
+  }
+
+  // A .conf file straight from the page: nothing to fetch, the text is here.
+  function downloadConf(tun) {
+    const blob = new Blob([tun.conf], { type: 'text/plain' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (tun.filename || tun.kind) + '.conf';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+
+  // Level L keeps an AmneziaWG config readable: at least 4 px per module.
+  function drawTunnelQRs(list) {
+    (list || []).forEach((tun, idx) => {
+      const canvas = document.getElementById('qrcode-tun-' + idx);
+      if (!canvas) return;
+      try {
+        new QRious({ element: canvas, value: tun.conf, size: 320, level: 'L' });
+      } catch (e) {
+        canvas.style.display = 'none';
+      }
+    });
+  }
+
   // Normalize lastOnline to milliseconds if it looks like seconds
   if (data.lastOnlineMs && data.lastOnlineMs < 10_000_000_000) {
     data.lastOnlineMs *= 1000;
@@ -93,6 +129,7 @@
       themeSwitcher,
       app: data,
       links: rawLinks,
+      tunnels,
       lang: '',
       viewportWidth: (typeof window !== 'undefined' ? window.innerWidth : 1024),
     },
@@ -103,7 +140,8 @@
       const sc = tpl ? tpl.getAttribute('data-subclash-url') : '';
       if (sj) this.app.subJsonUrl = sj;
       if (sc) this.app.subClashUrl = sc;
-      drawQR(this.app.subUrl);
+      if (this.links.length) drawQR(this.app.subUrl);
+      drawTunnelQRs(this.tunnels);
       try {
         const elJson = document.getElementById('qrcode-subjson');
         if (elJson && this.app.subJsonUrl) {
@@ -161,6 +199,7 @@
       copy,
       open,
       linkName,
+      downloadConf,
       i18nLabel(key) {
         return '{{ i18n "' + key + '" }}';
       },

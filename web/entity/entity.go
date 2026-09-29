@@ -91,6 +91,11 @@ type AllSetting struct {
 	ProxyOverrideEnable bool   `json:"proxyOverrideEnable" form:"proxyOverrideEnable"`
 	ProxyOverrideHost   string `json:"proxyOverrideHost" form:"proxyOverrideHost"`
 
+	// Tunnel subscription (docs/spec/tunnel-subscription.md §5).
+	SubTunEnable bool   `json:"subTunEnable" form:"subTunEnable"`
+	SubTunPath   string `json:"subTunPath" form:"subTunPath"`
+	SubTunURI    string `json:"subTunURI" form:"subTunURI"`
+
 	// Chain registry preferences (docs/spec/proxy-chain.md §2.2).
 	// chainRevision is not here on purpose: it is registry state written in
 	// the same transaction as the registry itself, and a form save must not
@@ -210,6 +215,12 @@ func (s *AllSetting) CheckValid() error {
 	}
 	if !strings.HasSuffix(s.SubClashPath, "/") {
 		s.SubClashPath += "/"
+	}
+	if !strings.HasPrefix(s.SubTunPath, "/") {
+		s.SubTunPath = "/" + s.SubTunPath
+	}
+	if !strings.HasSuffix(s.SubTunPath, "/") {
+		s.SubTunPath += "/"
 	}
 
 	_, err := time.LoadLocation(s.TimeLocation)

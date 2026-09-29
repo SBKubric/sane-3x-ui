@@ -1689,6 +1689,13 @@
             align: "center",
             scopedSlots: { customRender: "forwardedPorts" },
         },
+        // Подписка (tunnel subscription), к которой привязан пир
+        {
+            title: '{{ i18n "pages.inbounds.tunnelSubscription" }}',
+            width: 70,
+            align: "center",
+            scopedSlots: { customRender: "tunnelSubId" },
+        },
         // Полоса использования трафика (up/down) с лимитом
         {
             title: '{{ i18n "pages.inbounds.traffic" }}',
@@ -1747,21 +1754,28 @@
         // Email клиента + индикатор статуса + комментарий
         {
             title: '{{ i18n "pages.inbounds.client" }}',
-            width: "35%",
+            width: "30%",
             align: "left",
             scopedSlots: { customRender: "client" },
         },
         // Проброшенные на этого клиента порты (DNAT TCP+UDP), только AWG/WG
         {
             title: '{{ i18n "pages.inbounds.forwardedPortsShort" }}',
-            width: "25%",
+            width: "20%",
             align: "center",
             scopedSlots: { customRender: "forwardedPorts" },
+        },
+        // Подписка (tunnel subscription), к которой привязан пир
+        {
+            title: '{{ i18n "pages.inbounds.tunnelSubscription" }}',
+            width: "15%",
+            align: "center",
+            scopedSlots: { customRender: "tunnelSubId" },
         },
         // Кнопка "i" → попап со сводкой трафика и срока
         {
             title: '{{ i18n "pages.inbounds.info" }}',
-            width: "25%",
+            width: "20%",
             align: "center",
             scopedSlots: { customRender: "info" },
         },
@@ -1806,6 +1820,8 @@
                 subURI: "",
                 subJsonURI: "",
                 subJsonEnable: false,
+                subTunEnable: false,
+                subTunURI: "",
             },
             hiddifyCompat: false,
             remarkModel: "-ieo",
@@ -1925,7 +1941,7 @@
                                 totalGB: c.totalGB || 0,
                                 expiryTime: c.expiryTime || 0,
                                 reset: c.reset || 0,
-                                subId: "",
+                                subId: c.subId || "",
                                 tgId: c.tgId || 0,
                                 limitIp: c.limitIp || 0,
                                 forwardedPorts: c.forwardedPorts || "",
@@ -2002,7 +2018,7 @@
                                 totalGB: c.totalGB || 0,
                                 expiryTime: c.expiryTime || 0,
                                 reset: c.reset || 0,
-                                subId: "",
+                                subId: c.subId || "",
                                 tgId: c.tgId || 0,
                                 limitIp: c.limitIp || 0,
                                 forwardedPorts: c.forwardedPorts || "",
@@ -2179,6 +2195,8 @@
                         subURI: subURI,
                         subJsonURI: subJsonURI,
                         subJsonEnable: subJsonEnable,
+                        subTunEnable: subTunEnable,
+                        subTunURI: subTunURI,
                     };
                     this.pageSize = pageSize;
                     this.qrCodeSize = qrCodeSize || 450;
@@ -2871,6 +2889,7 @@
                         limitIp: client.limitIp || 0,
                         tgId: client.tgId || 0,
                         forwardedPorts: client.forwardedPorts || "",
+                        subId: client.subId || "",
                     };
                     const msg = await HttpUtil.postJson(
                         "/panel/api/awg/client/add",
@@ -2916,6 +2935,7 @@
                     limitIp: client.limitIp || 0,
                     tgId: client.tgId || 0,
                     forwardedPorts: client.forwardedPorts || "",
+                    subId: client.subId || "",
                 };
                 const msg = await HttpUtil.postJson(
                     `/panel/api/awg/client/updateByUuid/${encodeURIComponent(clientId)}`,
@@ -2945,6 +2965,7 @@
                         limitIp: client.limitIp || 0,
                         tgId: client.tgId || 0,
                         forwardedPorts: client.forwardedPorts || "",
+                        subId: client.subId || "",
                     };
                     const msg = await HttpUtil.postJson(
                         "/panel/api/wg/client/add",
@@ -2990,6 +3011,7 @@
                     limitIp: client.limitIp || 0,
                     tgId: client.tgId || 0,
                     forwardedPorts: client.forwardedPorts || "",
+                    subId: client.subId || "",
                 };
                 const msg = await HttpUtil.postJson(
                     `/panel/api/wg/client/updateByUuid/${encodeURIComponent(clientId)}`,
@@ -3225,6 +3247,12 @@
                 );
                 newDbInbound = this.checkFallback(dbInbound);
                 qrModal.show('{{ i18n "qrCode"}}', newDbInbound, client);
+            },
+            // Tunnel subscription: the page of the peer's subscription.
+            copyTunnelSubLink(client) {
+                ClipboardManager.copyText(this.subSettings.subURI + client.subId).then((ok) => {
+                    if (ok) this.$message.success('{{ i18n "copySuccess" }}');
+                });
             },
             showInfo(dbInboundId, client) {
                 dbInbound = this.dbInbounds.find(

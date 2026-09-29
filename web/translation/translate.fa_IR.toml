@@ -88,6 +88,11 @@
 "unlimited" = "نامحدود"
 "noExpiry" = "بدون انقضا"
 "pageThemeDesc" = "پوسته پیش‌فرض صفحه اطلاعات اشتراک."
+"tunnels" = "تونل‌ها"
+"downloadConf" = "دانلود"
+"copyConf" = "کپی پیکربندی"
+"tunnelHint" = "با AmneziaVPN یا برنامه AmneziaWG / WireGuard باز کنید. تغییرات خودکار ارسال نمی‌شوند: پس از تغییر سرور دوباره دانلود کنید."
+"noTunnels" = "این اشتراک پیکربندی تونل ندارد"
 
 [menu]
 "theme" = "تم"
@@ -446,6 +451,9 @@
 "probeBadge" = "probe"
 "followChain" = "Follow the proxy chain"
 "followChainDesc" = "On every switch of the active edge the panel sets Target and SNI to that edge's neighbour target. Clients then need to refresh their subscription."
+"subscriptionTunnelDesc" = "برای اینکه این همتا در هیچ اشتراکی نباشد خالی بگذارید. برای اشتراک مشترک، همان ID کلاینت Xray را وارد کنید."
+"tunnelSubscription" = "اشتراک"
+"notInSubscription" = "بدون اشتراک"
 
 [pages.client]
 "add" = "کاربر جدید"
@@ -889,6 +897,10 @@
 "chain.errors.invalid_reality_server_name" = "The server name is a domain name, and a target given as an IP address needs one."
 "chain.errors.reality_target_edge_only" = "Only an edge has a neighbour target."
 "chain.errors.no_neighbour_target" = "This edge has no neighbour target, and inbounds follow the chain. Set its target first."
+"subTunEnable" = "فعال‌سازی اشتراک تونل"
+"subTunPath" = "مسیر اشتراک تونل"
+"subTunPathDesc" = "پیکربندی‌های AmneziaWG و WireGuard یک اشتراک را به صورت JSON ارائه می‌دهد"
+"subTunURI" = "URI اشتراک تونل"
 
 [pages.xray]
 "title" = "پیکربندی ایکس‌ری"
