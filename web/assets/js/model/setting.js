@@ -18,6 +18,7 @@ class AllSetting {
         this.tgBotProxy = "";
         this.tgBotAPIServer = "";
         this.tgBotChatId = "";
+        this.tgNotifyChatId = "";
         this.tgRunTime = "@daily";
         this.tgBotBackup = false;
         this.tgBotLoginNotify = true;

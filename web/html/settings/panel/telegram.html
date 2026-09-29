@@ -1,4 +1,7 @@
 {{define "settings/panel/telegram"}}
+<!-- notification channel (#195): without one the bot sends no notifications -->
+<a-alert data-testid="tg-notify-unset" type="warning" show-icon v-if="!allSetting.tgNotifyChatId"
+    message='{{ i18n "pages.settings.tgNotifyChannelUnset" }}' :style="{ marginBottom: '10px' }"></a-alert>
 <a-collapse default-active-key="1">
     <a-collapse-panel key="1" header='{{ i18n "pages.xray.generalConfigs"}}'>
         <a-setting-list-item paddings="small">
@@ -20,6 +23,14 @@
             <template #description>{{ i18n "pages.settings.telegramChatIdDesc"}}</template>
             <template #control>
                 <a-input type="text" v-model="allSetting.tgBotChatId"></a-input>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.tgNotifyChannel" }}</template>
+            <template #description>{{ i18n "pages.settings.tgNotifyChannelDesc" }}</template>
+            <template #control>
+                <tg-notify-channel-field v-model="allSetting.tgNotifyChatId"
+                    test-text='{{ i18n "pages.settings.tgNotifyChannelTest" }}'></tg-notify-channel-field>
             </template>
         </a-setting-list-item>
         <a-setting-list-item paddings="small">

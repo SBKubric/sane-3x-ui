@@ -43,6 +43,7 @@ type AllSetting struct {
 	TgBotProxy       string `json:"tgBotProxy" form:"tgBotProxy"`             // Proxy URL for Telegram bot
 	TgBotAPIServer   string `json:"tgBotAPIServer" form:"tgBotAPIServer"`     // Custom API server for Telegram bot
 	TgBotChatId      string `json:"tgBotChatId" form:"tgBotChatId"`           // Telegram chat ID for notifications
+	TgNotifyChatId   string `json:"tgNotifyChatId" form:"tgNotifyChatId"`     // Notification channel (#195): chat id or @username
 	TgRunTime        string `json:"tgRunTime" form:"tgRunTime"`               // Cron schedule for Telegram notifications
 	TgBotBackup      bool   `json:"tgBotBackup" form:"tgBotBackup"`           // Enable database backup via Telegram
 	TgBotLoginNotify bool   `json:"tgBotLoginNotify" form:"tgBotLoginNotify"` // Send login notifications
@@ -221,6 +222,10 @@ func (s *AllSetting) CheckValid() error {
 	}
 	if !strings.HasSuffix(s.SubTunPath, "/") {
 		s.SubTunPath += "/"
+	}
+
+	if err := checkTgNotifyChatId(s); err != nil {
+		return err
 	}
 
 	_, err := time.LoadLocation(s.TimeLocation)

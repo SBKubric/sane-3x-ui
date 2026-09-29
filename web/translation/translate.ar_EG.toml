@@ -718,6 +718,12 @@
 "trafficDiffDesc" = "استقبل تنبيه عند وصول الترافيك للحد المحدد. (الوحدة: جيجابايت)"
 "tgNotifyCpu" = "تنبيه حمل المعالج"
 "tgNotifyCpuDesc" = "استقبل تنبيه لو حمل المعالج عدى الحد المحدد. (الوحدة: %)"
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "المنطقة الزمنية"
 "timeZoneDesc" = "المهام المجدولة هتشتغل بناءً على المنطقة الزمنية دي."
 "subSettings" = "الاشتراك"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 حمل المعالج {{ .Percent }}% عدى الحد المسموح ({{ .Threshold }}%)"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ حصل خطأ في اختيار المستخدم!"
 "userSaved" = "✅ حفظت بيانات مستخدم Telegram."
 "loginSuccess" = "✅ تسجيل الدخول للبانل تم بنجاح.\r\n"

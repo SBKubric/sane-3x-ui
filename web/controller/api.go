@@ -80,6 +80,9 @@ func (a *APIController) initRouter(g *gin.RouterGroup, customGeo *service.Custom
 	// Custom Geo API
 	NewCustomGeoController(api.Group("/custom-geo"), customGeo)
 
+	// Notification channel test (#195)
+	NewTgNotifyController(api.Group("/tgbot"))
+
 	// Extra routes
 	api.GET("/backuptotgbot", a.BackuptoTgbot)
 }

@@ -1,0 +1,49 @@
+{{define "component/tgNotifyChannelField"}}
+<a-space direction="vertical" :size="4" :style="{ width: '100%' }">
+    <a-input-group compact :style="{ display: 'flex' }">
+        <a-input data-testid="tg-notify-chat-id" type="text" placeholder="-1001234567890 / @channel"
+            :value="value" @input="$emit('input', $event.target.value)"
+            :style="{ flex: '1 1 auto', minWidth: '0' }"></a-input>
+        <a-button data-testid="tg-notify-test" :loading="busy" :disabled="!value || !value.trim()"
+            @click="sendTest" v-text="testText"></a-button>
+    </a-input-group>
+    <span data-testid="tg-notify-result" v-if="result" :style="{ color: result.success ? '#52c41a' : '#ff4d4f' }"
+        v-text="result.msg"></span>
+</a-space>
+{{end}}
+
+{{define "component/aTgNotify"}}
+<script>
+    // The notification channel field of the Telegram settings tab (#195): the
+    // tgNotifyChatId input, bound to allSetting like any other field so the
+    // page's common Save stores it, and «Send test», which posts a test
+    // message to the channel as typed — saved or not — through
+    // /panel/api/tgbot/notifyTest and shows what Telegram said.
+    //
+    // Translated text arrives as props: the template is compiled in the
+    // browser, after the server has rendered the i18n actions away.
+    Vue.component('tg-notify-channel-field', {
+        props: {
+            value: { type: String, default: '' },
+            testText: { type: String, default: 'Send test' },
+        },
+        data() {
+            return { busy: false, result: null };
+        },
+        watch: {
+            value() {
+                this.result = null;
+            },
+        },
+        methods: {
+            async sendTest() {
+                this.busy = true;
+                const msg = await HttpUtil.post('/panel/api/tgbot/notifyTest', { chatId: this.value });
+                this.busy = false;
+                this.result = { success: msg.success, msg: msg.msg };
+            },
+        },
+        template: `{{ template "component/tgNotifyChannelField" . }}`,
+    });
+</script>
+{{end}}

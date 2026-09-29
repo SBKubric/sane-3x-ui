@@ -22,6 +22,9 @@ const SHARED: { resource: string; touches: RegExp }[] = [
   { resource: 'chain registry', touches: /\/panel\/api\/chain\/|\/chain\/v1\// },
   // The one monEnable/monToken, through the settings form or `x-ui setting`.
   { resource: 'monitoring switch and token', touches: /monEnable|resetMonToken|mon-token/ },
+  // The whole settings form: a save posts back every setting as it was
+  // loaded, over whatever another spec changed meanwhile.
+  { resource: 'settings form', touches: /\/panel\/setting\/update|name: 'Save', exact: true/ },
 ];
 
 const TEST_DIR = path.resolve(__dirname, '..', config.testDir || '.');

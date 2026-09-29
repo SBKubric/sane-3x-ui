@@ -720,6 +720,12 @@
 "trafficDiffDesc" = "Reciba notificaciones sobre el agotamiento del tráfico antes de alcanzar el umbral (unidad: GB)."
 "tgNotifyCpu" = "Umbral de Alerta de Porcentaje de CPU"
 "tgNotifyCpuDesc" = "Reciba notificaciones si el uso de la CPU supera este umbral (unidad: %)."
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "Zona Horaria"
 "timeZoneDesc" = "Las tareas programadas se ejecutan de acuerdo con la hora en esta zona horaria."
 "subSettings" = "Suscripción"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 El uso de CPU {{ .Percent }}% es mayor que el umbral {{ .Threshold }}%"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ ¡Error al seleccionar usuario!"
 "userSaved" = "✅ Usuario de Telegram guardado."
 "loginSuccess" = "✅ Has iniciado sesión en el panel con éxito.\r\n"

@@ -2746,38 +2746,27 @@ func (t *Tgbot) SendAwgConfigsToClients() (int, error) {
 	return notified, nil
 }
 
-// SendMsgToTgbotAdmins sends a message to all admin Telegram chats.
-func (t *Tgbot) SendMsgToTgbotAdmins(msg string, replyMarkup ...telego.ReplyMarkup) {
-	if len(replyMarkup) > 0 {
-		for _, adminId := range adminIds {
-			t.SendMsgToTgbot(adminId, msg, replyMarkup[0])
-		}
-	} else {
-		for _, adminId := range adminIds {
-			t.SendMsgToTgbot(adminId, msg)
-		}
-	}
-}
-
-// SendReport sends a periodic report to admin chats.
+// SendReport sends the periodic report to the notification channel
+// (tgbot_notify.go); the database backup that comes with it goes to the
+// admin chats.
 func (t *Tgbot) SendReport() {
 	runTime, err := t.settingService.GetTgbotRuntime()
 	if err == nil && len(runTime) > 0 {
 		msg := ""
 		msg += t.I18nBot("tgbot.messages.report", "RunTime=="+runTime)
 		msg += t.I18nBot("tgbot.messages.datetime", "DateTime=="+time.Now().Format("2006-01-02 15:04:05"))
-		t.SendMsgToTgbotAdmins(msg)
+		t.SendMsgToNotifyChannel(msg)
 	}
 
 	info := t.sendServerUsage()
-	t.SendMsgToTgbotAdmins(info)
+	t.SendMsgToNotifyChannel(info)
 
 	// Monitoring block of the daily report (monitoring-panel.md §6).
 	if digest := t.monitoringDigest(); digest != "" {
-		t.SendMsgToTgbotAdmins(digest)
+		t.SendMsgToNotifyChannel(digest)
 	}
 
-	t.sendExhaustedToAdmins()
+	t.sendExhaustedToNotifyChannel()
 	t.notifyExhausted()
 
 	backupEnable, err := t.settingService.GetTgBotBackup()
@@ -2797,16 +2786,6 @@ func (t *Tgbot) SendBackupToAdmins() {
 		if i < len(adminIds)-1 {
 			time.Sleep(1 * time.Second)
 		}
-	}
-}
-
-// sendExhaustedToAdmins sends notifications about exhausted clients to admins.
-func (t *Tgbot) sendExhaustedToAdmins() {
-	if !t.IsRunning() {
-		return
-	}
-	for _, adminId := range adminIds {
-		t.getExhausted(int64(adminId))
 	}
 }
 
@@ -2899,7 +2878,7 @@ func (t *Tgbot) prepareServerUsageInfo() string {
 	return info
 }
 
-// UserLoginNotify sends a notification about user login attempts to admins.
+// UserLoginNotify announces a login attempt in the notification channel.
 func (t *Tgbot) UserLoginNotify(username string, password string, ip string, time string, status LoginStatus) {
 	if !t.IsRunning() {
 		return
@@ -2928,7 +2907,7 @@ func (t *Tgbot) UserLoginNotify(username string, password string, ip string, tim
 	msg += t.I18nBot("tgbot.messages.username", "Username=="+username)
 	msg += t.I18nBot("tgbot.messages.ip", "IP=="+ip)
 	msg += t.I18nBot("tgbot.messages.time", "Time=="+time)
-	t.SendMsgToTgbotAdmins(msg)
+	t.SendMsgToNotifyChannel(msg)
 }
 
 // getInboundUsages retrieves and formats inbound usage information.
@@ -3561,6 +3540,17 @@ func (t *Tgbot) searchInbound(chatId int64, remark string) {
 
 // getExhausted retrieves and sends information about exhausted clients.
 func (t *Tgbot) getExhausted(chatId int64) {
+	output, keyboard := t.exhaustedReport()
+	if keyboard != nil {
+		t.SendMsgToTgbot(chatId, output, keyboard)
+	} else {
+		t.SendMsgToTgbot(chatId, output)
+	}
+}
+
+// exhaustedReport is the exhausted inbounds and clients, with a button per
+// exhausted client (nil when there is none).
+func (t *Tgbot) exhaustedReport() (string, *telego.InlineKeyboardMarkup) {
 	trDiff := int64(0)
 	exDiff := int64(0)
 	now := time.Now().Unix() * 1000
@@ -3679,12 +3669,10 @@ func (t *Tgbot) getExhausted(chatId int64) {
 			cols = 2
 		}
 		output += t.I18nBot("tgbot.messages.refreshedOn", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
-		keyboard := tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
-		t.SendMsgToTgbot(chatId, output, keyboard)
-	} else {
-		output += t.I18nBot("tgbot.messages.refreshedOn", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
-		t.SendMsgToTgbot(chatId, output)
+		return output, tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...))
 	}
+	output += t.I18nBot("tgbot.messages.refreshedOn", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
+	return output, nil
 }
 
 // notifyExhausted sends notifications for exhausted clients.

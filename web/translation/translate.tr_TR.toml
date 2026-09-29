@@ -718,6 +718,12 @@
 "trafficDiffDesc" = "Bu eşik seviyesine ulaşıldığında trafik sınırı hakkında bildirim alın. (birim: GB)"
 "tgNotifyCpu" = "CPU Yükü Bildirimi"
 "tgNotifyCpuDesc" = "CPU yükü bu eşik seviyesini aşarsa bildirim alın. (birim: %)"
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "Saat Dilimi"
 "timeZoneDesc" = "Planlanmış görevler bu saat dilimine göre çalışacaktır."
 "subSettings" = "Abonelik"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 CPU Yükü {{ .Percent }}% eşiği {{ .Threshold }}%'yi aşıyor"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ Kullanıcı seçiminde hata!"
 "userSaved" = "✅ Telegram Kullanıcısı kaydedildi."
 "loginSuccess" = "✅ Panele başarıyla giriş yapıldı.\r\n"

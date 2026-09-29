@@ -45,6 +45,7 @@ var defaultValueMap = map[string]string{
 	"tgBotProxy":                  "",
 	"tgBotAPIServer":              "",
 	"tgBotChatId":                 "",
+	"tgNotifyChatId":              "", // notification channel (#195), setting_tg_notify.go
 	"tgRunTime":                   "@daily",
 	"tgBotBackup":                 "false",
 	"tgBotLoginNotify":            "true",

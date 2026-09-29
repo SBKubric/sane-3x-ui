@@ -35,6 +35,6 @@ func (j *CheckCpuJob) Run() {
 			"Percent=="+strconv.FormatFloat(percent[0], 'f', 2, 64),
 			"Threshold=="+strconv.Itoa(threshold))
 
-		j.tgbotService.SendMsgToTgbotAdmins(msg)
+		j.tgbotService.SendMsgToNotifyChannel(msg)
 	}
 }

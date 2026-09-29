@@ -47,7 +47,7 @@ export default defineConfig({
     {
       name: 'panel',
       testIgnore:
-        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor)\.spec\.ts/,
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The chain registry (its hops and the active edge) is one per panel, and
@@ -62,12 +62,24 @@ export default defineConfig({
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
+    // tg-notify-settings.spec.ts saves the whole settings form (#195). A save
+    // posts back every setting as the page loaded it, among them the
+    // proxy-front override the chain specs switch through the registry and
+    // the monitoring switch the contract specs flip, so it runs after the
+    // former and before the latter, never beside either.
+    {
+      name: 'settings-form',
+      testMatch: /tg-notify-settings\.spec\.ts/,
+      dependencies: ['chain-registry'],
+      workers: 1,
+      use: { ...devices['Desktop Chrome'] },
+    },
     // monitoring-page.spec.ts asserts "no monitoring data yet", so the contract
     // specs wait for the chain-registry project as they wait for the panel one.
     {
       name: 'mon-server-contact',
       testMatch: /monitoring-settings\.spec\.ts/,
-      dependencies: ['panel', 'chain-registry'],
+      dependencies: ['panel', 'chain-registry', 'settings-form'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
