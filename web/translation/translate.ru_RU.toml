@@ -1398,6 +1398,14 @@
 "standbyNoHealthy" = "\n↪️ Запасные: {{ .Standby }}. Нет здорового запасного."
 "standbyNone" = "\n↪️ Нет здорового запасного edge."
 
+[tgbot.probe]
+"card" = "📡 <b>{{ .Name }}</b>\r\n🔒 Probe account: только для чтения.\r\n"
+"user" = "👤 Пользователь: {{ .User }}\r\n"
+"lastIp" = "🌐 Последний IP: {{ .IP }}\r\n"
+"list" = "📡 Probe accounts"
+"listTitle" = "📡 Probe accounts пользователя monitoring: {{ .From }}–{{ .To }} из {{ .Count }}."
+"readOnly" = "🔒 {{ .Email }} — probe account, только для чтения."
+
 [tgbot.buttons]
 "closeKeyboard" = "❌ Закрыть клавиатуру"
 "cancel" = "❌ Отмена"

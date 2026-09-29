@@ -204,6 +204,10 @@ func (t *Tgbot) usersText(chatId int64, state, text string) (reply usersReply, o
 		}
 		return t.usersDraftReply(chatId, false), true
 	case usersStateSearch:
+		// A probe's name opens its read-only card (#183).
+		if reply, ok := t.probeSearch(text); ok {
+			return reply, true
+		}
 		v, err := (&SubUserService{}).Find(text)
 		if err != nil {
 			userStates[chatId] = usersStateSearch

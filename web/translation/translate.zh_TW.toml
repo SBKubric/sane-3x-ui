@@ -1394,6 +1394,14 @@
 "standbyNoHealthy" = "\n↪️ Standby: {{ .Standby }}. No healthy standby edge."
 "standbyNone" = "\n↪️ No healthy standby edge."
 
+[tgbot.probe]
+"card" = "📡 <b>{{ .Name }}</b>\r\n🔒 Probe account: read only.\r\n"
+"user" = "👤 User: {{ .User }}\r\n"
+"lastIp" = "🌐 Last IP: {{ .IP }}\r\n"
+"list" = "📡 Probe accounts"
+"listTitle" = "📡 Probe accounts of monitoring: {{ .From }}–{{ .To }} of {{ .Count }}."
+"readOnly" = "🔒 {{ .Email }} is a probe account: read only."
+
 [tgbot.buttons]
 "closeKeyboard" = "❌ 關閉鍵盤"
 "cancel" = "❌ 取消"

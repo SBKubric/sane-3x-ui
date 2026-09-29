@@ -797,6 +797,11 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.noQuery"))
 			return
 		}
+		// A probe account is read-only (#183): its buttons, and a refusal for
+		// any other button that names one.
+		if t.answerProbeCallback(callbackQuery, decodedQuery) {
+			return
+		}
 		// The users flows (#169) take their own buttons, and «Add client».
 		if t.answerUsersCallback(callbackQuery, decodedQuery) {
 			return
@@ -3397,6 +3402,11 @@ func (t *Tgbot) clientTelegramUserInfo(chatId int64, email string, messageID ...
 
 // searchClient searches for a client by email and sends the information.
 func (t *Tgbot) searchClient(chatId int64, email string, messageID ...int) {
+	// A probe account is not a user: its card is read-only (#183).
+	if IsProbeAccount(email) {
+		t.showProbeCard(chatId, email, messageID...)
+		return
+	}
 	traffic, err := t.inboundService.GetClientTrafficByEmail(email)
 	if err != nil {
 		logger.Warning(err)
@@ -3404,8 +3414,7 @@ func (t *Tgbot) searchClient(chatId int64, email string, messageID ...int) {
 		t.SendMsgToTgbot(chatId, msg)
 		return
 	}
-	// A probe account is not a user: the card's buttons would edit it.
-	if traffic == nil || IsProbeAccount(email) {
+	if traffic == nil {
 		msg := t.I18nBot("tgbot.noResult")
 		t.SendMsgToTgbot(chatId, msg)
 		return
