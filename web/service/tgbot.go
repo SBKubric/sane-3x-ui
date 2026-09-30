@@ -458,6 +458,8 @@ func (t *Tgbot) OnReceive() {
 		botHandler = h
 		tgBotMutex.Unlock()
 
+		h.Use(t.noteSender) // Telegram accounts (#186): every sender, admin or not
+
 		h.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 			userStates.clear(message.Chat.ID)
 			t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.keyboardClosed"), tu.ReplyKeyboardRemove())

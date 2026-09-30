@@ -106,12 +106,13 @@ func TestClientLongNamesButtonsWork(t *testing.T) {
 	}
 }
 
-// TestClientLongNamesPickAmongSeveral: the pick among several users (legacy
-// data) opens a user with a long subId.
+// TestClientLongNamesPickAmongSeveral: the pick among several users (an
+// account shared without the unique index) opens a user with a long subId.
 func TestClientLongNamesPickAmongSeveral(t *testing.T) {
 	tg := usersBotFixture(t)
 	longClientUser(t)
-	legacyUserOf(t, SubUserCreate{Name: "petr", InboundIds: []int{2}}, usersTestChat)
+	petr := mustCreateUser(t, SubUserCreate{Name: "petr", InboundIds: []int{2}})
+	sharedTelegram(t, petr.SubId, usersTestChat)
 	fake := withScreenTelegram(t)
 
 	clientCommand(tg, "/start")

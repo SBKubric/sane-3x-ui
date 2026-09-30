@@ -15,8 +15,9 @@ func init() {
 // Sync is the users migration (docs/spec/users.md §3). It creates robot and
 // monitoring if they are missing, and a user for every subId that has
 // clients but no user yet — named after the email of its first client, with
-// -2, -3 on a clash. It never renames a user or touches a client, so running
-// it again is a no-op.
+// -2, -3 on a clash. A user without a Telegram id takes the one its clients
+// agree on, if nobody else has it (sub_user_telegram.go). It never renames a
+// user or touches a client, so running it again is a no-op.
 //
 // It runs at start-up (a post-migrate hook) and at the start of every
 // SubUserService call: a client that arrives with a new subId through a path
@@ -62,6 +63,10 @@ func (s *SubUserService) syncLocked() (*subUserIndex, error) {
 		}
 		taken[strings.ToLower(u.Name)] = true
 		idx.users[u.SubId] = &u
+	}
+	// A user without a Telegram id takes its clients' one (#186).
+	if err := idx.adoptTelegramIds(db); err != nil {
+		return nil, err
 	}
 	return idx, nil
 }

@@ -99,6 +99,10 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 	if reply, ok := t.newUserCallback(chatId, data); ok {
 		return reply, true
 	}
+	// The user's Telegram (#186): tgbot_users_telegram.go.
+	if reply, ok := t.usersTelegramCallback(data); ok {
+		return reply, true
+	}
 	action, args, _ := strings.Cut(data, " ")
 	key, rest, _ := strings.Cut(args, " ")
 	n, _ := strconv.Atoi(args)

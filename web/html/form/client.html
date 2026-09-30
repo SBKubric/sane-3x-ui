@@ -191,6 +191,8 @@
             v-model.number="client.tgId"
             min="0"
         ></a-input-number>
+        <!-- users (#186): the user's Telegram ID is the source; saving the user writes it here -->
+        <div class="ant-form-explain" data-testid="client-tgid-hint">{{ i18n "pages.subUsers.telegram.clientHint" }}</div>
     </a-form-item>
     <a-form-item v-if="client.email" label='{{ i18n "comment" }}'>
         <a-input v-model.trim="client.comment"></a-input>
