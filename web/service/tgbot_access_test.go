@@ -106,6 +106,12 @@ func botCallbackData(t *testing.T) []string {
 		t.Fatalf("no bot sources: %v", err)
 	}
 	seen := map[string]bool{chainSwitchCallback: true, probeCardAction: true, probeListAction: true}
+	// The admin screen's own callbacks (#191).
+	for _, action := range []string{screenBackData, screenMenuData, screenMenuRoute, screenInboundsRoute, screenInboundAction,
+		screenOnlineRoute, screenServerRoute, screenBackupData, screenBanLogsData, screenChainRoute, screenSoonData,
+		screenClientAction, usersListAction, usersFoundAction, usersSubAction, usersSubQRAction} {
+		seen[action] = true
+	}
 	fset := token.NewFileSet()
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
@@ -204,20 +210,24 @@ func TestNonAdminClientMenuStillWorks(t *testing.T) {
 	}
 }
 
-// TestAdminCallbacksStillServed: an admin's buttons work as before.
+// TestAdminCallbacksStillServed: an admin's buttons are served on the
+// admin's screen (#191): the view comes as an edit of the screen or a new
+// message.
 func TestAdminCallbacksStillServed(t *testing.T) {
 	tg := accessBotFixture(t)
 	fake := withFakeTelegram(t)
 
 	for data, want := range map[string]string{
-		"commands":                  "/restart",
-		"inbounds":                  "NL Amsterdam #1",
-		"client_sub_links other-nl": "s-other",
+		screenInboundsRoute:         "NL Amsterdam #1",
+		"s_ib 1 0":                  "other-nl",
+		"client_get_usage other-nl": "other-nl",
+		"usr_sub s-other":           "s-other",
 	} {
 		fake.calls = nil
 		adminPress(tg, data)
-		if text, _ := fake.lastSent(t); !strings.Contains(text, want) {
-			t.Errorf("%q: %q lacks %q", data, text, want)
+		text, labels, _ := fake.lastKeyboard(t)
+		if shown := text + "|" + strings.Join(labels, "|"); !strings.Contains(shown, want) {
+			t.Errorf("%q: %q lacks %q\n%s", data, shown, want, fake.texts())
 		}
 	}
 }
