@@ -63,6 +63,8 @@ func (t *Tgbot) screenMenuCallback(chatId int64, data string) (screenReply, bool
 		return screenReply{usersReply: usersReply{toast: t.I18nBot("tgbot.screen.soon")}}, true
 	case usersSubQRAction:
 		return t.usersSubscriptionQR(args), true
+	case tgInviteQRAction: // the QR of an invite link (#219)
+		return t.usersInviteQR(args), true
 	}
 	return t.screenOpsCallback(action, args)
 }

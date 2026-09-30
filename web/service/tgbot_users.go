@@ -49,6 +49,8 @@ type usersSession struct {
 	draft *usersDraft
 	// assignClient is the robot client the chat is asked a user for.
 	assignClient string
+	// telegramKey is the user the chat is asked a tg_id or @nick for (#219).
+	telegramKey string
 }
 
 type usersSessionStore struct {
@@ -101,6 +103,11 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 	}
 	// The user's Telegram (#186): tgbot_users_telegram.go.
 	if reply, ok := t.usersTelegramCallback(data); ok {
+		return reply, true
+	}
+	// Its invite link, typed tg_id or @nick, and move (#219):
+	// tgbot_users_invite.go.
+	if reply, ok := t.usersInviteCallback(chatId, data); ok {
 		return reply, true
 	}
 	action, args, _ := strings.Cut(data, " ")
@@ -164,6 +171,8 @@ func (t *Tgbot) usersText(chatId int64, state, text string) (reply usersReply, o
 		return t.usersSearchReply(chatId, text), true
 	case usersStateAssign:
 		return t.usersAssign(chatId, text), true
+	case usersStateTelegram:
+		return t.usersTelegramText(chatId, text), true
 	}
 	return usersReply{}, false
 }

@@ -18,12 +18,13 @@ func (a *SubUserController) telegram(c *gin.Context) {
 
 func (a *SubUserController) setTelegram(c *gin.Context) {
 	var req struct {
-		TgId int64 `json:"tgId"`
+		TgId   int64  `json:"tgId"`
+		TgNick string `json:"tgNick"` // an @nick instead of the id (#219)
 	}
 	if !readUsersBody(c, &req) {
 		return
 	}
-	user, err := a.users.SetTelegram(c.Param("subId"), req.TgId)
+	user, err := a.users.SetTelegramOf(c.Param("subId"), req.TgId, req.TgNick)
 	usersAnswer(c, user, err)
 }
 

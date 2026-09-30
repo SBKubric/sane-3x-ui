@@ -19,7 +19,8 @@ import (
 // A user is addressed by its subId, a technical user by its key (@robot,
 // @monitoring).
 type SubUserController struct {
-	users service.SubUserService
+	users   service.SubUserService
+	invites service.TgInviteService
 }
 
 // NewSubUserController registers the users routes on g.
@@ -37,6 +38,7 @@ func NewSubUserController(g *gin.RouterGroup) *SubUserController {
 	g.POST("/del/:subId", a.del)
 	g.POST("/assign/:subId", a.assign)
 	a.initTelegramRoutes(g) // #186: sub_user_telegram_controller.go
+	a.initTgInviteRoutes(g) // #219: sub_user_tg_invite_controller.go
 	return a
 }
 

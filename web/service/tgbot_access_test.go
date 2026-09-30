@@ -117,7 +117,9 @@ func botCallbackData(t *testing.T) []string {
 		screenOnlineRoute, screenServerRoute, screenBackupData, screenBanLogsData, screenChainRoute, screenSoonData,
 		screenClientAction, usersListAction, usersFoundAction, usersSubAction, usersSubQRAction,
 		// The client's screens (#194).
-		mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction, mysubTunnelAction} {
+		mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction, mysubTunnelAction,
+		// The user's invite link, typed Telegram and move (#219).
+		tgInviteAction, tgReissueAction, tgInviteQRAction, tgEntryAction, tgMoveAction, tgMoveDoAction} {
 		seen[action] = true
 	}
 	fset := token.NewFileSet()

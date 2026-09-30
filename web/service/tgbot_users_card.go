@@ -110,6 +110,7 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		if row := t.usersTelegramRow(v); row != nil {
 			rows = append(rows, row)
 		}
+		rows = append(rows, t.usersTelegramUnlinkedRows(v)...)
 		row = nil
 		if len(v.Clients) > 0 {
 			if v.Enable {

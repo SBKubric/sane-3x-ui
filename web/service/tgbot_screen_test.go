@@ -84,6 +84,9 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 		}
 		keyboard(m)
 		return ok(fmt.Sprintf(`{"message_id":%d,"date":0,"chat":{"id":%d,"type":"private"}}`, p.MessageID, usersTestChat))
+	case "getMe": // the bot's own account: its @username makes invite links (#219)
+		f.calls = append(f.calls, method)
+		return ok(`{"id":4242,"is_bot":true,"first_name":"Bot","username":"test_bot"}`)
 	case "sendDocument":
 		// A file stays in the chat but is no screen: it is not numbered.
 		f.calls = append(f.calls, method)

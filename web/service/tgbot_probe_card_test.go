@@ -185,6 +185,9 @@ func (f *fakeTelegram) Call(_ context.Context, url string, data *ta.RequestData)
 	if strings.HasPrefix(call.method, "answer") || strings.HasPrefix(call.method, "delete") {
 		return &ta.Response{Ok: true, Result: json.RawMessage("true")}, nil
 	}
+	if call.method == "getMe" { // the bot's own account: its @username makes invite links (#219)
+		return &ta.Response{Ok: true, Result: json.RawMessage(`{"id":4242,"is_bot":true,"first_name":"Bot","username":"test_bot"}`)}, nil
+	}
 	return &ta.Response{Ok: true, Result: json.RawMessage(
 		fmt.Sprintf(`{"message_id":9,"date":0,"chat":{"id":%d,"type":"private"}}`, usersTestChat))}, nil
 }

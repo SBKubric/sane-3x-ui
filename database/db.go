@@ -62,6 +62,7 @@ func initModels() error {
 		&model.TunnelClientSub{},
 		&model.SubUser{},
 		&model.TgAccount{},
+		&model.TgInvite{},
 	}
 	for _, model := range models {
 		if err := db.AutoMigrate(model); err != nil {
