@@ -75,7 +75,7 @@ func (t *Tgbot) usersCreateToggle(chatId int64, inboundId int) usersReply {
 	}) {
 		return t.usersExpired()
 	}
-	return usersReply{keyboard: kb, edit: true}
+	return usersReply{keyboard: kb}
 }
 
 // usersCreateProtocols goes back from the summary to the toggle keyboard.
@@ -84,7 +84,7 @@ func (t *Tgbot) usersCreateProtocols(chatId int64) usersReply {
 	if !t.usersEditDraft(chatId, func(d *usersDraft) { kb = t.usersToggleKeyboard(d) }) {
 		return t.usersExpired()
 	}
-	return usersReply{text: t.I18nBot("tgbot.users.chooseProtocols"), keyboard: kb, edit: true}
+	return usersReply{text: t.I18nBot("tgbot.users.chooseProtocols"), keyboard: kb}
 }
 
 // usersCreateNext leaves the toggle keyboard: for the name, or back to the
@@ -102,7 +102,7 @@ func (t *Tgbot) usersCreateNext(chatId int64) usersReply {
 		return usersReply{toast: t.I18nBot("tgbot.users.noneSelected")}
 	}
 	if named {
-		return t.usersDraftReply(chatId, true)
+		return t.usersDraftReply(chatId)
 	}
 	return t.usersAsk(chatId, usersStateName, t.I18nBot("tgbot.users.namePrompt"))
 }
@@ -128,7 +128,7 @@ func (t *Tgbot) usersToggleKeyboard(d *usersDraft) *telego.InlineKeyboardMarkup 
 }
 
 // usersDraftReply shows the draft's summary with its buttons.
-func (t *Tgbot) usersDraftReply(chatId int64, edit bool) usersReply {
+func (t *Tgbot) usersDraftReply(chatId int64) usersReply {
 	var text string
 	if !t.usersEditDraft(chatId, func(d *usersDraft) { text = t.usersDraftText(d) }) {
 		return t.usersExpired()
@@ -143,7 +143,7 @@ func (t *Tgbot) usersDraftReply(chatId int64, edit bool) usersReply {
 		tu.InlineKeyboardRow(button("tgbot.users.create", "usr_ok")),
 		tu.InlineKeyboardRow(button("tgbot.buttons.cancel", "usr_x")),
 	)
-	return usersReply{text: text, keyboard: kb, edit: edit}
+	return usersReply{text: text, keyboard: kb}
 }
 
 func (t *Tgbot) usersDraftText(d *usersDraft) string {
@@ -243,7 +243,7 @@ func (t *Tgbot) usersSetLimit(chatId int64, set string, n int) usersReply {
 	}) {
 		return t.usersExpired()
 	}
-	reply := t.usersDraftReply(chatId, true)
+	reply := t.usersDraftReply(chatId)
 	reply.toast = t.I18nBot("tgbot.answers.successfulOperation")
 	return reply
 }
@@ -293,7 +293,7 @@ func (t *Tgbot) usersKeypadPress(pad, args string) usersReply {
 		tu.InlineKeyboardRow(key("7", 7), key("8", 8), key("9", 9)),
 		tu.InlineKeyboardRow(key("🔄", -2), key("0", 0), key("⬅️", -1)),
 	)
-	return usersReply{keyboard: kb, edit: true}
+	return usersReply{keyboard: kb}
 }
 
 // --- submit --------------------------------------------------------------------
@@ -324,7 +324,10 @@ func (t *Tgbot) usersCreateSubmit(chatId int64, linkExisting bool) usersReply {
 		return t.usersError(err)
 	}
 	usersSessions.with(chatId, func(s *usersSession) { s.draft = nil })
-	text, kb := t.usersCard(v)
-	return usersReply{toast: t.I18nBot("tgbot.answers.successfulOperation"),
-		text: t.I18nBot("tgbot.users.created", "Name=="+html.EscapeString(v.Name)) + "\r\n\r\n" + text, keyboard: kb, edit: true}
+	reply := t.usersCardOf(v)
+	subURL, _ := t.subscriptionURLs(v.SubId)
+	reply.toast = t.I18nBot("tgbot.answers.successfulOperation")
+	reply.text = t.I18nBot("tgbot.users.created", "Name=="+html.EscapeString(v.Name)) + "\r\n" +
+		t.I18nBot("tgbot.users.subscription", "Url=="+html.EscapeString(subURL)) + "\r\n" + reply.text
+	return reply
 }

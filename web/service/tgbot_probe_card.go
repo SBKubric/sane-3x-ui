@@ -37,20 +37,20 @@ func (t *Tgbot) probeCallback(data string) (reply usersReply, ok bool) {
 	email, _, _ := strings.Cut(args, " ")
 	switch {
 	case action == probeCardAction:
-		return t.probeCardReply(email, true), true
+		return t.probeCardReply(email), true
 	case action == probeListAction:
 		page, _ := strconv.Atoi(args)
 		return t.probeList(page), true
 	case !IsProbeAccount(email) || probeShowsOnly[action]:
 		return usersReply{}, false
 	case action == "client_get_usage":
-		return t.probeCardReply(email, false), true
+		return t.probeCardReply(email), true
 	case action == "client_refresh" || action == "client_cancel":
-		return t.probeCardReply(email, true), true
+		return t.probeCardReply(email), true
 	}
 	// Anything else on a probe changes it, or opens a screen that would:
 	// refused, whether or not a card ever offered the button.
-	reply = t.probeCardReply(email, true)
+	reply = t.probeCardReply(email)
 	reply.toast = t.I18nBot("tgbot.probe.readOnly", "Email=="+email)
 	return reply, true
 }
@@ -64,12 +64,12 @@ var probeShowsOnly = map[string]bool{
 }
 
 // probeCardReply shows the card of the probe named email.
-func (t *Tgbot) probeCardReply(email string, edit bool) usersReply {
+func (t *Tgbot) probeCardReply(email string) usersReply {
 	c, err := probeAccount(email)
 	if err != nil {
 		return t.usersError(err)
 	}
-	return usersReply{text: t.probeCardText(c), keyboard: t.probeCardKeyboard(c.Name), edit: edit}
+	return usersReply{text: t.probeCardText(c), keyboard: t.probeCardKeyboard(c.Name), route: probeCardAction + " " + c.Name}
 }
 
 // probeAccount finds monitoring's probe account named email, ignoring case.
@@ -132,12 +132,12 @@ func (t *Tgbot) probeCardText(c SubUserClient) string {
 	return b.String()
 }
 
-// probeCardKeyboard is all the card offers: refresh, and back to monitoring.
+// probeCardKeyboard is all the card offers: refresh (the screen adds the way
+// back).
 func (t *Tgbot) probeCardKeyboard(email string) *telego.InlineKeyboardMarkup {
 	return tu.InlineKeyboard(
 		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.refresh")).
-			WithCallbackData(t.encodeQuery(probeCardAction+" "+email))),
-		t.usersBackRow(model.SubUserMonitoringKey))
+			WithCallbackData(t.encodeQuery(probeCardAction + " " + email))))
 }
 
 // probeOnline is the panel's notion of online for every protocol: enabled
@@ -176,28 +176,6 @@ func probeLastIP(c SubUserClient) string {
 	return last
 }
 
-// answerProbeCallback handles a button that addresses a probe account; false
-// for data that is not the probe card's.
-func (t *Tgbot) answerProbeCallback(query *telego.CallbackQuery, data string) bool {
-	reply, ok := t.probeCallback(data)
-	if !ok {
-		return false
-	}
-	chatId := query.Message.GetChat().ID
-	t.sendCallbackAnswerTgBot(query.ID, reply.toast)
-	t.showUsersReply(chatId, query.Message.GetMessageID(), reply)
-	return true
-}
-
-// showProbeCard sends the probe's card, or puts it in place of messageID.
-func (t *Tgbot) showProbeCard(chatId int64, email string, messageID ...int) {
-	if len(messageID) > 0 {
-		t.showUsersReply(chatId, messageID[0], t.probeCardReply(email, true))
-		return
-	}
-	t.showUsersReply(chatId, 0, t.probeCardReply(email, false))
-}
-
 // probeListRow is the button of monitoring's card that lists its probes; nil
 // when it has none.
 func (t *Tgbot) probeListRow(v *SubUserView) []telego.InlineKeyboardButton {
@@ -215,7 +193,7 @@ func (t *Tgbot) probeList(page int) usersReply {
 	probes := monitoringProbes()
 	total := len(probes)
 	if total == 0 {
-		return t.usersCardReply(model.SubUserMonitoringKey, true)
+		return t.usersCardReply(model.SubUserMonitoringKey)
 	}
 	pages := (total + usersRobotPage - 1) / usersRobotPage
 	page = max(0, min(page, pages-1))
@@ -237,9 +215,8 @@ func (t *Tgbot) probeList(page int) usersReply {
 	if len(nav) > 0 {
 		rows = append(rows, nav)
 	}
-	rows = append(rows, t.usersBackRow(model.SubUserMonitoringKey))
 	return usersReply{text: t.I18nBot("tgbot.probe.listTitle", "From=="+strconv.Itoa(from+1), "To=="+strconv.Itoa(to),
-		"Count=="+strconv.Itoa(total)), keyboard: tu.InlineKeyboard(rows...), edit: true}
+		"Count=="+strconv.Itoa(total)), keyboard: tu.InlineKeyboard(rows...), route: fmt.Sprintf("%s %d", probeListAction, page)}
 }
 
 // probeSearch is the Users search for a probe's name: its card, or false
@@ -248,5 +225,5 @@ func (t *Tgbot) probeSearch(text string) (usersReply, bool) {
 	if _, err := probeAccount(text); err != nil {
 		return usersReply{}, false
 	}
-	return t.probeCardReply(text, false), true
+	return t.probeCardReply(text), true
 }

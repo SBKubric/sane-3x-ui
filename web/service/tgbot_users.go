@@ -16,21 +16,26 @@ import (
 // The Telegram bot's users flows (#169, docs/spec/users.md): creating a user
 // with several protocols at once, and the «Users» section — search, the user
 // card and its buttons. Everything goes through SubUserService; the bot only
-// collects the operator's choices. Admins only: the upstream handlers call in
-// here from their admin branches.
+// collects the operator's choices. Admins only: the admin's screen
+// (tgbot_screen.go) calls in here.
 //
 // Each handler turns a button (callback data) or a typed text into a
-// usersReply; answerUsersCallback and answerUsersText hand the reply to
-// Telegram. The callback data of these flows starts with "usr_", plus the
-// upstream "add_client" button, which the create flow takes over.
+// usersReply; the screen shows it, answerUsersText for a text. The callback
+// data of these flows starts with "usr_", plus the upstream "add_client"
+// button, which the create flow takes over.
 
 // usersReply is what a users handler wants shown.
 type usersReply struct {
 	toast    string // the callback's answer; "" = a plain acknowledgement
-	text     string // message text (HTML); "" with edit = keep the text, change the keyboard
+	text     string // message text (HTML); "" = keep the text, change the keyboard
 	keyboard *telego.InlineKeyboardMarkup
-	// edit replaces the message the button is on instead of sending a new one.
-	edit bool
+	// route is the callback data that shows this view again, for the
+	// screen's way back (tgbot_screen.go); "" for a view that cannot be
+	// shown again, such as a question or a refusal.
+	route string
+	// root leaves only the main menu to go back to: the view shown before
+	// is gone, as a deleted user's card is.
+	root bool
 }
 
 // Chat states (userStates) of the users flows: the text the chat waits for.
@@ -73,21 +78,9 @@ func (s *usersSessionStore) drop(chatId int64) {
 	delete(s.m, chatId)
 }
 
-// answerUsersCallback handles a button of the users flows; false for data
-// that is not theirs.
-func (t *Tgbot) answerUsersCallback(query *telego.CallbackQuery, data string) bool {
-	chatId := query.Message.GetChat().ID
-	reply, ok := t.usersCallback(chatId, data)
-	if !ok {
-		return false
-	}
-	t.sendCallbackAnswerTgBot(query.ID, reply.toast)
-	t.showUsersReply(chatId, query.Message.GetMessageID(), reply)
-	return true
-}
-
 // answerUsersText handles a text the chat was asked for by a users flow;
-// false for the states of other flows.
+// false for the states of other flows. The answer goes on the chat's screen
+// and the text is deleted (#191).
 func (t *Tgbot) answerUsersText(message *telego.Message, state string) bool {
 	if !strings.HasPrefix(state, "usr_") {
 		return false
@@ -95,26 +88,10 @@ func (t *Tgbot) answerUsersText(message *telego.Message, state string) bool {
 	if message.From == nil || !checkAdmin(message.From.ID) {
 		return true
 	}
+	delete(userStates, message.Chat.ID)
 	reply, _ := t.usersText(message.Chat.ID, state, message.Text)
-	t.showUsersReply(message.Chat.ID, 0, reply)
+	t.screenText(message.Chat.ID, message.MessageID, screenReply{usersReply: reply})
 	return true
-}
-
-func (t *Tgbot) showUsersReply(chatId int64, messageID int, r usersReply) {
-	switch {
-	case r.edit && messageID != 0 && r.text == "":
-		if r.keyboard != nil {
-			t.editMessageCallbackTgBot(chatId, messageID, r.keyboard)
-		}
-	case r.edit && messageID != 0 && r.keyboard != nil:
-		t.editMessageTgBot(chatId, messageID, r.text, r.keyboard)
-	case r.edit && messageID != 0:
-		t.editMessageTgBot(chatId, messageID, r.text)
-	case r.text != "" && r.keyboard != nil:
-		t.SendMsgToTgbot(chatId, r.text, r.keyboard)
-	case r.text != "":
-		t.SendMsgToTgbot(chatId, r.text)
-	}
 }
 
 // usersCallback runs a button of the users flows. ok is false for data that
@@ -139,9 +116,9 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 	case "usr_cm":
 		return t.usersAsk(chatId, usersStateComment, t.I18nBot("tgbot.users.commentPrompt")), true
 	case "usr_sum":
-		return t.usersDraftReply(chatId, true), true
+		return t.usersDraftReply(chatId), true
 	case "usr_tr", "usr_ex", "usr_ip":
-		return usersReply{keyboard: t.usersLimitKeyboard(action), edit: true}, true
+		return usersReply{keyboard: t.usersLimitKeyboard(action)}, true
 	case "usr_trs", "usr_exs", "usr_ips":
 		return t.usersSetLimit(chatId, action, n), true
 	case "usr_tri", "usr_exi", "usr_ipi":
@@ -152,16 +129,22 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 		return t.usersCreateSubmit(chatId, true), true
 	case "usr_x":
 		usersSessions.drop(chatId)
-		return usersReply{text: t.I18nBot("tgbot.messages.cancel"), edit: true}, true
+		menu := t.screenMainMenu().usersReply
+		menu.toast = t.I18nBot("tgbot.messages.cancel")
+		return menu, true
 	// the Users section
 	case "usr_menu":
-		return t.usersMenu(chatId), true
+		return t.usersList(chatId, 0), true
+	case usersListAction:
+		return t.usersList(chatId, n), true
+	case usersFoundAction:
+		return t.usersFound(chatId, args), true
+	case usersSubAction:
+		return t.usersSubscription(args), true
 	case "usr_c":
-		return t.usersCardReply(args, true), true
-	case "usr_apc":
-		return t.usersAddFromClient(args), true
+		return t.usersCardReply(args), true
 	case "usr_apm":
-		return t.usersAddMenu(args, true), true
+		return t.usersAddMenu(args), true
 	case "usr_ap", "usr_apl":
 		return t.usersAddProtocol(key, id, action == "usr_apl"), true
 	case "usr_rpm":
@@ -175,7 +158,7 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 	case "usr_del":
 		return t.usersDeleteConfirm(args), true
 	case "usr_delc":
-		return t.usersDelete(args), true
+		return t.usersDelete(chatId, args), true
 	case "usr_rob":
 		return t.usersRobotList(n), true
 	case "usr_as":
@@ -197,23 +180,18 @@ func (t *Tgbot) usersText(chatId int64, state, text string) (reply usersReply, o
 		if !t.usersEditDraft(chatId, func(d *usersDraft) { d.name = text }) {
 			return t.usersExpired(), true
 		}
-		return t.usersDraftReply(chatId, false), true
+		return t.usersDraftReply(chatId), true
 	case usersStateComment:
 		if !t.usersEditDraft(chatId, func(d *usersDraft) { d.comment = text }) {
 			return t.usersExpired(), true
 		}
-		return t.usersDraftReply(chatId, false), true
+		return t.usersDraftReply(chatId), true
 	case usersStateSearch:
 		// A probe's name opens its read-only card (#183).
 		if reply, ok := t.probeSearch(text); ok {
 			return reply, true
 		}
-		v, err := (&SubUserService{}).Find(text)
-		if err != nil {
-			userStates[chatId] = usersStateSearch
-			return t.usersError(err), true
-		}
-		return t.usersCardReply(v.SubId, false), true
+		return t.usersSearchReply(chatId, text), true
 	case usersStateAssign:
 		return t.usersAssign(chatId, text), true
 	}

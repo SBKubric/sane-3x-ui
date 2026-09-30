@@ -4,30 +4,21 @@ import (
 	"context"
 	"fmt"
 	"html"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
-	"github.com/coinman-dev/3ax-ui/v2/logger"
 	"github.com/coinman-dev/3ax-ui/v2/util/common"
 	"github.com/mymmrac/telego"
 	tu "github.com/mymmrac/telego/telegoutil"
 	"github.com/skip2/go-qrcode"
 )
 
-// The tunnel clients (AmneziaWG, WireGuard) in the admin's «All clients» and
-// link lists (#182). Their clients live in tunnel_clients, not in the
-// inbound's settings, so the upstream lists would find none: for an
-// amneziawg or nativewg inbound these handlers answer instead. Buttons
-// address a client by its uuid; probe accounts are left out.
-
-// tunnelReply is what a tunnel handler wants shown, plus the files it sends.
-type tunnelReply struct {
-	usersReply
-	files []tunnelFile
-}
+// The tunnel clients (AmneziaWG, WireGuard) of the admin's screens (#182,
+// #191): their card and its buttons. Their clients live in tunnel_clients,
+// not in the inbound's settings; the screen's inbound list reads them from
+// there. Buttons address a client by its uuid; probe accounts are left out.
 
 // tunnelFile is a document for the chat.
 type tunnelFile struct {
@@ -35,55 +26,15 @@ type tunnelFile struct {
 	data []byte
 }
 
-// tunnelListActions maps the upstream buttons that list an inbound's clients
-// to the action each tunnel client button gets.
-var tunnelListActions = map[string]string{
-	"get_clients":                "tun_c",
-	"get_clients_for_sub":        "tun_sub",
-	"get_clients_for_individual": "tun_ind",
-	"get_clients_for_qr":         "tun_qr",
-}
-
-// answerTunnelCallback handles a button of the tunnel flows; false for data
-// that is not theirs.
-func (t *Tgbot) answerTunnelCallback(query *telego.CallbackQuery, data string) bool {
-	reply, ok := t.tunnelCallback(data)
-	if !ok {
-		return false
-	}
-	chatId := query.Message.GetChat().ID
-	t.sendCallbackAnswerTgBot(query.ID, reply.toast)
-	t.showUsersReply(chatId, query.Message.GetMessageID(), reply.usersReply)
-	if err := t.sendTunnelFiles(chatId, reply.files); err != nil {
-		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.answers.errorOperation")+"\r\n"+html.EscapeString(err.Error()))
-	}
-	return true
-}
-
 // tunnelCallback runs a button of the tunnel flows. ok is false for data
-// that is not theirs, among them the lists of the other inbounds.
-func (t *Tgbot) tunnelCallback(data string) (reply tunnelReply, ok bool) {
+// that is not theirs.
+func (t *Tgbot) tunnelCallback(data string) (reply screenReply, ok bool) {
 	action, args, _ := strings.Cut(data, " ")
-	if next, isList := tunnelListActions[action]; isList {
-		id, err := strconv.Atoi(args)
-		if err != nil {
-			return tunnelReply{}, false
-		}
-		inbound, err := t.inboundService.GetInbound(id)
-		if err != nil {
-			return tunnelReply{}, false
-		}
-		kind, isTunnel := tunnelKindOf(inbound.Protocol)
-		if !isTunnel {
-			return tunnelReply{}, false
-		}
-		return t.tunnelList(inbound, kind, next), true
-	}
 	switch action {
 	case "tun_c":
-		return t.tunnelCard(args, false), true
+		return t.tunnelCard(args), true
 	case "tun_r":
-		return t.tunnelCard(args, true), true
+		return t.tunnelCard(args), true
 	case "tun_en":
 		clientUUID, flag, _ := strings.Cut(args, " ")
 		return t.tunnelSetEnable(clientUUID, flag == "1"), true
@@ -92,15 +43,9 @@ func (t *Tgbot) tunnelCallback(data string) (reply tunnelReply, ok bool) {
 	case "tun_rtc":
 		return t.tunnelReset(args), true
 	case "tun_cf":
-		return t.tunnelConfig(args, true, true), true
-	case "tun_sub":
-		return t.tunnelSubLink(args), true
-	case "tun_ind":
-		return t.tunnelConfig(args, true, false), true
-	case "tun_qr":
-		return t.tunnelConfig(args, false, true), true
+		return t.tunnelConfig(args), true
 	}
-	return tunnelReply{}, false
+	return screenReply{}, false
 }
 
 // tunnelKindOf is the tunnel kind of an inbound protocol.
@@ -157,36 +102,8 @@ func findTunnelPeer(clientUUID string) (*tunnelPeer, bool) {
 }
 
 // tunnelNoResult answers a button whose client is gone or is a probe account.
-func (t *Tgbot) tunnelNoResult() tunnelReply {
-	return tunnelReply{usersReply: usersReply{toast: t.I18nBot("tgbot.noResult"), text: t.I18nBot("tgbot.noResult")}}
-}
-
-// tunnelList is the keyboard of an inbound's tunnel clients, each button
-// running next on its client.
-func (t *Tgbot) tunnelList(inbound *model.Inbound, kind, next string) tunnelReply {
-	clients, err := tunnelClientsOf(kind).GetClients()
-	if err != nil {
-		logger.Warning("tunnel clients:", err)
-		return tunnelReply{usersReply: usersReply{toast: t.I18nBot("tgbot.answers.getClientsFailed")}}
-	}
-	var buttons []telego.InlineKeyboardButton
-	for _, c := range clients {
-		if IsProbeAccount(c.Email) {
-			continue
-		}
-		buttons = append(buttons, tu.InlineKeyboardButton(c.Email).WithCallbackData(t.encodeQuery(next+" "+c.UUID)))
-	}
-	if len(buttons) == 0 {
-		return tunnelReply{usersReply: usersReply{toast: t.I18nBot("tgbot.answers.getClientsFailed")}}
-	}
-	cols := 3
-	if len(buttons) >= 6 {
-		cols = 2
-	}
-	return tunnelReply{usersReply: usersReply{
-		text:     t.I18nBot("tgbot.answers.chooseClient", "Inbound=="+html.EscapeString(inbound.Remark)),
-		keyboard: tu.InlineKeyboardGrid(tu.InlineKeyboardCols(cols, buttons...)),
-	}}
+func (t *Tgbot) tunnelNoResult() screenReply {
+	return screenReply{usersReply: usersReply{toast: t.I18nBot("tgbot.noResult"), text: t.I18nBot("tgbot.noResult")}}
 }
 
 // tunnelInboundLabel names the inbound row of a tunnel kind: "remark
@@ -223,7 +140,7 @@ func tunnelOwner(clientUUID string) *SubUserView {
 // reset, its config and the way to its user. The xray card's IP limit, IP log,
 // traffic limit, expiry and Telegram user are not offered: the tunnel model
 // has no bot flow for them.
-func (t *Tgbot) tunnelCard(clientUUID string, edit bool) tunnelReply {
+func (t *Tgbot) tunnelCard(clientUUID string) screenReply {
 	p, ok := findTunnelPeer(clientUUID)
 	if !ok {
 		return t.tunnelNoResult()
@@ -276,20 +193,20 @@ func (t *Tgbot) tunnelCard(clientUUID string, edit bool) tunnelReply {
 	if owner != nil {
 		rows = append(rows, tu.InlineKeyboardRow(button("👤 "+owner.Name, "usr_c "+owner.SubId)))
 	}
-	return tunnelReply{usersReply: usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...), edit: edit}}
+	return screenReply{usersReply: usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...), route: "tun_c " + c.UUID}}
 }
 
 // tunnelSetEnable switches the client on or off.
-func (t *Tgbot) tunnelSetEnable(clientUUID string, enable bool) tunnelReply {
+func (t *Tgbot) tunnelSetEnable(clientUUID string, enable bool) screenReply {
 	p, ok := findTunnelPeer(clientUUID)
 	if !ok {
 		return t.tunnelNoResult()
 	}
 	if err := tunnelClientsOf(p.kind).ToggleClientByUUID(clientUUID, enable); err != nil {
-		return tunnelReply{usersReply: t.usersError(err)}
+		return screenReply{usersReply: t.usersError(err)}
 	}
 	InvalidateTunnelSubCache()
-	reply := t.tunnelCard(clientUUID, true)
+	reply := t.tunnelCard(clientUUID)
 	if enable {
 		reply.toast = t.I18nBot("tgbot.answers.enableSuccess", "Email=="+p.client.Email)
 	} else {
@@ -300,11 +217,11 @@ func (t *Tgbot) tunnelSetEnable(clientUUID string, enable bool) tunnelReply {
 
 // tunnelResetAsk puts the reset's confirmation in place of the card's
 // buttons.
-func (t *Tgbot) tunnelResetAsk(clientUUID string) tunnelReply {
+func (t *Tgbot) tunnelResetAsk(clientUUID string) screenReply {
 	if _, ok := findTunnelPeer(clientUUID); !ok {
 		return t.tunnelNoResult()
 	}
-	return tunnelReply{usersReply: usersReply{edit: true, keyboard: tu.InlineKeyboard(
+	return screenReply{usersReply: usersReply{keyboard: tu.InlineKeyboard(
 		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancelReset")).
 			WithCallbackData(t.encodeQuery("tun_r "+clientUUID))),
 		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.confirmResetTraffic")).
@@ -313,40 +230,22 @@ func (t *Tgbot) tunnelResetAsk(clientUUID string) tunnelReply {
 }
 
 // tunnelReset zeroes the client's traffic counters.
-func (t *Tgbot) tunnelReset(clientUUID string) tunnelReply {
+func (t *Tgbot) tunnelReset(clientUUID string) screenReply {
 	p, ok := findTunnelPeer(clientUUID)
 	if !ok {
 		return t.tunnelNoResult()
 	}
 	if err := tunnelClientsOf(p.kind).ResetClientTrafficByUUID(clientUUID); err != nil {
-		return tunnelReply{usersReply: t.usersError(err)}
+		return screenReply{usersReply: t.usersError(err)}
 	}
 	InvalidateTunnelSubCache()
-	reply := t.tunnelCard(clientUUID, true)
+	reply := t.tunnelCard(clientUUID)
 	reply.toast = t.I18nBot("tgbot.answers.resetTrafficSuccess", "Email=="+p.client.Email)
 	return reply
 }
 
-// tunnelSubLink is the link of the subscription the client belongs to, as
-// the user's card shows it.
-func (t *Tgbot) tunnelSubLink(clientUUID string) tunnelReply {
-	p, ok := findTunnelPeer(clientUUID)
-	if !ok {
-		return t.tunnelNoResult()
-	}
-	owner := tunnelOwner(clientUUID)
-	if owner == nil || owner.Technical {
-		return tunnelReply{usersReply: usersReply{
-			text: t.I18nBot("tgbot.users.clientWithoutSubscription", "Client=="+html.EscapeString(p.client.Email))}}
-	}
-	subURL, _ := t.subscriptionURLs(owner.SubId)
-	return tunnelReply{usersReply: usersReply{
-		text: t.I18nBot("tgbot.tunnel.user", "Name=="+html.EscapeString(owner.Name)) +
-			t.I18nBot("tgbot.users.subscription", "Url=="+html.EscapeString(subURL))}}
-}
-
-// tunnelConfig sends the chat the client's .conf, its QR, or both.
-func (t *Tgbot) tunnelConfig(clientUUID string, withConf, withQR bool) tunnelReply {
+// tunnelConfig sends the chat the client's .conf and its QR.
+func (t *Tgbot) tunnelConfig(clientUUID string) screenReply {
 	p, ok := findTunnelPeer(clientUUID)
 	if !ok {
 		return t.tunnelNoResult()
@@ -356,17 +255,10 @@ func (t *Tgbot) tunnelConfig(clientUUID string, withConf, withQR bool) tunnelRep
 		if err == nil {
 			err = common.NewError("empty config")
 		}
-		return tunnelReply{usersReply: t.usersError(err)}
+		return screenReply{usersReply: t.usersError(err)}
 	}
-	confFile := tunnelConfFile(p.kind, p.client.Email, conf)
-	var files []tunnelFile
-	if withConf {
-		files = append(files, confFile)
-	}
-	if qr, ok := tunnelQRFile(confFile); ok && withQR {
-		files = append(files, qr)
-	}
-	return tunnelReply{usersReply: usersReply{toast: t.I18nBot("tgbot.answers.successfulOperation")}, files: files}
+	files := tunnelConfigFiles(p.kind, p.client.Email, conf)
+	return screenReply{usersReply: usersReply{toast: t.I18nBot("tgbot.answers.successfulOperation")}, files: files}
 }
 
 // tunnelConfigFiles are a client's .conf and, when it encodes, the QR of the

@@ -72,18 +72,12 @@ func TestProbeCardIsReadOnly(t *testing.T) {
 			t.Errorf("card lacks %q:\n%s", want, reply.text)
 		}
 	}
-	want := []string{"🔄 Refresh", "⬅️ Back"}
+	want := []string{"🔄 Refresh"}
 	if got := buttonTexts(t, reply.keyboard); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("buttons:\n got %q\nwant %q", got, want)
 	}
-	if refresh := button(t, reply.keyboard, "Refresh"); refresh != "prb_c probe-4" {
-		t.Errorf("refresh = %q", refresh)
-	}
-	if back := button(t, reply.keyboard, "Back"); back != "usr_c "+model.SubUserMonitoringKey {
-		t.Errorf("back = %q", back)
-	}
-	if !reply.edit {
-		t.Error("the card should replace the message its button is on")
+	if refresh := button(t, reply.keyboard, "Refresh"); refresh != "prb_c probe-4" || reply.route != refresh {
+		t.Errorf("refresh = %q, route %q", refresh, reply.route)
 	}
 }
 
@@ -100,7 +94,7 @@ func TestProbeCardOfAnAwgPeer(t *testing.T) {
 			t.Errorf("card lacks %q:\n%s", want, reply.text)
 		}
 	}
-	want := []string{"🔄 Refresh", "⬅️ Back"}
+	want := []string{"🔄 Refresh"}
 	if got := buttonTexts(t, reply.keyboard); strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("buttons:\n got %q\nwant %q", got, want)
 	}
@@ -128,7 +122,7 @@ var probeMutatingCallbacks = []string{
 	"ip_log %s", "ips_refresh %s", "ips_cancel %s", "clear_ips %s", "clear_ips_c %s",
 	"tg_user %s", "tgid_refresh %s", "tgid_cancel %s", "tgid_remove %s", "tgid_remove_c %s",
 	"toggle_enable %s", "toggle_enable_c %s",
-	"usr_apc %s", "usr_as %s",
+	"client_links %s", "usr_as %s",
 }
 
 // TestProbeCardRefusesMutatingCallbacks: a crafted button that would change a
@@ -147,7 +141,7 @@ func TestProbeCardRefusesMutatingCallbacks(t *testing.T) {
 			if !strings.Contains(reply.toast, "read only") || !strings.Contains(reply.text, "Probe account: read only") {
 				t.Errorf("%q: %+v", data, reply)
 			}
-			if got := buttonTexts(t, reply.keyboard); strings.Join(got, "|") != "🔄 Refresh|⬅️ Back" {
+			if got := buttonTexts(t, reply.keyboard); strings.Join(got, "|") != "🔄 Refresh" {
 				t.Errorf("%q: buttons %q", data, got)
 			}
 		}
@@ -159,9 +153,9 @@ func TestProbeCardRefusesMutatingCallbacks(t *testing.T) {
 // stay upstream's, and other clients are none of the probe card's business.
 func TestProbeCardTakesOverTheClientCard(t *testing.T) {
 	bot := probeBotFixture(t)
-	for data, edit := range map[string]bool{"client_get_usage probe-4": false, "client_refresh probe-4": true, "client_cancel probe-4": true} {
+	for _, data := range []string{"client_get_usage probe-4", "client_refresh probe-4", "client_cancel probe-4"} {
 		reply := probePress(t, bot, data)
-		if reply.edit != edit || !strings.Contains(reply.text, "<b>probe-4</b>") {
+		if reply.route != "prb_c probe-4" || !strings.Contains(reply.text, "<b>probe-4</b>") {
 			t.Errorf("%q: %+v", data, reply)
 		}
 	}
@@ -219,8 +213,12 @@ func withFakeTelegram(t *testing.T) *fakeTelegram {
 }
 
 // adminPress is an admin's tap on a button carrying data, as Telegram
-// delivers it to the bot.
+// delivers it to the bot: on the chat's screen, message 9, which shows the
+// main menu the first time.
 func adminPress(bot *Tgbot, data string) {
+	if sc := botScreens.of(usersTestChat); sc.msgID == 0 {
+		sc.msgID, sc.route = 9, screenMenuRoute
+	}
 	bot.answerCallback(&telego.CallbackQuery{ID: "q", From: telego.User{ID: 1}, Data: data,
 		Message: &telego.Message{MessageID: 9, Chat: telego.Chat{ID: usersTestChat}}}, true)
 }
@@ -298,7 +296,7 @@ func TestProbeCardFromUsageSearch(t *testing.T) {
 		tg.answerCommand(&telego.Message{Text: "/usage " + email, Chat: telego.Chat{ID: usersTestChat},
 			From: &telego.User{ID: 1}}, usersTestChat, true)
 		text, labels := fake.lastSent(t)
-		if !strings.Contains(text, "<b>"+email+"</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back" {
+		if !strings.Contains(text, "<b>"+email+"</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back|🏠 Menu" {
 			t.Errorf("/usage %s: %q %q", email, text, labels)
 		}
 	}
@@ -331,36 +329,41 @@ func (f *fakeTelegram) lastKeyboard(t *testing.T) (text string, labels []string,
 }
 
 // TestProbeCardFromTheMonitoringCard: monitoring's card lists its probe
-// accounts, and each opens its read-only card, which leads back.
+// accounts, each opens its read-only card, and the screen's Back leads to the
+// list and on to monitoring.
 func TestProbeCardFromTheMonitoringCard(t *testing.T) {
 	tg := probeBotFixture(t)
 	fake := withFakeTelegram(t)
 
 	adminPress(tg, "usr_c "+model.SubUserMonitoringKey)
 	_, labels, data := fake.lastKeyboard(t)
-	if strings.Join(labels, "|") != "📡 Probe accounts|🔄 Refresh" {
+	if strings.Join(labels, "|") != "📡 Probe accounts|⬅️ Back|🏠 Menu" {
 		t.Fatalf("monitoring's card: %q", labels)
 	}
 
 	adminPress(tg, data["📡 Probe accounts"])
-	text, labels, data := fake.lastKeyboard(t)
-	want := []string{"probe-4 · probe-home", "probe-awg-ams-1-direct · awg", "⬅️ Back"}
+	text, labels, list := fake.lastKeyboard(t)
+	want := []string{"probe-4 · probe-home", "probe-awg-ams-1-direct · awg", "⬅️ Back", "🏠 Menu"}
 	if strings.Join(labels, "|") != strings.Join(want, "|") || !strings.Contains(text, "1–2 of 2") {
 		t.Fatalf("probe list: %q\n got %q\nwant %q", text, labels, want)
 	}
-	back := data["⬅️ Back"]
 
 	for _, label := range want[:2] {
 		fake.calls = nil
-		adminPress(tg, data[label])
-		text, labels, _ := fake.lastKeyboard(t)
+		adminPress(tg, list[label])
+		text, labels, data := fake.lastKeyboard(t)
 		email, _, _ := strings.Cut(label, " · ")
-		if !strings.Contains(text, "<b>"+email+"</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back" {
+		if !strings.Contains(text, "<b>"+email+"</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back|🏠 Menu" {
 			t.Errorf("%s: %q %q", label, text, labels)
+		}
+		adminPress(tg, data["⬅️ Back"])
+		if text, _, _ := fake.lastKeyboard(t); !strings.Contains(text, "1–2 of 2") {
+			t.Errorf("back from %s: %s", label, text)
 		}
 	}
 
-	adminPress(tg, back)
+	_, _, data = fake.lastKeyboard(t)
+	adminPress(tg, data["⬅️ Back"])
 	text, _, _ = fake.lastKeyboard(t)
 	if !strings.Contains(text, "<b>monitoring</b>") {
 		t.Errorf("back from the list: %s", text)
@@ -379,7 +382,7 @@ func TestProbeListPages(t *testing.T) {
 	}
 	reply = probePress(t, bot, button(t, reply.keyboard, "➡️"))
 	labels := buttonTexts(t, reply.keyboard)
-	if !strings.Contains(reply.text, "21–27 of 27") || len(labels) != 7+2 || labels[7] != "⬅️" {
+	if !strings.Contains(reply.text, "21–27 of 27") || len(labels) != 7+1 || labels[7] != "⬅️" || reply.route != "prb_l 1" {
 		t.Errorf("second page: %q %q", reply.text, labels)
 	}
 }
@@ -392,27 +395,27 @@ func TestProbeCardFromUsersSearch(t *testing.T) {
 		press(t, bot, "usr_menu")
 		reply := typeText(t, bot, q)
 		if !strings.Contains(strings.ToLower(reply.text), "<b>"+strings.ToLower(q)+"</b>") ||
-			strings.Join(buttonTexts(t, reply.keyboard), "|") != "🔄 Refresh|⬅️ Back" {
+			strings.Join(buttonTexts(t, reply.keyboard), "|") != "🔄 Refresh" {
 			t.Errorf("search %q: %q %q", q, reply.text, buttonTexts(t, reply.keyboard))
 		}
 	}
 }
 
-// TestProbeCardFromTheInboundClientList: «All clients» of an inbound still
+// TestProbeCardFromTheInboundClientList: the inbound's client list still
 // lists its probe, and the probe opens read-only.
 func TestProbeCardFromTheInboundClientList(t *testing.T) {
 	tg := probeBotFixture(t)
 	fake := withFakeTelegram(t)
 
-	adminPress(tg, "get_clients 4")
+	adminPress(tg, "s_ib 4 0")
 	_, labels, data := fake.lastKeyboard(t)
-	if strings.Join(labels, "|") != "probe-4" {
+	if strings.Join(labels, "|") != "🟢 probe-4|⬅️ Back|🏠 Menu" {
 		t.Fatalf("clients of probe-home: %q", labels)
 	}
 	fake.calls = nil
-	adminPress(tg, data["probe-4"])
+	adminPress(tg, data["🟢 probe-4"])
 	text, labels, _ := fake.lastKeyboard(t)
-	if !strings.Contains(text, "<b>probe-4</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back" {
+	if !strings.Contains(text, "<b>probe-4</b>") || strings.Join(labels, "|") != "🔄 Refresh|⬅️ Back|🏠 Menu" {
 		t.Errorf("probe-4 from the list: %q %q", text, labels)
 	}
 }
