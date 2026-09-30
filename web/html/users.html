@@ -30,7 +30,7 @@
                     <a-button type="primary" icon="user-add" data-testid="users-create" @click="openCreate">{{ i18n
                       "pages.subUsers.create" }}</a-button>
                     <span class="users-head-spacer"></span>
-                    <a-input-search v-model.trim="search" allow-clear data-testid="users-search"
+                    <a-input-search v-model.trim="search" allow-clear data-testid="users-search" @search="runSearch"
                       :style="{ maxWidth: '320px' }" placeholder='{{ i18n "pages.subUsers.search" }}'></a-input-search>
                   </div>
 
@@ -44,6 +44,11 @@
                           i18n "pages.subUsers.technical" }}</a-tag>
                       </a-tooltip>
                       <div class="users-muted" v-if="user.comment">[[ user.comment ]]</div>
+                    </template>
+
+                    <template slot="contactEmail" slot-scope="text, user">
+                      <span v-if="user.contactEmail" data-testid="user-contact-email">[[ user.contactEmail ]]</span>
+                      <span class="users-muted" v-else>—</span>
                     </template>
 
                     <template slot="protocols" slot-scope="text, user">
@@ -371,6 +376,11 @@
       subSettings: { enable: false, subURI: '' },
       qrCodeSize: 300,
       search: '',
+      // The subIds GET /users/search found for search, best first; null
+      // until the first answer for it arrives.
+      searchHits: null,
+      searchSeq: 0,
+      searchTimer: null,
       createModal: {
         visible: false, loading: false,
         name: '', inboundIds: [], totalGB: 0, expiry: null, limitIp: 0, tgId: 0, comment: '',
@@ -382,6 +392,7 @@
       columns: [
         // Protocols and the subscription link take what the others leave.
         { title: '{{ i18n "pages.subUsers.name" }}', width: 140, scopedSlots: { customRender: 'name' } },
+        { title: '{{ i18n "pages.subUsers.contactEmail" }}', width: 160, scopedSlots: { customRender: 'contactEmail' } },
         { title: '{{ i18n "pages.subUsers.protocols" }}', scopedSlots: { customRender: 'protocols' } },
         { title: '{{ i18n "pages.subUsers.traffic" }}', width: 140, scopedSlots: { customRender: 'traffic' } },
         { title: '{{ i18n "pages.subUsers.expiry" }}', width: 110, scopedSlots: { customRender: 'expiry' } },
@@ -403,17 +414,27 @@
       TEXT() { return USERS_TEXT; },
       ROBOT_KEY() { return ROBOT_KEY; },
       SizeFormatter() { return SizeFormatter; },
-      // The users the search keeps: by user name, subId or client name.
+      // The users the search found, in the service's order (exact, start,
+      // inside, typo — docs/spec/users.md §9), as fresh copies from the list;
+      // every user while there is no search or its answer is on the way.
       shownUsers() {
-        const q = this.search.toLowerCase();
-        if (!q) return this.users;
-        return this.users.filter(user =>
-          user.name.toLowerCase().includes(q) ||
-          user.subId.toLowerCase().includes(q) ||
-          user.clients.some(c => (c.name || '').toLowerCase().includes(q)));
+        if (!this.search || this.searchHits === null) return this.users;
+        const bySubId = new Map(this.users.map(user => [user.subId, user]));
+        return this.searchHits.map(subId => bySubId.get(subId)).filter(Boolean);
       },
       regularUsers() {
         return this.users.filter(user => !user.technical);
+      },
+    },
+    watch: {
+      // The search asks the service a moment after the typing stops.
+      search(q) {
+        clearTimeout(this.searchTimer);
+        if (!q) {
+          this.searchHits = null;
+          return;
+        }
+        this.searchTimer = setTimeout(() => this.runSearch(), 250);
       },
     },
     methods: {
@@ -436,6 +457,21 @@
         this.clientsModal.user = fresh(this.clientsModal.user);
         this.addModal.user = fresh(this.addModal.user);
       },
+      // runSearch asks GET /users/search for the current search; an answer
+      // for an older search is dropped.
+      async runSearch() {
+        clearTimeout(this.searchTimer);
+        const q = this.search;
+        if (!q) return;
+        const seq = ++this.searchSeq;
+        const msg = await usersApi('search?q=' + encodeURIComponent(q));
+        if (seq !== this.searchSeq) return;
+        if (!msg.success) {
+          this.$message.error(msg.msg);
+          return;
+        }
+        this.searchHits = (msg.obj || []).map(user => user.subId);
+      },
       async loadInbounds() {
         const msg = await usersApi('inbounds');
         if (msg.success) this.inbounds = msg.obj || [];
@@ -455,6 +491,7 @@
         }
         if (success) this.$message.success(success);
         await this.loadUsers();
+        if (this.search) await this.runSearch();
         return true;
       },
 

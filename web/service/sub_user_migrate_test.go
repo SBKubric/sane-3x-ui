@@ -13,7 +13,7 @@ import (
 
 // initUsersTestDB opens a fresh database; InitDB already runs the users
 // migration once through its post-migrate hook.
-func initUsersTestDB(t *testing.T) {
+func initUsersTestDB(t testing.TB) {
 	t.Helper()
 	if err := database.InitDB(filepath.Join(t.TempDir(), "x-ui.db")); err != nil {
 		t.Fatalf("InitDB: %v", err)
@@ -46,7 +46,7 @@ func awgPeer(t *testing.T, n int, email, subId string) *model.TunnelClient {
 // clients, and a traffic row per distinct email (a legacy duplicate email
 // shares the row, as it would have). Disabled, so the client paths never reach
 // for the xray API.
-func usersInbound(t *testing.T, id int, protocol model.Protocol, remark string, clients ...model.Client) *model.Inbound {
+func usersInbound(t testing.TB, id int, protocol model.Protocol, remark string, clients ...model.Client) *model.Inbound {
 	t.Helper()
 	settings := map[string]any{"clients": clients}
 	if protocol == model.VLESS {

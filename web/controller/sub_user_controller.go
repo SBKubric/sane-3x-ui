@@ -29,6 +29,7 @@ func NewSubUserController(g *gin.RouterGroup) *SubUserController {
 	g.GET("/inbounds", a.inbounds)
 	g.GET("/get/:subId", a.get)
 	g.GET("/find", a.find)
+	g.GET("/search", a.search)
 	g.POST("/create", a.create)
 	g.POST("/addProtocol/:subId", a.addProtocol)
 	g.POST("/removeProtocol/:subId", a.removeProtocol)
@@ -92,6 +93,16 @@ func (a *SubUserController) get(c *gin.Context) {
 func (a *SubUserController) find(c *gin.Context) {
 	user, err := a.users.Find(c.Query("q"))
 	usersAnswer(c, user, err)
+}
+
+// search is the fuzzy search of the users page and the bot, best first; nobody
+// is an empty list.
+func (a *SubUserController) search(c *gin.Context) {
+	users, err := a.users.Search(c.Query("q"))
+	if users == nil {
+		users = []*service.SubUserView{}
+	}
+	usersAnswer(c, users, err)
 }
 
 func (a *SubUserController) create(c *gin.Context) {
