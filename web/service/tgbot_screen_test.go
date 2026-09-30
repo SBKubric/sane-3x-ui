@@ -84,6 +84,10 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 		}
 		keyboard(m)
 		return ok(fmt.Sprintf(`{"message_id":%d,"date":0,"chat":{"id":%d,"type":"private"}}`, p.MessageID, usersTestChat))
+	case "sendDocument":
+		// A file stays in the chat but is no screen: it is not numbered.
+		f.calls = append(f.calls, method)
+		return ok(fmt.Sprintf(`{"message_id":0,"date":0,"chat":{"id":%d,"type":"private"}}`, usersTestChat))
 	case "deleteMessage":
 		f.calls = append(f.calls, fmt.Sprintf("%s #%d", method, p.MessageID))
 		if m := f.messages[p.MessageID]; m != nil {

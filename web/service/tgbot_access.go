@@ -1,15 +1,21 @@
 package service
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/mymmrac/telego"
 )
 
-// clientCallbacks are the buttons of the client menu (SendAnswer for a
-// non-admin): the only callbacks the bot serves to a sender who is not an
-// admin. Everything else is for admins.
+// clientCallbacks are the buttons the bot serves as they are to a sender
+// who is not an admin: the main menu of their own screens (#194) with the
+// way back and home, and the buttons of the old client menu, which open
+// those screens now. Everything else is for admins, except the routes below
+// that name something of the sender's own.
 var clientCallbacks = map[string]bool{
+	screenMenuRoute:           true,
+	screenMenuData:            true,
+	screenBackData:            true,
 	"client_traffic":          true,
 	"client_commands":         true,
 	"client_sub_links":        true,
@@ -17,39 +23,39 @@ var clientCallbacks = map[string]bool{
 	"client_qr_links":         true,
 }
 
+// clientUserRoutes name one of the sender's users by subId after a space:
+// the client's screens (#194).
+var clientUserRoutes = []string{mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction}
+
 // clientLinkCallbacks name one of the sender's clients by email after a
-// space: the buttons of the client menu's link lists.
-var clientLinkCallbacks = []string{"client_sub_links", "client_individual_links", "client_qr_links"}
+// space: the old client menu's link lists and an old client card's usage,
+// which open the client's screens now.
+var clientLinkCallbacks = []string{"client_sub_links", "client_individual_links", "client_qr_links", screenClientAction}
 
 // clientMayPress reports whether a sender who is not an admin may press a
-// button carrying this data: a button of the client menu, or a link button
-// naming a client of the sender's own.
+// button carrying this data: one of clientCallbacks, or a route naming a
+// user of the sender's own, a tunnel client of theirs by uuid, or a client
+// of theirs by email. telegramSubUsers says whose they are.
 func (t *Tgbot) clientMayPress(query *telego.CallbackQuery) bool {
-	if clientCallbacks[query.Data] {
-		return true
-	}
-	for _, action := range clientLinkCallbacks {
-		if email, ok := strings.CutPrefix(query.Data, action+" "); ok {
-			return t.ownsClient(query.From.ID, email)
-		}
-	}
-	return false
-}
-
-// ownsClient reports whether the client of that email carries the Telegram
-// user's ID.
-func (t *Tgbot) ownsClient(tgUserID int64, email string) bool {
-	if tgUserID == 0 || email == "" {
-		return false
-	}
-	traffics, err := t.inboundService.GetClientTrafficTgBot(tgUserID)
+	data, err := t.decodeQuery(query.Data)
 	if err != nil {
 		return false
 	}
-	for _, traffic := range traffics {
-		if traffic.Email == email {
-			return true
-		}
+	if clientCallbacks[data] {
+		return true
+	}
+	action, arg, _ := strings.Cut(data, " ")
+	if arg == "" {
+		return false
+	}
+	from := query.From.ID
+	switch {
+	case slices.Contains(clientUserRoutes, action):
+		return telegramSubUser(from, arg) != nil
+	case action == mysubTunnelAction:
+		return telegramTunnelUser(from, arg) != nil
+	case slices.Contains(clientLinkCallbacks, action):
+		return telegramClientUser(from, arg) != nil
 	}
 	return false
 }

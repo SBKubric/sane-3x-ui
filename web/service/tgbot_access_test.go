@@ -23,7 +23,7 @@ const accessAdmin = int64(1)
 
 // accessBotFixture is usersBotFixture plus the client "mine-1" (vless inbound
 // "mine", 11) that carries the Telegram ID of usersTestChat, with the bot
-// answering to accessAdmin only.
+// answering to accessAdmin only. The users are synced, as at start-up.
 func accessBotFixture(t *testing.T) *Tgbot {
 	t.Helper()
 	tg := usersBotFixture(t)
@@ -39,14 +39,22 @@ func accessBotFixture(t *testing.T) *Tgbot {
 	if err := database.GetDB().Model(&model.Inbound{}).Where("id = ?", 11).Update("settings", string(raw)).Error; err != nil {
 		t.Fatal(err)
 	}
+	if err := (&SubUserService{}).Sync(); err != nil {
+		t.Fatal(err)
+	}
 	prevAdmins := adminIds
 	adminIds = []int64{accessAdmin}
 	t.Cleanup(func() { adminIds = prevAdmins })
 	return tg
 }
 
-// nonAdminPress is a tap of usersTestChat, no admin, on a button carrying data.
+// nonAdminPress is a tap of usersTestChat, no admin, on a button carrying
+// data: on the chat's screen, message 9, which shows the main menu the first
+// time.
 func nonAdminPress(tg *Tgbot, data string) {
+	if sc := botScreens.of(usersTestChat); sc.msgID == 0 {
+		sc.msgID, sc.route = 9, screenMenuRoute
+	}
 	tg.answerCallback(&telego.CallbackQuery{ID: "q", From: telego.User{ID: usersTestChat}, Data: data,
 		Message: &telego.Message{MessageID: 9, Chat: telego.Chat{ID: usersTestChat}}}, checkAdmin(usersTestChat))
 }
@@ -109,7 +117,9 @@ func botCallbackData(t *testing.T) []string {
 	// The admin screen's own callbacks (#191).
 	for _, action := range []string{screenBackData, screenMenuData, screenMenuRoute, screenInboundsRoute, screenInboundAction,
 		screenOnlineRoute, screenServerRoute, screenBackupData, screenBanLogsData, screenChainRoute, screenSoonData,
-		screenClientAction, usersListAction, usersFoundAction, usersSubAction, usersSubQRAction} {
+		screenClientAction, usersListAction, usersFoundAction, usersSubAction, usersSubQRAction,
+		// The client's screens (#194).
+		mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction, mysubTunnelAction} {
 		seen[action] = true
 	}
 	fset := token.NewFileSet()
@@ -134,7 +144,18 @@ func botCallbackData(t *testing.T) []string {
 			return true
 		})
 	}
-	for _, must := range []string{"get_backup", "reset_all_traffics_c", "add_client_submit_enable", "usr_menu", "tun_rtc"} {
+	// The old admin menu's buttons: their handlers are gone (#194), but the
+	// buttons are still in the chats.
+	for _, old := range []string{"get_usage", "usage_refresh", "inbounds", "deplete_soon", "get_backup", "get_banlogs",
+		"onlines", "onlines_refresh", "commands", "add_client", "add_client_ch_default_email", "add_client_ch_default_id",
+		"add_client_ch_default_pass_tr", "add_client_ch_default_pass_sh", "add_client_ch_default_comment",
+		"add_client_ch_default_traffic", "add_client_ch_default_exp", "add_client_ch_default_ip_limit",
+		"add_client_default_info", "add_client_cancel", "add_client_default_traffic_exp", "add_client_default_ip_limit",
+		"add_client_submit_disable", "add_client_submit_enable", "reset_all_traffics_cancel", "reset_all_traffics",
+		"reset_all_traffics_c", "get_sorted_traffic_usage_report"} {
+		seen[old] = true
+	}
+	for _, must := range []string{"usr_menu", "tun_rtc", "reset_traffic_c"} {
 		if !seen[must] {
 			t.Fatalf("case %q not found: the scan misses the bot's callbacks", must)
 		}
@@ -174,39 +195,97 @@ func TestNonAdminCallbacksAreLimitedToClientActions(t *testing.T) {
 	}
 }
 
-// TestNonAdminClientMenuStillWorks: the client menu shows its user their
-// own clients, and their links.
-func TestNonAdminClientMenuStillWorks(t *testing.T) {
+// TestNonAdminOldClientButtonsOpenTheirScreens: the buttons of the old
+// client menu, still in the chats, open the client's own screens: usage and
+// commands «My subscription», the subscription links «Show subscription»,
+// the individual and QR links and a client's usage «My configs».
+func TestNonAdminOldClientButtonsOpenTheirScreens(t *testing.T) {
 	tg := accessBotFixture(t)
 	fake := withFakeTelegram(t)
 
-	nonAdminPress(tg, "client_traffic")
-	if got := fake.texts(); !strings.Contains(got, "mine-1") || strings.Contains(got, "other-") {
-		t.Errorf("client_traffic:\n%s", got)
-	}
-
-	fake.calls = nil
-	nonAdminPress(tg, "client_commands")
-	if text, _ := fake.lastSent(t); !strings.Contains(text, "/usage [Email]") || strings.Contains(text, "/restart") {
-		t.Errorf("client_commands: %q", text)
-	}
-
-	for _, action := range []string{"client_sub_links", "client_individual_links", "client_qr_links"} {
+	for data, want := range map[string]string{
+		"client_traffic":                 "My subscription</b> · mine-1",
+		"client_commands":                "My subscription</b> · mine-1",
+		"client_sub_links":               "/sub/s-mine",
+		"client_individual_links":        "My configs</b> · mine-1",
+		"client_qr_links":                "My configs</b> · mine-1",
+		"client_sub_links mine-1":        "/sub/s-mine",
+		"client_individual_links mine-1": "My configs</b> · mine-1",
+		"client_qr_links mine-1":         "My configs</b> · mine-1",
+		"client_get_usage mine-1":        "My configs</b> · mine-1",
+	} {
 		fake.calls = nil
-		nonAdminPress(tg, action)
-		_, labels, data := fake.lastKeyboard(t)
-		if strings.Join(labels, "|") != "mine-1" || data["mine-1"] != action+" mine-1" {
-			t.Errorf("%s: %q %v", action, labels, data)
-		}
-		if !tg.clientMayPress(&telego.CallbackQuery{From: telego.User{ID: usersTestChat}, Data: action + " mine-1"}) {
-			t.Errorf("%s mine-1 refused", action)
+		nonAdminPress(tg, data)
+		if text, _ := fake.lastSent(t); !strings.Contains(text, want) || strings.Contains(fake.texts(), "other-") {
+			t.Errorf("%q: the bot said\n%s", data, fake.texts())
 		}
 	}
+}
 
-	fake.calls = nil
-	nonAdminPress(tg, "client_sub_links mine-1")
-	if text, _ := fake.lastSent(t); !strings.Contains(text, "Subscription URL") || !strings.Contains(text, "s-mine") {
-		t.Errorf("client_sub_links mine-1: %q", text)
+// TestNonAdminRoutesNameOnlyTheirOwn: each route of the client's screens
+// (#194) opens for the sender's own user and clients — their other clients
+// too, not only the one that carries their Telegram ID — while the same
+// route crafted with another user's subId, a technical user's key or another
+// user's client gets nothing but «No result» and changes nothing. The
+// handlers refuse such a route on their own as well.
+func TestNonAdminRoutesNameOnlyTheirOwn(t *testing.T) {
+	tg := accessBotFixture(t)
+	mine := awgPeer(t, 21, "mine-awg", "s-mine")
+	other := awgPeer(t, 22, "other-awg", "s-other")
+	fake := withFakeTelegram(t)
+	query := func(data string) *telego.CallbackQuery {
+		return &telego.CallbackQuery{From: telego.User{ID: usersTestChat}, Data: data}
+	}
+
+	for data, want := range map[string]string{
+		screenMenuRoute:                     "My subscription</b> · mine-1",
+		screenMenuData:                      "My subscription</b> · mine-1",
+		mysubUserRoute + " s-mine":          "My subscription</b> · mine-1",
+		mysubSubRoute + " s-mine":           "/sub/s-mine",
+		mysubConfigsRoute + " s-mine":       "mine-awg",
+		mysubTunnelAction + " " + mine.UUID: "",
+	} {
+		if !tg.clientMayPress(query(data)) {
+			t.Errorf("%q refused", data)
+		}
+		fake.calls = nil
+		nonAdminPress(tg, data)
+		if got := fake.texts(); !strings.Contains(got, want) || strings.Contains(got, "other-") || strings.Contains(got, "No result") {
+			t.Errorf("%q: the bot said\n%s", data, got)
+		}
+	}
+	// The links button fetches the subscription: the access list alone.
+	if !tg.clientMayPress(query(mysubLinksAction + " s-mine")) {
+		t.Errorf("%s s-mine refused", mysubLinksAction)
+	}
+
+	before := botState(t)
+	for _, data := range []string{
+		mysubUserRoute + " s-other", mysubSubRoute + " s-other", mysubConfigsRoute + " s-other", mysubLinksAction + " s-other",
+		mysubSubRoute + " " + model.SubUserRobotKey, mysubConfigsRoute + " " + model.SubUserMonitoringKey,
+		mysubSubRoute + " S-MINE", mysubSubRoute + " s-mine s-other",
+		mysubTunnelAction + " " + other.UUID, mysubTunnelAction + " aaaaaaaa-0000-0000-0000-000000000011",
+		mysubTunnelAction + " aaaaaaaa-0000-0000-0000-000000000001",
+		"client_sub_links other-nl", "client_individual_links other-de", "client_qr_links other-awg", "client_get_usage other-nl",
+		"client_sub_links mine-awg-x", "client_traffic mine-1",
+	} {
+		if tg.clientMayPress(query(data)) {
+			t.Errorf("%q let through", data)
+		}
+		fake.calls = nil
+		nonAdminPress(tg, data)
+		if len(fake.calls) != 1 || fake.calls[0].method != "answerCallbackQuery" || fake.calls[0].params["text"] != "❗ No result!" {
+			t.Errorf("%q: the bot said\n%s", data, fake.texts())
+		}
+		if strings.HasPrefix(data, "my_") {
+			reply := tg.mysubRoute(usersTestChat, data)
+			if reply.toast != "❗ No result!" || !strings.Contains(reply.text, "mine-1") || reply.files != nil || reply.after != nil {
+				t.Errorf("the handler of %q: %+v", data, reply)
+			}
+		}
+	}
+	if after := botState(t); after != before {
+		t.Fatalf("crafted routes changed the bot's state:\n before %s\n after  %s", before, after)
 	}
 }
 
@@ -234,7 +313,7 @@ func TestAdminCallbacksStillServed(t *testing.T) {
 
 // TestNonAdminCommandsAreLimitedToClientCommands: the admin commands answer
 // someone who is no admin as unknown ones and change nothing, /usage shows
-// them their own clients only, and /start the client menu.
+// them their own clients only, and /start and /help their own screen (#194).
 func TestNonAdminCommandsAreLimitedToClientCommands(t *testing.T) {
 	tg := accessBotFixture(t)
 	fake := withFakeTelegram(t)
@@ -263,12 +342,14 @@ func TestNonAdminCommandsAreLimitedToClientCommands(t *testing.T) {
 		t.Errorf("/usage mine-1: %q", text)
 	}
 
-	fake.calls = nil
-	clientCommand(tg, "/start")
-	text, labels := fake.lastSent(t)
-	if strings.Contains(text, "Welcome to") || slices.Contains(labels, "Get DB Backup") ||
-		!slices.Contains(labels, "Get Usage") || len(labels) != 5 {
-		t.Errorf("/start: %q %q", text, labels)
+	for _, cmd := range []string{"/start", "/help"} {
+		fake.calls = nil
+		clientCommand(tg, cmd)
+		text, labels := fake.lastSent(t)
+		if !strings.Contains(text, "My subscription</b> · mine-1") ||
+			strings.Join(labels, "|") != "🔗 Show subscription|📄 My configs|🔄 Refresh" {
+			t.Errorf("%s: %q %q", cmd, text, labels)
+		}
 	}
 	if after := botState(t); after != before {
 		t.Fatalf("client commands changed the bot's state:\n before %s\n after  %s", before, after)
