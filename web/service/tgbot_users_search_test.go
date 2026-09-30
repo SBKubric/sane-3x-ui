@@ -3,6 +3,8 @@ package service
 import (
 	"strings"
 	"testing"
+
+	"github.com/coinman-dev/3ax-ui/v2/database/model"
 )
 
 // TestUsersSearchListsRankedHits: the bot's «Users» search is the service's
@@ -30,5 +32,26 @@ func TestUsersSearchListsRankedHits(t *testing.T) {
 	reply = typeText(t, bot, "qwerty")
 	if !strings.Contains(reply.text, "forgives typos") || reply.route != "" {
 		t.Errorf("nobody: %+v", reply)
+	}
+}
+
+// TestUsersSearchByNick: in the bot, «@nick» of the user's Telegram account
+// opens its card, a typo too; the card still offers the Telegram screen of
+// #210 next to what the search opened.
+func TestUsersSearchByNick(t *testing.T) {
+	bot := usersBotFixture(t)
+	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: 424242, InboundIds: []int{2}})
+	if _, err := writeTgAccount(model.TgAccount{TgId: 424242, Username: "ivan_the_great"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{"@ivan_the_great", "@IVAN_THE_GRAET"} {
+		press(t, bot, "usr_menu")
+		reply := typeText(t, bot, q)
+		if reply.route != "usr_c "+ivan.SubId {
+			t.Fatalf("search %q: %+v", q, reply)
+		}
+		if tg := button(t, reply.keyboard, "Telegram"); !strings.HasPrefix(tg, "usr_tg ") {
+			t.Errorf("search %q: the Telegram button is %q", q, tg)
+		}
 	}
 }

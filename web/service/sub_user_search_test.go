@@ -70,9 +70,7 @@ func TestSearchFields(t *testing.T) {
 		model.Client{ID: uuidN(1), Email: "boris-nl", SubID: "sub-boris-0002", Enable: true},
 		model.Client{ID: uuidN(2), Email: "legacy-orphan", Enable: true})
 	awgPeer(t, 3, "zoya-awg", "sub-anna-0001")
-	prev := telegramNicks
-	telegramNicks = func(ids []int64) map[int64]string { return map[int64]string{5002: "@borya_tg"} }
-	t.Cleanup(func() { telegramNicks = prev })
+	tgAccount(t, 5002, "borya_tg")
 
 	for q, want := range map[string]string{
 		"sub-anna-0001":      "anna",  // subId
@@ -91,6 +89,54 @@ func TestSearchFields(t *testing.T) {
 		if got := searchNames(t, q); got != want {
 			t.Errorf("Search(%q) = %q, want %q", q, got, want)
 		}
+	}
+}
+
+// tgAccount stores a Telegram account the way the bot's middleware does: a
+// nick seen on it is taken from any other account.
+func tgAccount(t *testing.T, tgId int64, nick string) {
+	t.Helper()
+	if _, err := writeTgAccount(model.TgAccount{TgId: tgId, Username: nick}); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestSearchByNick: the @nick of the account a user's tg_id points at is a
+// field like the others — whole, start, typo — with or without the '@'; the
+// nick of an account without a user finds nobody, and a nick that moved to
+// another account finds that account's user.
+func TestSearchByNick(t *testing.T) {
+	searchFixture(t,
+		model.SubUser{SubId: "s1", Name: "anna", TgId: 5001},
+		model.SubUser{SubId: "s2", Name: "boris", TgId: 5002},
+	)
+	tgAccount(t, 5001, "Anna_Karenina")
+	tgAccount(t, 5002, "borya")
+	tgAccount(t, 9999, "ghost_writer") // wrote to the bot, no user
+
+	for q, want := range map[string]string{
+		"@anna_karenina": "anna",  // whole, ignoring case
+		"anna_karenina":  "anna",  // without the '@'
+		"@anna_kar":      "anna",  // start
+		"@karenina":      "anna",  // inside
+		"@anna_karenia":  "anna",  // a typo
+		"@borja":         "boris", // a typo in a short nick
+		"@ghost_writer":  "",      // an account without a user
+		"@anna":          "anna",  // '@' searches nicks only: the start of anna's
+		"@boris":         "",      // boris is a name, not a nick
+	} {
+		if got := searchNames(t, q); got != want {
+			t.Errorf("Search(%q) = %q, want %q", q, got, want)
+		}
+	}
+
+	// The nick shows up on boris's account: anna's loses it.
+	tgAccount(t, 5002, "anna_karenina")
+	if got := searchNames(t, "@anna_karenina"); got != "boris" {
+		t.Errorf("after the move: %q", got)
+	}
+	if got := searchNames(t, "@borya"); got != "" {
+		t.Errorf("the old nick of boris: %q", got)
 	}
 }
 

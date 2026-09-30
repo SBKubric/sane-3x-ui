@@ -27,18 +27,19 @@ const (
 // at its start, anywhere, or with typos — per field and per word, one edit
 // in a word of up to five characters, two in a longer one — ignoring case.
 // The fields are the user's name, subId (regular users only), contact
-// email and Telegram @nick, and the names of its clients (xray emails, tunnel
-// client names); a technical user is found by its name and its clients. A
-// Telegram id — the user's or a client's — matches only whole. A query that
-// starts with '@' is a nick and searches the nicks alone.
+// email and Telegram @nick (of the account its tg_id points at, §11), and
+// the names of its clients (xray emails, tunnel client names); a technical
+// user is found by its name and its clients. A Telegram id — the user's or a
+// client's — matches only whole. A query that starts with '@' is a nick and
+// searches the nicks alone.
 //
 // Short queries stay precise: a single character matches only whole or at
 // the start of a field, typos count from three characters on, and a query of
 // digits never matches with typos (a tg_id a digit off is somebody else).
 // Hits of one rank come by distance, then by name. None is not an error.
 //
-// It reads the index once and matches in memory: one pass over thousands of
-// users costs no more queries than List.
+// It reads the index and the nicks once (one query each) and matches in
+// memory: one pass over thousands of users costs no more than List.
 func (s *SubUserService) Search(query string) ([]*SubUserView, error) {
 	idx, err := s.synced()
 	if err != nil {
@@ -48,7 +49,10 @@ func (s *SubUserService) Search(query string) ([]*SubUserView, error) {
 	if q.text == "" {
 		return nil, nil
 	}
-	nicks := telegramNicks(idx.userTgIds())
+	nicks, err := (&TgAccountService{}).UserNicks()
+	if err != nil {
+		return nil, err
+	}
 
 	best := map[string]searchScore{}
 	consider := func(key string, sc searchScore) {
@@ -115,17 +119,6 @@ func (s *SubUserService) Search(query string) ([]*SubUserView, error) {
 		out = append(out, idx.view(u))
 	}
 	return out, nil
-}
-
-// userTgIds are the Telegram ids users carry, for the nick lookup.
-func (idx *subUserIndex) userTgIds() []int64 {
-	var ids []int64
-	for _, u := range idx.users {
-		if u.TgId != 0 {
-			ids = append(ids, u.TgId)
-		}
-	}
-	return ids
 }
 
 // searchScore is how well a user matched: its best rank, and for a typo the
