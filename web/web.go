@@ -430,6 +430,9 @@ func (s *Server) startTask() {
 		// check for Telegram bot callback query hash storage reset
 		s.addJob("@every 2m", job.NewCheckHashStorageJob())
 
+		// Requests for a subscription nobody decided on in 14 days expire (#220).
+		s.addJob("@every 10m", job.NewSubRequestExpireJob())
+
 		// Check CPU load and alarm to TgBot if threshold passes
 		cpuThreshold, err := s.settingService.GetTgCpu()
 		if (err == nil) && (cpuThreshold > 0) {

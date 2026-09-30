@@ -31,6 +31,7 @@ type screenMessage struct {
 	text    string
 	labels  []string
 	data    []string // callback data, by label order
+	urls    []string // a URL button's link, "web_app:<link>" for a Mini App's, by label order
 	deleted bool
 }
 
@@ -43,12 +44,16 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 			InlineKeyboard [][]struct {
 				Text         string `json:"text"`
 				CallbackData string `json:"callback_data"`
+				URL          string `json:"url"`
+				WebApp       *struct {
+					URL string `json:"url"`
+				} `json:"web_app"`
 			} `json:"inline_keyboard"`
 		} `json:"reply_markup"`
 	}
 	_ = json.Unmarshal(req.BodyRaw, &p)
 	keyboard := func(m *screenMessage) {
-		m.labels, m.data = nil, nil
+		m.labels, m.data, m.urls = nil, nil, nil
 		if p.ReplyMarkup == nil {
 			return
 		}
@@ -56,6 +61,11 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 			for _, b := range row {
 				m.labels = append(m.labels, b.Text)
 				m.data = append(m.data, b.CallbackData)
+				url := b.URL
+				if b.WebApp != nil {
+					url = "web_app:" + b.WebApp.URL
+				}
+				m.urls = append(m.urls, url)
 			}
 		}
 	}

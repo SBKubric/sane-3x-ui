@@ -20,10 +20,24 @@ const FAKEBOT_IN_COMPOSE = 'http://fakebot:8081';
 /** The notification channel the bot posts the admins' news to. */
 export const TG_NOTIFY_CHANNEL = '@e2e_notify';
 
+/** panel-tg's sub server as the spec reaches it from the host (#220). */
+export const TG_SUB_URL = process.env.E2E_TG_SUB_URL || 'http://127.0.0.1:2097';
+
+/** The bot's token startTelegramBot sets: it signs the Mini App's initData. */
+export const TG_BOT_TOKEN = '123456:' + 'e'.repeat(35);
+
 /** The bot's @username, as fakebot answers getMe. */
 export const TG_BOT_USERNAME = 'e2e_invite_bot';
 
-export type Sent = { method: string; chat_id: string | number; text: string };
+export type Button = { text: string; callback_data?: string; url?: string; web_app?: { url: string } };
+
+export type Sent = {
+  method: string;
+  chat_id: string | number;
+  text: string;
+  message_id?: number;
+  reply_markup?: { inline_keyboard?: Button[][] };
+};
 
 /** What the bot has sent so far, through fakebot. */
 export async function botSent(request: APIRequestContext): Promise<Sent[]> {
@@ -43,7 +57,7 @@ export async function startTelegramBot(request: APIRequestContext): Promise<void
   const settings = {
     ...all.obj,
     tgBotEnable: true,
-    tgBotToken: '123456:' + 'e'.repeat(35),
+    tgBotToken: TG_BOT_TOKEN,
     tgBotAPIServer: FAKEBOT_IN_COMPOSE,
     tgBotChatId: '4242001',
     tgNotifyChatId: TG_NOTIFY_CHANNEL,
@@ -85,6 +99,45 @@ export async function pressStart(request: APIRequestContext, from: { id: number;
         from: { id: from.id, is_bot: false, first_name: 'E2E', username: from.username },
         text,
         entities: [{ type: 'bot_command', offset: 0, length: '/start'.length }],
+      },
+    },
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/** A person's text message in their private chat with the bot; a leading /command is marked as one. */
+export async function sendText(request: APIRequestContext, from: { id: number; username: string }, text: string) {
+  const command = text.match(/^\/\w+/);
+  const res = await request.post(`${FAKEBOT_URL}/control/updates`, {
+    data: {
+      message: {
+        message_id: Math.floor(Math.random() * 1e6) + 100,
+        date: Math.floor(Date.now() / 1000),
+        chat: { id: from.id, type: 'private' },
+        from: { id: from.id, is_bot: false, first_name: 'E2E', username: from.username },
+        text,
+        ...(command ? { entities: [{ type: 'bot_command', offset: 0, length: command[0].length }] } : {}),
+      },
+    },
+  });
+  expect(res.ok()).toBe(true);
+}
+
+/** A person's press on a button of the bot's message. */
+export async function pressButton(
+  request: APIRequestContext,
+  from: { id: number; username: string },
+  messageId: number,
+  data: string,
+) {
+  const res = await request.post(`${FAKEBOT_URL}/control/updates`, {
+    data: {
+      callback_query: {
+        id: String(Math.floor(Math.random() * 1e9)),
+        from: { id: from.id, is_bot: false, first_name: 'E2E', username: from.username },
+        chat_instance: '1',
+        data,
+        message: { message_id: messageId, date: Math.floor(Date.now() / 1000), chat: { id: from.id, type: 'private' } },
       },
     },
   });

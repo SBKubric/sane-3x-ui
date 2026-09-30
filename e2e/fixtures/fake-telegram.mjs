@@ -12,7 +12,8 @@
 //     and answered with a message; anything else with true.
 // The spec's side, under /control:
 //   - POST /control/updates queues an update (its update_id is assigned);
-//   - GET /control/sent lists what the bot sent: {method, chat_id, text}.
+//   - GET /control/sent lists what the bot sent: {method, chat_id, text,
+//     message_id, reply_markup}.
 import http from 'node:http';
 
 const PORT = Number(process.env.PORT || 8081);
@@ -103,10 +104,11 @@ const server = http.createServer(async (req, res) => {
     case 'editMessageText':
     case 'sendDocument':
     case 'sendPhoto': {
-      sent.push({ method, chat_id: p.chat_id, text: p.text || '' });
+      const messageId = Number(p.message_id) || nextMessageId++;
+      sent.push({ method, chat_id: p.chat_id, text: p.text || '', message_id: messageId, reply_markup: p.reply_markup });
       const chatId = Number(p.chat_id);
       return answer(res, {
-        message_id: Number(p.message_id) || nextMessageId++,
+        message_id: messageId,
         date: Math.floor(Date.now() / 1000),
         chat: { id: Number.isFinite(chatId) ? chatId : 0, type: 'private' },
         text: p.text || '',

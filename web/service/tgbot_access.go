@@ -21,7 +21,16 @@ var clientCallbacks = map[string]bool{
 	"client_sub_links":        true,
 	"client_individual_links": true,
 	"client_qr_links":         true,
+	// The applicant's own request (#220): only in their private chat.
+	requestNewRoute:     true,
+	requestSkipAction:   true,
+	requestCancelAction: true,
 }
+
+// requestCallbacks act on the sender's own request (tgbot_screen_request.go):
+// pressed only in the sender's private chat with the bot, whose screen they
+// change and where the comment is asked for.
+var requestCallbacks = []string{requestNewRoute, requestSkipAction, requestCancelAction}
 
 // clientUserRoutes name one of the sender's users by subId after a space:
 // the client's screens (#194).
@@ -46,7 +55,8 @@ func (t *Tgbot) clientMayPress(query *telego.CallbackQuery) bool {
 		return true
 	}
 	if clientCallbacks[data] {
-		return true
+		return !slices.Contains(requestCallbacks, data) ||
+			query.Message != nil && query.Message.GetChat().ID == query.From.ID
 	}
 	action, arg, _ := strings.Cut(data, " ")
 	if arg == "" {
@@ -65,8 +75,9 @@ func (t *Tgbot) clientMayPress(query *telego.CallbackQuery) bool {
 }
 
 // fromAdmin reports whether the message was sent by an admin. Every chat
-// state (userStates) belongs to an admin's flow, so only an admin's text may
-// answer one.
+// state (userStates) but the applicant's comment belongs to an admin's flow,
+// so only an admin's text may answer one; the comment (requestCommentState)
+// only the applicant answers, in their private chat (answerRequestText).
 func fromAdmin(message *telego.Message) bool {
 	return message.From != nil && checkAdmin(message.From.ID)
 }

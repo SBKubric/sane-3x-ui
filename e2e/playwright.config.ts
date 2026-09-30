@@ -47,7 +47,7 @@ export default defineConfig({
     {
       name: 'panel',
       testIgnore:
-        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|users-telegram-invite)\.spec\.ts/,
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|users-telegram-invite|requests-captcha)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The chain registry (its hops and the active edge) is one per panel, and
@@ -74,13 +74,14 @@ export default defineConfig({
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
-    // users-telegram-invite.spec.ts (#219) needs a running Telegram bot, so it
-    // talks to a panel of its own — panel-tg, whose bot runs against fakebot
-    // (docker-compose.yml, fixtures/tg-panel.ts) — and never to the shared
-    // one: it runs beside every other project.
+    // users-telegram-invite.spec.ts (#219) and requests-captcha.spec.ts (#220)
+    // need a running Telegram bot, so they talk to a panel of their own —
+    // panel-tg, whose bot runs against fakebot (docker-compose.yml,
+    // fixtures/tg-panel.ts) — and never to the shared one: they run beside
+    // every other project, one after the other.
     {
       name: 'telegram-bot',
-      testMatch: /users-telegram-invite\.spec\.ts/,
+      testMatch: /(users-telegram-invite|requests-captcha)\.spec\.ts/,
       workers: 1,
       use: { ...devices['Desktop Chrome'], baseURL: process.env.E2E_TG_BASE_URL || 'http://127.0.0.1:2054' },
     },

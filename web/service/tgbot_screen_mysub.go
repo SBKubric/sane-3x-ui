@@ -22,8 +22,11 @@ import (
 //     «🔄 Refresh»;
 //   - the pick among several users that carry the same Telegram ID (legacy
 //     data: the rule is one user per account, #178);
-//   - «No subscription» for someone with none. «📝 Leave a request» stays
-//     hidden until requests exist (#188).
+//   - «No subscription» for someone with none, with «📝 Leave a request»
+//     and where their request stands (#188, tgbot_screen_request.go).
+//
+// A paused or expired subscription offers «✉️ Write to the admin», the
+// Support-Url of the settings (#188 point 8).
 //
 // A route names its user by subId and a tunnel client by uuid. The access
 // list (tgbot_access.go) lets a client press only routes that name their
@@ -158,6 +161,9 @@ func (t *Tgbot) mysubRoute(tgId int64, data string) screenReply {
 	if action == screenMenuRoute {
 		return t.mysubHome(tgId)
 	}
+	if reply, ok := t.requestRoute(tgId, data); ok { // requests (#220)
+		return reply
+	}
 	if action == mysubTunnelAction {
 		if telegramTunnelUser(tgId, arg) != nil {
 			return t.tunnelConfig(arg)
@@ -247,18 +253,25 @@ func (t *Tgbot) mysubButton(label, data string) telego.InlineKeyboardButton {
 // mysubUser is «My subscription» of the user v; route is how it shows again:
 // the main menu, or the user picked among several.
 func (t *Tgbot) mysubUser(v *SubUserView, route string) screenReply {
+	expired := v.ExpiryTime > 0 && v.ExpiryTime <= time.Now().UnixMilli()
 	status := t.I18nBot("tgbot.screen.subActive")
-	if !v.Enable {
+	switch {
+	case !v.Enable:
 		status = t.I18nBot("tgbot.screen.subPaused")
+	case expired:
+		status = t.I18nBot("tgbot.request.subExpired")
 	}
 	text := t.I18nBot("tgbot.mysub.card", "Name=="+html.EscapeString(v.Name), "Status=="+status,
 		"Exp=="+t.mysubExpiry(v), "Traffic=="+t.usersTrafficShort(v.Up+v.Down, v.Total), "Protocols=="+usersProtocols(v))
-	kb := tu.InlineKeyboard(
+	rows := [][]telego.InlineKeyboardButton{
 		tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.screen.showSub"), mysubSubRoute+" "+v.SubId)),
 		tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.mysub.configs"), mysubConfigsRoute+" "+v.SubId)),
-		tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.buttons.refresh"), route)),
-	)
-	return screenReply{usersReply: usersReply{text: text, keyboard: kb, route: route}}
+	}
+	if support := t.mysubSupport(); support != nil && (!v.Enable || expired) {
+		rows = append(rows, support)
+	}
+	rows = append(rows, tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.buttons.refresh"), route)))
+	return screenReply{usersReply: usersReply{text: text, keyboard: tu.InlineKeyboard(rows...), route: route}}
 }
 
 // mysubExpiry words the subscription's expiry for its owner: until a date,
@@ -287,12 +300,10 @@ func (t *Tgbot) mysubPick(users []*SubUserView) screenReply {
 		keyboard: tu.InlineKeyboard(rows...), route: screenMenuRoute}}
 }
 
-// mysubNone is «No subscription»: the person's Telegram ID for the admin, and
-// the way to look again.
+// mysubNone is «No subscription»: the person's Telegram ID for the admin,
+// their request (tgbot_screen_request.go), and the way to look again.
 func (t *Tgbot) mysubNone(tgId int64) screenReply {
-	kb := tu.InlineKeyboard(tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.buttons.refresh"), screenMenuRoute)))
-	return screenReply{usersReply: usersReply{text: t.I18nBot("tgbot.mysub.none", "TgId=="+strconv.FormatInt(tgId, 10)),
-		keyboard: kb, route: screenMenuRoute}}
+	return t.requestNone(tgId)
 }
 
 // mysubSubscription is «Show subscription» for the client: the links and the
