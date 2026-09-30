@@ -92,7 +92,7 @@ func TestNewUserEmail(t *testing.T) {
 	tg, fake = newUserNamed(t, "anna")
 	fake.press(t, tg, 1, "Skip")
 	wantScreen(t, fake, "step 3/5")
-	if _, waiting := userStates[usersTestChat]; waiting {
+	if _, waiting := userStates.get(usersTestChat); waiting {
 		t.Error("the protocols step waits for a text")
 	}
 }
@@ -292,7 +292,7 @@ func TestNewUserCancel(t *testing.T) {
 			reach(tg, fake)
 			fake.press(t, tg, 1, "✖ Cancel")
 			wantScreen(t, fake, "Main menu")
-			if _, waiting := userStates[usersTestChat]; waiting {
+			if _, waiting := userStates.get(usersTestChat); waiting {
 				t.Error("the chat still waits for a text")
 			}
 			if _, err := (&SubUserService{}).Find("petr"); err == nil {
@@ -359,7 +359,7 @@ func TestNewUserRollsBack(t *testing.T) {
 func TestNewUserTwoChats(t *testing.T) {
 	tg := usersBotFixture(t)
 	const other = usersTestChat + 1
-	t.Cleanup(func() { usersSessions.drop(other); delete(userStates, other) })
+	t.Cleanup(func() { usersSessions.drop(other); userStates.clear(other) })
 	press(t, tg, "add_client")
 	if _, ok := tg.usersCallback(other, "add_client"); !ok {
 		t.Fatal("add_client not handled")

@@ -83,10 +83,10 @@ func (t *Tgbot) answerUsersText(message *telego.Message, state string) bool {
 	if !strings.HasPrefix(state, "usr_") {
 		return false
 	}
-	if message.From == nil || !checkAdmin(message.From.ID) {
+	if !fromAdmin(message) {
 		return true
 	}
-	delete(userStates, message.Chat.ID)
+	userStates.clear(message.Chat.ID)
 	reply, _ := t.usersText(message.Chat.ID, state, message.Text)
 	t.screenText(message.Chat.ID, message.MessageID, screenReply{usersReply: reply})
 	return true
@@ -166,7 +166,7 @@ func (t *Tgbot) usersText(chatId int64, state, text string) (reply usersReply, o
 
 // usersAsk makes the chat wait for a text.
 func (t *Tgbot) usersAsk(chatId int64, state, prompt string) usersReply {
-	userStates[chatId] = state
+	userStates.set(chatId, state)
 	return usersReply{text: prompt, keyboard: tu.InlineKeyboard(
 		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData("usr_x")))}
 }
