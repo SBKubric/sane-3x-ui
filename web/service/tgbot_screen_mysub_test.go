@@ -173,13 +173,50 @@ func TestMySubscriptionShowAndConfigs(t *testing.T) {
 	}
 }
 
-// TestMySubscriptionSeveralUsers: a Telegram ID on clients of several users
-// (legacy data) gets the pick among them; each opens its own «My
-// subscription», and Back leads to the pick.
-func TestMySubscriptionSeveralUsers(t *testing.T) {
+// sharedTelegram gives the user under key the Telegram ID tgId behind the
+// service's back, on a database where the unique index on sub_users.tg_id
+// could not be made (its post-migrate step failed): the one way two users
+// still share an account.
+func sharedTelegram(t *testing.T, key string, tgId int64) {
+	t.Helper()
+	db := database.GetDB()
+	if err := db.Exec("DROP INDEX IF EXISTS idx_sub_users_tg_id").Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(&model.SubUser{}).Where("sub_id = ?", key).Update("tg_id", tgId).Error; err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestMySubscriptionReadsTheUserOnly (#186): the account's subscription is
+// the user whose Telegram ID it is. Clients of another user that carry the
+// ID (legacy data, a conflict for the admin) do not open that user.
+func TestMySubscriptionReadsTheUserOnly(t *testing.T) {
 	tg := usersBotFixture(t)
 	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: usersTestChat, InboundIds: []int{1}})
 	petr := legacyUserOf(t, SubUserCreate{Name: "petr", InboundIds: []int{2}}, usersTestChat)
+	fake := withScreenTelegram(t)
+
+	clientCommand(tg, "/start")
+	if m := fake.messages[1]; !strings.Contains(m.text, "My subscription</b> · ivan") || strings.Contains(m.text, "petr") {
+		t.Fatalf("home: %q %q", m.text, m.labels)
+	}
+	if tg.clientMayPress(&telego.CallbackQuery{From: telego.User{ID: usersTestChat}, Data: mysubSubRoute + " " + petr.SubId}) {
+		t.Error("petr's subscription opens for the account of ivan")
+	}
+	if v := mustGetUser(t, petr.SubId); v.TgId != 0 || !v.TgConflict {
+		t.Errorf("petr: tgId %d conflict %v", v.TgId, v.TgConflict)
+	}
+}
+
+// TestMySubscriptionSeveralUsers: an account that is the Telegram ID of
+// several users (a database without the unique index) gets the pick among
+// them; each opens its own «My subscription», and Back leads to the pick.
+func TestMySubscriptionSeveralUsers(t *testing.T) {
+	tg := usersBotFixture(t)
+	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: usersTestChat, InboundIds: []int{1}})
+	petr := mustCreateUser(t, SubUserCreate{Name: "petr", InboundIds: []int{2}})
+	sharedTelegram(t, petr.SubId, usersTestChat)
 	mustCreateUser(t, SubUserCreate{Name: "anna", TgId: 555, InboundIds: []int{1}})
 	fake := withScreenTelegram(t)
 

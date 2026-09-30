@@ -205,7 +205,7 @@ func (s *SubUserService) Create(req SubUserCreate) (*SubUserView, error) {
 		}
 		return nil, err
 	}
-	return s.viewOf(u.SubId)
+	return s.savedView(u.SubId)
 }
 
 // AddProtocol gives the user a client in one more inbound, with the limits
@@ -224,7 +224,7 @@ func (s *SubUserService) AddProtocol(key string, inboundId int, linkExisting boo
 	if err := s.applyPlans(idx, u, plans, idx.paramsOf(u)); err != nil {
 		return nil, err
 	}
-	return s.viewOf(u.SubId)
+	return s.savedView(u.SubId)
 }
 
 // RemoveProtocol removes the user's client in the inbound. The user stays,
@@ -276,7 +276,7 @@ func (s *SubUserService) SetEnable(key string, enable bool) (*SubUserView, error
 			return nil, fmt.Errorf("switch client %s: %w", c.Name, err)
 		}
 	}
-	return s.viewOf(u.SubId)
+	return s.savedView(u.SubId)
 }
 
 // Delete removes the user and all its clients.
@@ -328,7 +328,7 @@ func (s *SubUserService) Assign(key, clientName string) (*SubUserView, error) {
 	if err != nil {
 		return nil, err
 	}
-	return s.viewOf(u.SubId)
+	return s.savedView(u.SubId)
 }
 
 // --- helpers ------------------------------------------------------------------
@@ -466,14 +466,14 @@ func (idx *subUserIndex) planClients(u *model.SubUser, inboundIds []int, linkExi
 }
 
 // paramsOf are the limits of the user's xray client, else of its AmneziaWG
-// client, else none: what AddProtocol copies.
+// client, else none: what AddProtocol copies. The tgId is the user's (#186).
 func (idx *subUserIndex) paramsOf(u *model.SubUser) clientParams {
 	clients := idx.clientsOf(u.SubId)
 	for _, kind := range []string{SubUserClientXray, SubUserClientAwg} {
 		for _, c := range clients {
 			if c.Kind == kind {
 				return clientParams{SubUserParams: SubUserParams{TotalGB: c.TotalGB, ExpiryTime: c.ExpiryTime, LimitIp: c.LimitIp, Reset: c.Reset},
-					tgId: c.TgId, enable: c.Enable}
+					tgId: u.TgId, enable: c.Enable}
 			}
 		}
 	}

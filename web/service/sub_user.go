@@ -284,11 +284,14 @@ type SubUserView struct {
 	// the subscription's Subscription-Userinfo counts them.
 	Total      int64 `json:"total"`
 	ExpiryTime int64 `json:"expiryTime"`
+	// TgConflict: a client carries a Telegram id other than the user's
+	// (#186) — «⚠️ Telegram: конфликт» until an admin resolves it.
+	TgConflict bool `json:"tgConflict"`
 }
 
 // view builds the view of the user under key.
 func (idx *subUserIndex) view(u *model.SubUser) *SubUserView {
-	v := &SubUserView{SubUser: *u, Technical: u.IsTechnical(), Clients: idx.clientsOf(u.SubId)}
+	v := &SubUserView{SubUser: *u, Technical: u.IsTechnical(), Clients: idx.clientsOf(u.SubId), TgConflict: idx.tgConflict(u)}
 	if v.Clients == nil {
 		v.Clients = []SubUserClient{}
 	}
