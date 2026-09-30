@@ -1554,6 +1554,25 @@
 "tgLater" = "later"
 "days" = "{{ .Days }} d"
 
+[tgbot.notify]
+"button" = "📣 Notification channel"
+"title" = "📣 <b>Notification channel</b>: {{ .Channel }}"
+"unset" = "not set"
+"noTest" = "Last test: no test yet"
+"lastOk" = "Last test: ✅ ok, {{ .Time }}"
+"lastFailed" = "Last test: ❌ {{ .Error }}, {{ .Time }}"
+"howTo" = "To set the channel, send its @username or chat id (-100…), or forward any post from the channel here. The bot must be an admin of the channel. The bot posts its notifications there: the periodic report, monitoring alerts, panel logins, CPU alerts."
+"test" = "🧪 Test"
+"off" = "✖ Disable"
+"offAsk" = "✖ <b>Disable the notification channel?</b>\r\nThe bot will send no notifications until a channel is set again."
+"offDone" = "✖ Notification channel disabled."
+"saved" = "✅ Channel saved: {{ .Channel }}"
+"saveFailed" = "❗ The channel was not saved: {{ .Error }}"
+"testSent" = "🧪 Test message sent"
+"testFailed" = "🧪 Test message not sent"
+"notChannel" = "⚠️ That is not a channel: send its @username or chat id (-100…), or forward a post from the channel."
+"notFromChannel" = "⚠️ This message was forwarded from a user, not from a channel: forward a post of the channel itself."
+
 [tgbot.tunnel]
 "card" = "📡 <code>{{ .Name }}</code> · {{ .Inbound }}\r\n"
 "user" = "👤 User: {{ .Name }}\r\n"

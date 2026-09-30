@@ -12,7 +12,8 @@ import (
 
 // «⚙️ Server» (#192): the server's status (the old usage and /status) with
 // the backup and the ban logs as files, «🔄 Restart xray» and «♻️ Reset all
-// traffic» behind a confirmation, and «🔗 Chain» (/proxy). «🔧 Admin panel»
+// traffic» behind a confirmation, «🔗 Chain» (/proxy) and «📣 Notification
+// channel» (#202, tgbot_screen_notify.go). «🔧 Admin panel»
 // of the main menu sends the panel's address as a message of its own that
 // goes after five minutes.
 
@@ -40,6 +41,7 @@ func (t *Tgbot) screenServer() screenReply {
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.screen.chain"), screenChainRoute),
 			button(t.I18nBot("tgbot.screen.banLogs"), screenBanLogsData)),
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.ops.resetAll"), screenResetAllAsk)),
+		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.notify.button"), screenNotifyRoute)), // #202
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.buttons.refresh"), screenServerRoute)),
 	)
 	return screenReply{usersReply: usersReply{text: t.prepareServerUsageInfo(), keyboard: kb, route: screenServerRoute}}

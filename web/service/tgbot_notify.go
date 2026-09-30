@@ -111,8 +111,10 @@ func (t *Tgbot) sendExhaustedToNotifyChannel() {
 
 // SendNotifyTest posts a test message to value — the channel as typed in
 // the settings form, saved or not — and returns Telegram's refusal, if any,
-// so the settings tab can show why a channel does not work.
-func (t *Tgbot) SendNotifyTest(value string) error {
+// so the settings tab can show why a channel does not work. The bot's
+// channel screen shows the outcome as the last test (#202).
+func (t *Tgbot) SendNotifyTest(value string) (err error) {
+	defer func() { notifyLastTest.record(value, err) }()
 	chat, err := tgNotifyChat(value)
 	if err != nil {
 		return err
