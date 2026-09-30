@@ -76,7 +76,7 @@ func TestPageRenders(t *testing.T) {
 	var buf bytes.Buffer
 	err := s.tmpl.Execute(&buf, pageData{
 		Title: "Subscription", SubURL: "https://proxy/sub/abc", JsonURL: "https://proxy/json/abc",
-		Configs: []string{"vless://a@h:443#x"}, Used: "1 MB", Total: "∞", Apps: recommendedApps,
+		Configs: []string{"vless://a@h:443#x"}, Used: "1 MB", Total: "∞", Install: installLinks, Apps: recommendedApps,
 	})
 	if err != nil {
 		t.Fatalf("template execute: %v", err)
@@ -86,6 +86,69 @@ func TestPageRenders(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("rendered page missing %q", want)
 		}
+	}
+}
+
+// v2RayTun store pages the owner asked for at the top of the page (#217).
+const (
+	v2rayTunPlayURL  = "https://play.google.com/store/apps/details?id=com.v2raytun.android"
+	v2rayTunStoreURL = "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543"
+)
+
+// TestThePageLeadsWithTheV2RayTunStoreButtons: the page a client opens on
+// the edge starts with the two v2RayTun install buttons, above every other
+// block, and no longer recommends V2rayNG, which does not read
+// Profile-Update-Interval (#217).
+func TestThePageLeadsWithTheV2RayTunStoreButtons(t *testing.T) {
+	for _, a := range recommendedApps {
+		if strings.Contains(strings.ToLower(a.Name+a.URL), "v2rayng") {
+			t.Errorf("recommendedApps still lists %+v", a)
+		}
+	}
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Subscription-Userinfo", "upload=1; download=1; total=0; expire=0")
+		_, _ = w.Write([]byte("vless://a@h:443#x"))
+	}))
+	defer upstream.Close()
+	host, port := hostPort(t, upstream.URL)
+	state := NewState()
+	state.SetDocument(&chain.Document{
+		Version:  chain.DocumentVersion,
+		Revision: 1,
+		Self:     chain.Self{Name: "edge-a", Role: chain.RoleEdge, Host: "edge.example.com"},
+		NextHop:  chain.NextHop{Host: host, SubPort: port, SubScheme: "http", SubPath: "/s/", JsonPath: "/j/"},
+	})
+	s := testSubServer(t, &Config{NextHop: NextHop{Host: "10.0.0.7"}, Domain: "edge.example.com"}, state)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/s/abc", nil)
+	r.Header.Set("Accept", "text/html")
+	s.Handler().ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("page: status %d body %q", w.Code, w.Body.String())
+	}
+	page := w.Body.String()
+
+	// html/template escapes & in attributes; the Play URL has none.
+	play := strings.Index(page, `href="`+v2rayTunPlayURL+`"`)
+	appStore := strings.Index(page, `href="`+v2rayTunStoreURL+`"`)
+	if play < 0 || appStore < 0 {
+		t.Fatalf("page lacks a store button: Google Play at %d, App Store at %d", play, appStore)
+	}
+	for _, want := range []string{"<b>Android</b>", "Google Play →", "<b>iPhone / iPad</b>", "App Store →"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page missing %q", want)
+		}
+	}
+	// Above every other block: the title, the usage card and the QR card.
+	for _, later := range []string{"<h1>", `class="card`} {
+		if i := strings.Index(page, later); i < 0 || i < play || i < appStore {
+			t.Errorf("%q at %d is not below the store buttons (%d, %d)", later, i, play, appStore)
+		}
+	}
+	if strings.Contains(strings.ToLower(page), "v2rayng") {
+		t.Error("page still mentions V2rayNG")
 	}
 }
 
