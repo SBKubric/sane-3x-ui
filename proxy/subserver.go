@@ -48,9 +48,24 @@ var recommendedApps = []app{
 	// For the tunnels: AmneziaVPN and AmneziaWG import a .conf (spec §8).
 	{Name: "AmneziaVPN", Platform: "all platforms", URL: "https://amnezia.org/downloads"},
 	{Name: "AmneziaWG", Platform: "Android", URL: "https://github.com/amnezia-vpn/amneziawg-android/releases"},
-	{Name: "V2rayNG", Platform: "Android", URL: "https://github.com/2dust/v2rayNG/releases"},
 	{Name: "DefaultVPN", Platform: "iOS", URL: "https://apps.apple.com/ru/app/defaultvpn/id6744725017"},
 	{Name: "SongBird", Platform: "Windows", URL: "https://github.com/o3ku/SongBird/releases/"},
+}
+
+// storeLink is one of the large install buttons at the top of the proxy
+// subscription page.
+type storeLink struct {
+	Platform string
+	Store    string
+	URL      string
+}
+
+// installLinks are the store pages of v2RayTun, the app the page points
+// clients to first: it reads the subscription headers, including
+// Profile-Update-Interval (#217).
+var installLinks = []storeLink{
+	{Platform: "Android", Store: "Google Play", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android"},
+	{Platform: "iPhone / iPad", Store: "App Store", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543"},
 }
 
 // headers copied through from the next hop to subscription clients.
@@ -466,7 +481,10 @@ type pageData struct {
 	Used        string
 	Total       string
 	Expire      string
-	Apps        []app
+	// Install are the store buttons at the top: set only on a page with a
+	// subscription an app can import.
+	Install []storeLink
+	Apps    []app
 }
 
 func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header http.Header) {
@@ -495,6 +513,7 @@ func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header
 		Used:          used,
 		Total:         total,
 		Expire:        expire,
+		Install:       installLinks,
 		Apps:          recommendedApps,
 	}); err != nil {
 		logger.Warning("proxy-front: render page:", err)
