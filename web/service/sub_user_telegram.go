@@ -1,8 +1,11 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
@@ -267,4 +270,25 @@ func (s *SubUserService) savedView(key string) (*SubUserView, error) {
 		}
 	}
 	return s.viewOf(key)
+}
+
+// xrayClientTgIds reads the tgId of each client in an inbound's settings, in
+// their order, whether the form stored it as a number or as a string ("777",
+// "" for none, #201) — model.Client takes the number only. nil when the
+// settings do not parse.
+func xrayClientTgIds(settings string) []int64 {
+	var parsed struct {
+		Clients []struct {
+			TgId json.RawMessage `json:"tgId"`
+		} `json:"clients"`
+	}
+	if json.Unmarshal([]byte(settings), &parsed) != nil {
+		return nil
+	}
+	out := make([]int64, len(parsed.Clients))
+	for i, c := range parsed.Clients {
+		raw := strings.Trim(strings.TrimSpace(string(c.TgId)), `"`)
+		out[i], _ = strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	}
+	return out
 }

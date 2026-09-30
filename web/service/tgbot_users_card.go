@@ -55,6 +55,7 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		if v.TgId != 0 {
 			b.WriteString(t.I18nBot("tgbot.screen.telegram", "TgId=="+strconv.FormatInt(v.TgId, 10)))
 		}
+		b.WriteString(t.usersTelegramLine(v))
 		if v.ContactEmail != "" {
 			b.WriteString(t.I18nBot("tgbot.users.contactEmail", "Email=="+html.EscapeString(v.ContactEmail)))
 		}
@@ -104,6 +105,9 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 			row = append(row, button(t.I18nBot("tgbot.users.removeProtocol"), "usr_rpm "+v.SubId))
 		}
 		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+		if row := t.usersTelegramRow(v); row != nil {
 			rows = append(rows, row)
 		}
 		row = nil

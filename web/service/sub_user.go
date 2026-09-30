@@ -163,7 +163,11 @@ func (s *SubUserService) loadIndex() (*subUserIndex, error) {
 			continue
 		}
 		clients, _ := s.inboundService.GetClients(ib)
-		for _, c := range clients {
+		tgIds := xrayClientTgIds(ib.Settings) // a tgId stored as a string too (#186)
+		for i, c := range clients {
+			if len(tgIds) == len(clients) {
+				c.TgID = tgIds[i]
+			}
 			uc := SubUserClient{
 				Kind: SubUserClientXray, InboundId: ib.Id, InboundRemark: ib.Remark, Protocol: string(ib.Protocol),
 				Name: c.Email, Key: xrayClientKey(ib.Protocol, c), SubId: c.SubID, Enable: c.Enable,
