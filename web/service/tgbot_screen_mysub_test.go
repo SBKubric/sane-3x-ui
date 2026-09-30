@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -8,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coinman-dev/3ax-ui/v2/database"
+	"github.com/coinman-dev/3ax-ui/v2/database/model"
 	"github.com/mymmrac/telego"
 	"github.com/pelletier/go-toml/v2"
 )
@@ -45,6 +48,38 @@ func (f *screenTelegram) clientScreen(t *testing.T) *screenMessage {
 		t.Fatal("the chat is empty")
 	}
 	return f.messages[live[len(live)-1]]
+}
+
+// legacyUserOf creates the user of req and then writes tgId onto its xray
+// clients behind the service's back: the legacy state where one Telegram ID
+// is on clients of several users, which Create now refuses (1:1, #178).
+func legacyUserOf(t *testing.T, req SubUserCreate, tgId int64) *SubUserView {
+	t.Helper()
+	v := mustCreateUser(t, req)
+	db := database.GetDB()
+	for _, c := range v.Clients {
+		if c.Kind != SubUserClientXray {
+			continue
+		}
+		var ib model.Inbound
+		if err := db.First(&ib, c.InboundId).Error; err != nil {
+			t.Fatal(err)
+		}
+		var settings map[string]any
+		if err := json.Unmarshal([]byte(ib.Settings), &settings); err != nil {
+			t.Fatal(err)
+		}
+		for _, raw := range settings["clients"].([]any) {
+			if client := raw.(map[string]any); client["email"] == c.Name {
+				client["tgId"] = tgId
+			}
+		}
+		out, _ := json.MarshalIndent(settings, "", "  ")
+		if err := db.Model(&model.Inbound{}).Where("id = ?", ib.Id).Update("settings", string(out)).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	return v
 }
 
 // TestMySubscriptionScreen: /start from someone whose clients carry their
@@ -144,7 +179,7 @@ func TestMySubscriptionShowAndConfigs(t *testing.T) {
 func TestMySubscriptionSeveralUsers(t *testing.T) {
 	tg := usersBotFixture(t)
 	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: usersTestChat, InboundIds: []int{1}})
-	petr := mustCreateUser(t, SubUserCreate{Name: "petr", TgId: usersTestChat, InboundIds: []int{2}})
+	petr := legacyUserOf(t, SubUserCreate{Name: "petr", InboundIds: []int{2}}, usersTestChat)
 	mustCreateUser(t, SubUserCreate{Name: "anna", TgId: 555, InboundIds: []int{1}})
 	fake := withScreenTelegram(t)
 
@@ -244,7 +279,7 @@ func TestMySubscriptionCallbacksFitTelegram(t *testing.T) {
 	tg := usersBotFixture(t)
 	long := mustCreateUser(t, SubUserCreate{Name: strings.Repeat("l", 60), SubId: strings.Repeat("s", 60), TgId: usersTestChat,
 		InboundIds: []int{1, 5}})
-	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: usersTestChat, InboundIds: []int{2}})
+	legacyUserOf(t, SubUserCreate{Name: "ivan", InboundIds: []int{2}}, usersTestChat)
 
 	for _, reply := range []screenReply{tg.mysubHome(usersTestChat), tg.mysubRoute(usersTestChat, mysubUserRoute+" "+long.SubId),
 		tg.mysubRoute(usersTestChat, mysubConfigsRoute+" "+long.SubId)} {
