@@ -83,8 +83,8 @@ func TestUsersListPages(t *testing.T) {
 	if got := tail(first, 4); got != "1/3|▶|🤖 robot|📡 monitoring" {
 		t.Errorf("first page's end: %q", got)
 	}
-	if !strings.Contains(first.text, "(23)") || first.route != "usr_l 0" || userStates[usersTestChat] != usersStateSearch {
-		t.Errorf("first page: %+v, state %q", first, userStates[usersTestChat])
+	if !strings.Contains(first.text, "(23)") || first.route != "usr_l 0" || stateOf(usersTestChat) != usersStateSearch {
+		t.Errorf("first page: %+v, state %q", first, stateOf(usersTestChat))
 	}
 
 	last := press(t, bot, button(t, press(t, bot, button(t, first.keyboard, "▶")).keyboard, "▶"))
@@ -132,7 +132,7 @@ func TestUsersSearch(t *testing.T) {
 		if !strings.Contains(reply.text, "<b>ivan</b>") || reply.route != "usr_c "+ivan.SubId {
 			t.Errorf("search %q: %+v", q, reply)
 		}
-		if _, waiting := userStates[usersTestChat]; waiting {
+		if _, waiting := userStates.get(usersTestChat); waiting {
 			t.Errorf("search %q: the card still waits for a search", q)
 		}
 	}
@@ -142,7 +142,7 @@ func TestUsersSearch(t *testing.T) {
 	if got := strings.Join(buttonTexts(t, reply.keyboard), "|"); got != "⏸ alpha · — · 0/∞ · until —|⏸ beta · — · 0/∞ · until —" {
 		t.Errorf("two found: %q", got)
 	}
-	if !strings.Contains(reply.text, "«Alpha»: 2") || reply.route != "usr_f Alpha" || userStates[usersTestChat] != usersStateSearch {
+	if !strings.Contains(reply.text, "«Alpha»: 2") || reply.route != "usr_f Alpha" || stateOf(usersTestChat) != usersStateSearch {
 		t.Errorf("two found: %+v", reply)
 	}
 	if again := press(t, bot, reply.route); again.text != reply.text {
@@ -152,7 +152,7 @@ func TestUsersSearch(t *testing.T) {
 	for _, q := range []string{"iva", "ivan-d", "4242", "@ivan"} {
 		press(t, bot, "usr_menu")
 		reply := typeText(t, bot, q)
-		if !strings.Contains(reply.text, "Nobody found") || reply.route != "" || userStates[usersTestChat] != usersStateSearch {
+		if !strings.Contains(reply.text, "Nobody found") || reply.route != "" || stateOf(usersTestChat) != usersStateSearch {
 			t.Errorf("search %q: %+v", q, reply)
 		}
 	}

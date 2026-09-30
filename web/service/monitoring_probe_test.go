@@ -142,23 +142,6 @@ func TestProbeEmailRefusedOnXrayClientPaths(t *testing.T) {
 	}
 }
 
-// TestProbeEmailRefusedFromTelegramBot: the bot's add-client dialogue ends in
-// the same service path, so it is guarded too.
-func TestProbeEmailRefusedFromTelegramBot(t *testing.T) {
-	initProbeTestDB(t)
-	vlessInbound(t, 2, model.Client{ID: "aaaaaaaa-0000-0000-0000-000000000011", Email: "dave"})
-
-	receiver_inbound_ID = 2
-	client_Id = "aaaaaaaa-0000-0000-0000-000000000012"
-	client_Email = "probe-2"
-	client_Enable = false
-	t.Cleanup(func() { receiver_inbound_ID, client_Id, client_Email = 0, "", "" })
-
-	if _, err := (&Tgbot{}).SubmitAddClient(); err == nil || !strings.Contains(err.Error(), "monitoring probes") {
-		t.Errorf("SubmitAddClient with a probe email: err = %v, want the probe guard", err)
-	}
-}
-
 // TestProbeEmailRefusedOnTunnelClientPaths mirrors the xray guard for the
 // AmneziaWG client service.
 func TestProbeEmailRefusedOnTunnelClientPaths(t *testing.T) {
