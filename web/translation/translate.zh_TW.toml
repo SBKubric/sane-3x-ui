@@ -718,6 +718,12 @@
 "trafficDiffDesc" = "達到此閾值時，將收到有關流量耗盡的通知（單位：GB）"
 "tgNotifyCpu" = "CPU 負載通知閾值"
 "tgNotifyCpuDesc" = "CPU 負載超過此閾值時，將收到通知（單位：%）"
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "時區"
 "timeZoneDesc" = "定時任務將按照該時區的時間執行"
 "subSettings" = "訂閱設定"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 CPU 使用率為 {{ .Percent }}%，超過閾值 {{ .Threshold }}%"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ 使用者選擇錯誤！"
 "userSaved" = "✅ 電報使用者已儲存。"
 "loginSuccess" = "✅ 成功登入到面板。\r\n"

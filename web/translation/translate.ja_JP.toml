@@ -718,6 +718,12 @@
 "trafficDiffDesc" = "このしきい値に達した場合、トラフィック消耗に関する通知を受け取る（単位：GB）"
 "tgNotifyCpu" = "CPU負荷通知しきい値"
 "tgNotifyCpuDesc" = "CPU負荷がこのしきい値を超えた場合、通知を受け取る（単位：%）"
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "タイムゾーン"
 "timeZoneDesc" = "定時タスクはこのタイムゾーンの時間に従って実行される"
 "subSettings" = "サブスクリプション設定"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 CPU使用率は{{ .Percent }}%、しきい値{{ .Threshold }}%を超えました"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ ユーザーの選択に失敗しました！"
 "userSaved" = "✅ Telegramユーザーが保存されました。"
 "loginSuccess" = "✅ パネルに正常にログインしました。\r\n"

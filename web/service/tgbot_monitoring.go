@@ -28,13 +28,13 @@ import (
 // the operator does not need to see (UNKNOWN, PAUSED) is settled silently —
 // it is returned without a message so it is never offered again.
 //
-// When the bot is not running nothing is returned: the ids stay
-// notified=false, the events remain visible as un-notified in the feed, and
-// no duplicate is possible either way, since ApplyEvents dedups by id and a
+// When the bot is not running, or no notification channel is set (#195),
+// nothing is returned: the ids stay notified=false, the events remain
+// visible as un-notified in the feed, and no duplicate is possible either way, since ApplyEvents dedups by id and a
 // re-send from mon-server would be dropped as a duplicate rather than
 // re-notified.
 func (t *Tgbot) NotifyMonitoringEvents(events []model.MonEvent) []string {
-	if t.monSend == nil && !t.IsRunning() {
+	if t.monSend == nil && !t.notifyChannelReady() {
 		return nil
 	}
 	ids := make([]string, 0, len(events))
@@ -136,7 +136,7 @@ func (t *Tgbot) NotifyMonitoringBack(silentFor time.Duration) {
 }
 
 // monitoringSend is the one way out of this file. monSend is a test seam;
-// in production it is nil and the message goes to every admin chat.
+// in production it is nil and the message goes to the notification channel.
 func (t *Tgbot) monitoringSend(msg string) {
 	if msg == "" {
 		return
@@ -145,7 +145,7 @@ func (t *Tgbot) monitoringSend(msg string) {
 		t.monSend(msg)
 		return
 	}
-	t.SendMsgToTgbotAdmins(msg)
+	t.SendMsgToNotifyChannel(msg)
 }
 
 // --- the daily digest --------------------------------------------------------

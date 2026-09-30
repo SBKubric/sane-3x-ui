@@ -718,6 +718,12 @@
 "trafficDiffDesc" = "Dapatkan notifikasi tentang batas traffic saat mencapai ambang batas ini. (unit: GB)"
 "tgNotifyCpu" = "Notifikasi Beban CPU"
 "tgNotifyCpuDesc" = "Dapatkan notifikasi jika beban CPU melebihi ambang batas ini. (unit: %)"
+"tgNotifyChannel" = "Notification channel"
+"tgNotifyChannelDesc" = "Chat id (-100…) or @username of the Telegram channel or group the bot posts its notifications to: the periodic report, monitoring alerts, panel logins, CPU alerts. The bot must be an admin of the channel or group. The database backup still goes to the admins' chats."
+"tgNotifyChannelTest" = "Send test"
+"tgNotifyChannelTestOk" = "Test message sent to the notification channel"
+"tgNotifyChannelTestFail" = "Test message not sent"
+"tgNotifyChannelUnset" = "No notification channel is set: the bot sends no notifications (report, monitoring, panel logins, CPU)."
 "timeZone" = "Zone Waktu"
 "timeZoneDesc" = "Tugas terjadwal akan berjalan berdasarkan zona waktu ini."
 "subSettings" = "Langganan"
@@ -1307,6 +1313,7 @@
 
 [tgbot.messages]
 "cpuThreshold" = "🔴 Beban CPU {{ .Percent }}% melebihi batas {{ .Threshold }}%"
+"notifyTest" = "✅ Test message from {{ .Hostname }}: the notification channel works.\r\n"
 "selectUserFailed" = "❌ Kesalahan dalam pemilihan pengguna!"
 "userSaved" = "✅ Pengguna Telegram tersimpan."
 "loginSuccess" = "✅ Berhasil masuk ke panel.\r\n"
