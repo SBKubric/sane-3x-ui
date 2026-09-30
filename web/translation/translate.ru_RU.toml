@@ -1563,6 +1563,20 @@
 "user" = "👤 Пользователь: {{ .Name }}\r\n"
 "config" = "📄 Конфиг и QR"
 
+[tgbot.mysub]
+"card" = "💳 <b>Моя подписка</b> · {{ .Name }}\r\nПодписка: {{ .Status }}\r\n📅 Срок: {{ .Exp }}\r\n📊 Трафик: {{ .Traffic }}\r\n🔌 Протоколы: {{ .Protocols }}"
+"configs" = "📄 Мои конфиги"
+"until" = "до {{ .Date }}"
+"afterFirstUse" = "{{ .Days }} дн. с первого подключения"
+"noExpiry" = "без срока"
+"pick" = "💳 <b>Ваши подписки</b> ({{ .Count }})\r\nВаш Telegram привязан к нескольким пользователям: выберите одного."
+"none" = "👋 Здравствуйте! У вас пока нет подписки.\r\n🆔 Ваш Telegram ID: <code>{{ .TgId }}</code>. Сообщите его администратору, чтобы он вас привязал."
+"subHint" = "📱 Добавьте ссылку в v2rayN, Hiddify или AmneziaVPN; .conf для AWG — в «📄 Мои конфиги»."
+"configsTitle" = "📄 <b>Мои конфиги</b> · {{ .Name }}"
+"conf" = "📄 {{ .Name }}: .conf и QR"
+"links" = "🔗 Ссылки и QR-коды"
+"noClients" = "Клиентов нет."
+
 [tgbot.screen]
 "menu" = "🏠 <b>Главное меню</b> · {{ .Hostname }}"
 "back" = "⬅️ Назад"

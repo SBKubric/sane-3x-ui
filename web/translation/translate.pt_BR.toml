@@ -1559,6 +1559,20 @@
 "user" = "👤 User: {{ .Name }}\r\n"
 "config" = "📄 Config and QR"
 
+[tgbot.mysub]
+"card" = "💳 <b>My subscription</b> · {{ .Name }}\r\nSubscription: {{ .Status }}\r\n📅 Expires: {{ .Exp }}\r\n📊 Traffic: {{ .Traffic }}\r\n🔌 Protocols: {{ .Protocols }}"
+"configs" = "📄 My configs"
+"until" = "until {{ .Date }}"
+"afterFirstUse" = "{{ .Days }} days from the first connection"
+"noExpiry" = "no expiry"
+"pick" = "💳 <b>Your subscriptions</b> ({{ .Count }})\r\nYour Telegram is linked to several users: pick one."
+"none" = "👋 You have no subscription yet.\r\n🆔 Your Telegram ID: <code>{{ .TgId }}</code>. Give it to the admin to be linked."
+"subHint" = "📱 Add the link to v2rayN, Hiddify or AmneziaVPN; the AWG .conf is in «📄 My configs»."
+"configsTitle" = "📄 <b>My configs</b> · {{ .Name }}"
+"conf" = "📄 {{ .Name }}: .conf and QR"
+"links" = "🔗 Links and QR codes"
+"noClients" = "No clients."
+
 [tgbot.screen]
 "menu" = "🏠 <b>Main menu</b> · {{ .Hostname }}"
 "back" = "⬅️ Back"

@@ -52,6 +52,9 @@ type botScreen struct {
 	msgID int      // the screen message; 0 = none known
 	route string   // the view shown; "" = a transient view
 	back  []string // the routes to go back to, the last on top
+	// client is the Telegram user, no admin, whose own screens this chat
+	// shows (#194, tgbot_screen_mysub.go); 0 = an admin's screen.
+	client int64
 }
 
 type screenStore struct {
@@ -126,17 +129,24 @@ func (t *Tgbot) screenOpen(chatId int64, reply screenReply) {
 // screenPress handles an admin's button. A press on a message other than the
 // chat's screen changes nothing.
 func (t *Tgbot) screenPress(query *telego.CallbackQuery) {
+	t.screenPressAs(query, 0)
+}
+
+// screenPressAs handles a button on the screen of client, the Telegram user
+// whose own screens it shows (#194); 0 for an admin's screen.
+func (t *Tgbot) screenPressAs(query *telego.CallbackQuery, client int64) {
 	chatId := query.Message.GetChat().ID
 	msgID := query.Message.GetMessageID()
 	sc := botScreens.of(chatId)
 	sc.mu.Lock()
 	defer sc.mu.Unlock()
+	sc.client = client
 	if sc.msgID == 0 {
 		// The screen is unknown (the panel restarted): this message becomes
 		// the screen, with the main menu.
 		sc.msgID, sc.route, sc.back = msgID, "", nil
 		t.sendCallbackAnswerTgBot(query.ID, "")
-		t.screenShow(chatId, sc, t.screenMainMenu())
+		t.screenShow(chatId, sc, t.screenHome(sc))
 		return
 	}
 	if msgID != sc.msgID {
@@ -170,16 +180,16 @@ func (t *Tgbot) screenText(chatId int64, textID int, reply screenReply) {
 func (t *Tgbot) screenDispatch(chatId int64, sc *botScreen, data string) screenReply {
 	switch data {
 	case screenMenuData, "":
-		return t.screenMainMenu()
+		return t.screenHome(sc)
 	case screenBackData:
 		route := screenMenuRoute
 		if n := len(sc.back); n > 0 {
 			route, sc.back = sc.back[n-1], sc.back[:n-1]
 		}
 		sc.route = ""
-		return t.screenRoute(chatId, route)
+		return t.screenRouteOf(chatId, sc, route)
 	}
-	return t.screenRoute(chatId, data)
+	return t.screenRouteOf(chatId, sc, data)
 }
 
 // screenRoute runs the handler of a callback.
