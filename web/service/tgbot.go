@@ -518,6 +518,9 @@ func (t *Tgbot) OnReceive() {
 				if t.answerUsersText(&message, userState) {
 					return nil
 				}
+				if !fromAdmin(&message) {
+					return nil
+				}
 				switch userState {
 				case "awaiting_id":
 					if client_Id == strings.TrimSpace(message.Text) {
@@ -1676,6 +1679,12 @@ func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 			}
 
 		}
+	}
+
+	// Everyone else gets the buttons of the client menu only.
+	if !isAdmin && !t.clientMayPress(callbackQuery) {
+		t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.noResult"))
+		return
 	}
 
 	switch callbackQuery.Data {
