@@ -352,8 +352,7 @@ func TestScreenLostMessage(t *testing.T) {
 }
 
 // TestScreenMainMenu: the admin's main menu as the prototype lays it out,
-// incoming requests hidden; the screens still to come answer «soon» and
-// leave the menu as it is.
+// incoming requests hidden.
 func TestScreenMainMenu(t *testing.T) {
 	tg := usersBotFixture(t)
 	fake := withScreenTelegram(t)
@@ -363,12 +362,6 @@ func TestScreenMainMenu(t *testing.T) {
 		"⚙️ Server", "🔧 Admin panel"}
 	if got := fake.messages[1].labels; strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("main menu:\n got %q\nwant %q", got, want)
-	}
-	for _, label := range []string{"Reports", "Monitoring", "Admin panel"} {
-		reply := screenPressData(t, tg, fake.messages[1].data[labelIndex(t, fake.messages[1], label)])
-		if reply.toast != "🚧 Coming soon" || reply.text != "" || reply.keyboard != nil {
-			t.Errorf("%s: %+v", label, reply)
-		}
 	}
 	fake.press(t, tg, 1, "Inbounds and clients")
 	if m := fake.messages[1]; !strings.Contains(m.text, "Inbounds") || !strings.Contains(strings.Join(m.labels, "|"), "✅ Trojan · de") {

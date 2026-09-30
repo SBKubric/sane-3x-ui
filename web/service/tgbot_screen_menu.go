@@ -12,8 +12,8 @@ import (
 )
 
 // The admin's main menu and the screens behind it that are not the users'
-// (#191): Inbounds and clients, Online, Server with the chain. Reports,
-// Monitoring and the admin link are #192's and answer «soon» here.
+// (#191): Inbounds and clients and the chain. Online, Reports, Monitoring,
+// Server and the admin link are #192's (tgbot_screen_ops.go).
 
 // Callback data of these screens.
 const (
@@ -26,7 +26,6 @@ const (
 	screenChainRoute    = "s_chain"          // the chain's hops, as /proxy lists them
 	screenSoonData      = "s_soon"           // a screen still to come
 	screenPage          = 20                 // list lines per page
-	screenOnlineMax     = 60                 // the online clients one screen lists
 	screenClientAction  = "client_get_usage" // client_get_usage <email>: an xray client's card
 )
 
@@ -45,7 +44,8 @@ func (t *Tgbot) screenMenuCallback(chatId int64, data string) (screenReply, bool
 		page, _ := strconv.Atoi(pageArg)
 		return t.screenInboundClients(id, page), true
 	case screenOnlineRoute:
-		return t.screenOnline(), true
+		page, _ := strconv.Atoi(args)
+		return t.screenOnline(page), true
 	case screenServerRoute:
 		return t.screenServer(), true
 	case screenBackupData:
@@ -64,12 +64,13 @@ func (t *Tgbot) screenMenuCallback(chatId int64, data string) (screenReply, bool
 	case usersSubQRAction:
 		return t.usersSubscriptionQR(args), true
 	}
-	return screenReply{}, false
+	return t.screenOpsCallback(action, args)
 }
 
 // answerScreenCommand runs an admin's command that opens a screen: /start
 // and /help the main menu, /usage <name>, /inbound <remark> and /proxy
-// theirs. false for the other commands.
+// theirs, /status the server and /restart its confirmation (#192). false
+// for the other commands.
 func (t *Tgbot) answerScreenCommand(chatId int64, command string, args []string) bool {
 	switch {
 	case command == "start" || command == "help":
@@ -80,6 +81,10 @@ func (t *Tgbot) answerScreenCommand(chatId int64, command string, args []string)
 		t.screenOpen(chatId, t.screenInboundSearch(args[0]))
 	case command == "proxy":
 		t.screenOpen(chatId, t.screenChain(args))
+	case command == "status":
+		t.screenOpen(chatId, t.screenServer())
+	case command == "restart" && len(args) == 0:
+		t.screenOpen(chatId, t.screenRestartConfirm())
 	default:
 		return false
 	}
@@ -122,8 +127,8 @@ func (t *Tgbot) screenMainMenu() screenReply {
 	kb := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(button("tgbot.users.menu", usersListAction+" 0"), button("tgbot.users.newUser", "add_client")),
 		tu.InlineKeyboardRow(button("tgbot.screen.inbounds", screenInboundsRoute), button("tgbot.screen.online", screenOnlineRoute)),
-		tu.InlineKeyboardRow(button("tgbot.screen.reports", screenSoonData), button("tgbot.screen.monitoring", screenSoonData)),
-		tu.InlineKeyboardRow(button("tgbot.screen.server", screenServerRoute), button("tgbot.screen.admin", screenSoonData)),
+		tu.InlineKeyboardRow(button("tgbot.screen.reports", screenReportsRoute), button("tgbot.screen.monitoring", screenMonitoringRoute)),
+		tu.InlineKeyboardRow(button("tgbot.screen.server", screenServerRoute), button("tgbot.screen.admin", screenAdminLinkData)),
 	)
 	return screenReply{usersReply: usersReply{text: t.I18nBot("tgbot.screen.menu", "Hostname=="+html.EscapeString(hostname)),
 		keyboard: kb, route: screenMenuRoute}}
@@ -251,38 +256,7 @@ func (t *Tgbot) screenInboundClients(id, page int) screenReply {
 	return screenReply{usersReply: usersReply{text: text, keyboard: kb, route: route}}
 }
 
-// --- online, server, chain -----------------------------------------------------
-
-// screenOnline lists the clients xray sees online, probes left out, each
-// opening its card (#192 redoes this screen).
-func (t *Tgbot) screenOnline() screenReply {
-	var onlines []string
-	if xrayProcRunning() {
-		onlines = withoutProbeAccounts(xrayOnlineClients())
-	}
-	var buttons []telego.InlineKeyboardButton
-	for _, email := range onlines[:min(len(onlines), screenOnlineMax)] {
-		buttons = append(buttons, tu.InlineKeyboardButton("🟢 "+email).WithCallbackData(t.encodeQuery(screenClientAction+" "+email)))
-	}
-	rows := tu.InlineKeyboardCols(2, buttons...)
-	rows = append(rows, tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.refresh")).WithCallbackData(screenOnlineRoute)))
-	return screenReply{usersReply: usersReply{text: t.I18nBot("tgbot.messages.onlinesCount", "Count=="+strconv.Itoa(len(onlines))),
-		keyboard: tu.InlineKeyboard(rows...), route: screenOnlineRoute}}
-}
-
-// screenServer is the server's status with the backup, the ban logs and the
-// chain (#192 redoes this screen).
-func (t *Tgbot) screenServer() screenReply {
-	button := func(key, data string) telego.InlineKeyboardButton {
-		return tu.InlineKeyboardButton(t.I18nBot(key)).WithCallbackData(data)
-	}
-	kb := tu.InlineKeyboard(
-		tu.InlineKeyboardRow(button("tgbot.buttons.refresh", screenServerRoute)),
-		tu.InlineKeyboardRow(button("tgbot.screen.backup", screenBackupData), button("tgbot.screen.banLogs", screenBanLogsData)),
-		tu.InlineKeyboardRow(button("tgbot.screen.chain", screenChainRoute)),
-	)
-	return screenReply{usersReply: usersReply{text: t.prepareServerUsageInfo(), keyboard: kb, route: screenServerRoute}}
-}
+// --- chain ---------------------------------------------------------------------
 
 // screenChain is /proxy on the screen: without arguments the hops (a view to
 // come back to), with them the switch's answer and, when it has to be

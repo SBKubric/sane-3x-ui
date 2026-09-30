@@ -2722,12 +2722,15 @@ func (t *Tgbot) SendMsgToTgbotDeleteAfter(chatId int64, msg string, delayInSecon
 	}
 
 	// Delete the sent message after the specified number of seconds
-	go func() {
-		time.Sleep(time.Duration(delayInSeconds) * time.Second) // Wait for the specified delay
-		t.deleteMessageTgBot(chatId, sentMsg.MessageID)         // Delete the message
+	tgbotDeleteAfter(time.Duration(delayInSeconds)*time.Second, func() {
+		t.deleteMessageTgBot(chatId, sentMsg.MessageID) // Delete the message
 		delete(userStates, chatId)
-	}()
+	})
 }
+
+// tgbotDeleteAfter runs f after d; the timer of SendMsgToTgbotDeleteAfter,
+// a test seam (#192).
+var tgbotDeleteAfter = func(d time.Duration, f func()) { time.AfterFunc(d, f) }
 
 // deleteMessageTgBot deletes a message from the chat.
 func (t *Tgbot) deleteMessageTgBot(chatId int64, messageID int) {
