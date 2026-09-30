@@ -34,7 +34,7 @@ func TestScreenServer(t *testing.T) {
 	if !strings.Contains(fake.messages[1].text, "STATUS OF THE SERVER") {
 		t.Errorf("server: %q", fake.messages[1].text)
 	}
-	want := []string{"💾 DB backup", "🔄 Restart xray", "🔗 Chain", "🚫 Ban logs", "♻️ Reset all traffic", "🔄 Refresh",
+	want := []string{"💾 DB backup", "🔄 Restart xray", "🔗 Chain", "🚫 Ban logs", "♻️ Reset all traffic", "📣 Notification channel", "🔄 Refresh",
 		"⬅️ Back", "🏠 Menu"}
 	if got := fake.messages[1].labels; strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("server buttons:\n got %q\nwant %q", got, want)

@@ -514,7 +514,7 @@ func (t *Tgbot) OnReceive() {
 
 		h.HandleMessage(func(ctx *th.Context, message telego.Message) error {
 			if userState, exists := userStates[message.Chat.ID]; exists {
-				if t.answerUsersText(&message, userState) {
+				if t.answerUsersText(&message, userState) || t.answerNotifyText(&message, userState) {
 					return nil
 				}
 				if !fromAdmin(&message) {
