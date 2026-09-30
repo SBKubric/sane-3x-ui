@@ -55,6 +55,9 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		if v.TgId != 0 {
 			b.WriteString(t.I18nBot("tgbot.screen.telegram", "TgId=="+strconv.FormatInt(v.TgId, 10)))
 		}
+		if v.ContactEmail != "" {
+			b.WriteString(t.I18nBot("tgbot.users.contactEmail", "Email=="+html.EscapeString(v.ContactEmail)))
+		}
 	}
 	if v.Comment != "" {
 		b.WriteString(t.I18nBot("tgbot.users.comment", "Comment=="+html.EscapeString(v.Comment)))

@@ -19,6 +19,10 @@ type SubUser struct {
 	Comment   string `json:"comment" gorm:"not null;default:''"`
 	CreatedAt int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
 	UpdatedAt int64  `json:"updatedAt" gorm:"autoUpdateTime:milli"`
+
+	// ContactEmail is the person's mail address, for contact only (#193):
+	// not the xray email of a client, which stays generated. "" = none.
+	ContactEmail string `json:"contactEmail" gorm:"not null;default:''"`
 }
 
 // The technical users: their names are reserved, their keys are not subIds.

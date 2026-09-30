@@ -21,8 +21,8 @@ import (
 //
 // Each handler turns a button (callback data) or a typed text into a
 // usersReply; the screen shows it, answerUsersText for a text. The callback
-// data of these flows starts with "usr_", plus the upstream "add_client"
-// button, which the create flow takes over.
+// data of these flows starts with "usr_"; «➕ New user» is the dialogue of
+// tgbot_screen_newuser.go, which takes over the upstream "add_client" button.
 
 // usersReply is what a users handler wants shown.
 type usersReply struct {
@@ -40,10 +40,8 @@ type usersReply struct {
 
 // Chat states (userStates) of the users flows: the text the chat waits for.
 const (
-	usersStateName    = "usr_name"
-	usersStateComment = "usr_comment"
-	usersStateSearch  = "usr_search"
-	usersStateAssign  = "usr_assign"
+	usersStateSearch = "usr_search"
+	usersStateAssign = "usr_assign"
 )
 
 // usersSession is one chat's state between two messages.
@@ -97,36 +95,15 @@ func (t *Tgbot) answerUsersText(message *telego.Message, state string) bool {
 // usersCallback runs a button of the users flows. ok is false for data that
 // is not theirs.
 func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok bool) {
+	// «➕ New user» (#193): tgbot_screen_newuser.go.
+	if reply, ok := t.newUserCallback(chatId, data); ok {
+		return reply, true
+	}
 	action, args, _ := strings.Cut(data, " ")
 	key, rest, _ := strings.Cut(args, " ")
 	n, _ := strconv.Atoi(args)
 	id, _ := strconv.Atoi(rest)
 	switch action {
-	// create
-	case "add_client":
-		return t.usersCreateStart(chatId), true
-	case "usr_t":
-		return t.usersCreateToggle(chatId, n), true
-	case "usr_pr":
-		return t.usersCreateProtocols(chatId), true
-	case "usr_next":
-		return t.usersCreateNext(chatId), true
-	case "usr_nm":
-		return t.usersAsk(chatId, usersStateName, t.I18nBot("tgbot.users.namePrompt")), true
-	case "usr_cm":
-		return t.usersAsk(chatId, usersStateComment, t.I18nBot("tgbot.users.commentPrompt")), true
-	case "usr_sum":
-		return t.usersDraftReply(chatId), true
-	case "usr_tr", "usr_ex", "usr_ip":
-		return usersReply{keyboard: t.usersLimitKeyboard(action)}, true
-	case "usr_trs", "usr_exs", "usr_ips":
-		return t.usersSetLimit(chatId, action, n), true
-	case "usr_tri", "usr_exi", "usr_ipi":
-		return t.usersKeypadPress(action, args), true
-	case "usr_ok":
-		return t.usersCreateSubmit(chatId, false), true
-	case "usr_lnk":
-		return t.usersCreateSubmit(chatId, true), true
 	case "usr_x":
 		usersSessions.drop(chatId)
 		menu := t.screenMainMenu().usersReply
@@ -173,19 +150,8 @@ func (t *Tgbot) usersCallback(chatId int64, data string) (reply usersReply, ok b
 func (t *Tgbot) usersText(chatId int64, state, text string) (reply usersReply, ok bool) {
 	text = strings.TrimSpace(text)
 	switch state {
-	case usersStateName:
-		if text == "" {
-			return t.usersAsk(chatId, usersStateName, t.I18nBot("tgbot.users.namePrompt")), true
-		}
-		if !t.usersEditDraft(chatId, func(d *usersDraft) { d.name = text }) {
-			return t.usersExpired(), true
-		}
-		return t.usersDraftReply(chatId), true
-	case usersStateComment:
-		if !t.usersEditDraft(chatId, func(d *usersDraft) { d.comment = text }) {
-			return t.usersExpired(), true
-		}
-		return t.usersDraftReply(chatId), true
+	case usersStateNewUser:
+		return t.newUserText(chatId, text), true
 	case usersStateSearch:
 		// A probe's name opens its read-only card (#183).
 		if reply, ok := t.probeSearch(text); ok {

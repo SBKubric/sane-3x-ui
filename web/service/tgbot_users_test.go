@@ -103,32 +103,6 @@ func buttonTexts(t *testing.T, kb *telego.InlineKeyboardMarkup) []string {
 	return out
 }
 
-// TestUserCreateToggleKeyboard: «Add client» opens a toggle keyboard of the
-// inbounds a user can have a client in — AmneziaWG included, WG, MTProto,
-// tunnel, mixed and http left out — with the enabled ones checked, and a
-// button to go on. A tap flips one inbound.
-func TestUserCreateToggleKeyboard(t *testing.T) {
-	bot := usersBotFixture(t)
-
-	reply := press(t, bot, "add_client")
-	got := buttonTexts(t, reply.keyboard)
-	want := []string{"✅ NL Amsterdam #1 (vless)", "✅ de (trojan)", "⬜ vm-off (vmess)", "✅ awg (amneziawg)", "Next ➡️", "❌ Cancel"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("toggle keyboard:\n got %q\nwant %q", got, want)
-	}
-
-	reply = press(t, bot, button(t, reply.keyboard, "de (trojan)"))
-	reply = press(t, bot, button(t, reply.keyboard, "vm-off"))
-	got = buttonTexts(t, reply.keyboard)
-	want = []string{"✅ NL Amsterdam #1 (vless)", "⬜ de (trojan)", "✅ vm-off (vmess)", "✅ awg (amneziawg)", "Next ➡️", "❌ Cancel"}
-	if strings.Join(got, "|") != strings.Join(want, "|") {
-		t.Fatalf("after two taps:\n got %q\nwant %q", got, want)
-	}
-	if reply.text != "" {
-		t.Error("a tap should change the keyboard only")
-	}
-}
-
 // typeText sends text to the users flow the chat is waiting in.
 func typeText(t *testing.T, bot *Tgbot, text string) usersReply {
 	t.Helper()
@@ -142,160 +116,6 @@ func typeText(t *testing.T, bot *Tgbot, text string) usersReply {
 		t.Fatalf("state %q not handled", state)
 	}
 	return reply
-}
-
-// TestUserCreateSubmit walks the create flow: the ticked inbounds, a name, the
-// limits — a preset, a typed-in number and the IP limit — a comment, and
-// Create. The user gets one client per ticked inbound, each with the limits,
-// and the reply carries the subscription link.
-func TestUserCreateSubmit(t *testing.T) {
-	bot := usersBotFixture(t)
-	reply := press(t, bot, "add_client")
-	reply = press(t, bot, button(t, reply.keyboard, "de (trojan)"))
-	reply = press(t, bot, button(t, reply.keyboard, "Next"))
-	if !strings.Contains(reply.text, "name") || userStates[usersTestChat] == "" {
-		t.Fatalf("Next should ask for the name: %+v, state %q", reply, userStates[usersTestChat])
-	}
-
-	reply = typeText(t, bot, "  ")
-	if userStates[usersTestChat] == "" {
-		t.Fatalf("an empty name should be asked again: %+v", reply)
-	}
-	reply = typeText(t, bot, "ivan")
-	for _, want := range []string{"ivan", "NL Amsterdam #1 (vless), awg (amneziawg)"} {
-		if !strings.Contains(reply.text, want) {
-			t.Errorf("summary lacks %q:\n%s", want, reply.text)
-		}
-	}
-
-	// Traffic: a typed-in 15 GB.
-	reply = press(t, bot, button(t, reply.keyboard, "Traffic Limit"))
-	reply = press(t, bot, button(t, reply.keyboard, "Custom"))
-	reply = press(t, bot, button(t, reply.keyboard, "1"))
-	reply = press(t, bot, button(t, reply.keyboard, "5"))
-	reply = press(t, bot, button(t, reply.keyboard, "Confirm adding: 15"))
-	if !strings.Contains(reply.text, "15.00GB") {
-		t.Errorf("summary after the traffic limit:\n%s", reply.text)
-	}
-	reply = press(t, bot, button(t, reply.keyboard, "Expiry"))
-	reply = press(t, bot, button(t, reply.keyboard, "Add 7 Days"))
-	reply = press(t, bot, button(t, reply.keyboard, "IP Limit"))
-	reply = press(t, bot, button(t, reply.keyboard, "2"))
-	press(t, bot, button(t, reply.keyboard, "Comment"))
-	reply = typeText(t, bot, "a friend")
-	for _, want := range []string{"7 days after first use", "IP Limit: 2", "a friend"} {
-		if !strings.Contains(reply.text, want) {
-			t.Errorf("summary lacks %q:\n%s", want, reply.text)
-		}
-	}
-
-	reply = press(t, bot, button(t, reply.keyboard, "Create"))
-	v, err := (&SubUserService{}).Find("ivan")
-	if err != nil {
-		t.Fatalf("user not created: %v (reply %+v)", err, reply)
-	}
-	if v.Comment != "a friend" || len(v.Clients) != 2 {
-		t.Fatalf("user: %+v", v)
-	}
-	for _, name := range []string{"ivan-NL-Amsterdam-1", "ivan-awg"} {
-		c := clientByName(t, v, name)
-		if c.TotalGB != 15<<30 || c.ExpiryTime != -7*86400000 || c.LimitIp != 2 || !c.Enable {
-			t.Errorf("client %s: %+v", name, c)
-		}
-	}
-	if link := "http://localhost:2096/sub/" + v.SubId; !strings.Contains(reply.text, link) {
-		t.Errorf("reply lacks the subscription link %s:\n%s", link, reply.text)
-	}
-	// The draft is gone: a second Create does nothing.
-	if again := press(t, bot, "usr_ok"); !strings.Contains(again.text, "expired") {
-		t.Errorf("second Create: %+v", again)
-	}
-}
-
-// TestUserCreateNeedsAProtocol: Next with nothing ticked stays put.
-func TestUserCreateNeedsAProtocol(t *testing.T) {
-	bot := usersBotFixture(t)
-	reply := press(t, bot, "add_client")
-	for _, label := range []string{"NL Amsterdam", "de (trojan)", "awg"} {
-		reply = press(t, bot, button(t, reply.keyboard, label))
-	}
-	reply = press(t, bot, button(t, reply.keyboard, "Next"))
-	if !strings.Contains(reply.toast, "at least one") || reply.text != "" || userStates[usersTestChat] != "" {
-		t.Errorf("Next with nothing ticked: %+v", reply)
-	}
-}
-
-// createViaBot runs the create flow for name with the given inbounds ticked
-// (by label) on top of the enabled ones unticked, and presses Create.
-func createViaBot(t *testing.T, bot *Tgbot, name string, labels ...string) usersReply {
-	t.Helper()
-	reply := press(t, bot, "add_client")
-	for _, label := range []string{"NL Amsterdam", "de (trojan)", "awg"} { // untick the enabled ones
-		reply = press(t, bot, button(t, reply.keyboard, label))
-	}
-	for _, label := range labels {
-		reply = press(t, bot, button(t, reply.keyboard, label))
-	}
-	press(t, bot, button(t, reply.keyboard, "Next"))
-	reply = typeText(t, bot, name)
-	return press(t, bot, button(t, reply.keyboard, "Create"))
-}
-
-// TestUserCreateRollsBackThroughTheBot: a failure half-way is shown as the
-// service words it and leaves no user; the draft stays for another try.
-func TestUserCreateRollsBackThroughTheBot(t *testing.T) {
-	bot := usersBotFixture(t)
-	if err := database.GetDB().Exec(`CREATE TRIGGER fail_inbound_2 BEFORE UPDATE ON inbounds WHEN NEW.id = 2
-		BEGIN SELECT RAISE(ABORT, 'injected failure'); END`).Error; err != nil {
-		t.Fatal(err)
-	}
-	before := mustInbound(t, &InboundService{}, 1).Settings
-
-	reply := createViaBot(t, bot, "ivan", "NL Amsterdam", "de (trojan)", "awg")
-	if !strings.Contains(reply.text, "injected failure") || reply.route != "" {
-		t.Errorf("failed create: %+v", reply)
-	}
-	if _, err := (&SubUserService{}).Find("ivan"); err == nil {
-		t.Error("the user survived the failed create")
-	}
-	if after := mustInbound(t, &InboundService{}, 1).Settings; after != before {
-		t.Errorf("inbound 1 kept the rolled-back client:\n%s", after)
-	}
-	if again := press(t, bot, "usr_ok"); strings.Contains(again.text, "expired") {
-		t.Errorf("the draft is gone after a failure: %+v", again)
-	}
-}
-
-// TestUserCreateLinksAnExistingAwgClient: an AmneziaWG client with the name
-// the new client would get and no subscription is offered for linking, and
-// linking makes the user without a second AWG client.
-func TestUserCreateLinksAnExistingAwgClient(t *testing.T) {
-	bot := usersBotFixture(t)
-	awgPeer(t, 1, "ivan-awg", "")
-	awgBefore := countAwgClients(t)
-
-	reply := createViaBot(t, bot, "ivan", "NL Amsterdam", "awg")
-	if !strings.Contains(reply.text, "Link the existing AWG client <code>ivan-awg</code>") {
-		t.Fatalf("no link question: %+v", reply)
-	}
-	if _, err := (&SubUserService{}).Find("ivan"); err == nil {
-		t.Fatal("the user was created before the operator answered")
-	}
-	reply = press(t, bot, button(t, reply.keyboard, "Link"))
-	v, err := (&SubUserService{}).Find("ivan")
-	if err != nil {
-		t.Fatalf("after linking: %v (%+v)", err, reply)
-	}
-	if c := clientByName(t, v, "ivan-awg"); c.Key != uuidN(1) {
-		t.Errorf("linked client: %+v", c)
-	}
-	clientByName(t, v, "ivan-NL-Amsterdam-1")
-	if n := countAwgClients(t); n != awgBefore {
-		t.Errorf("AWG clients: %d, want %d", n, awgBefore)
-	}
-	if !strings.Contains(reply.text, "/sub/"+v.SubId) {
-		t.Errorf("reply lacks the subscription link:\n%s", reply.text)
-	}
 }
 
 func mustCreateUser(t *testing.T, req SubUserCreate) *SubUserView {
@@ -489,12 +309,12 @@ func TestUserFlowsSpeakRussian(t *testing.T) {
 	initTestBotLocale(t, "ru-RU")
 	awgPeer(t, 1, "ivan-awg", "")
 
-	reply := press(t, bot, "add_client")
-	button(t, reply.keyboard, "Далее ➡️")
-	reply = press(t, bot, button(t, reply.keyboard, "de (trojan)"))
-	press(t, bot, button(t, reply.keyboard, "Далее"))
-	reply = typeText(t, bot, "ivan")
-	reply = press(t, bot, button(t, reply.keyboard, "Создать"))
+	press(t, bot, "add_client")
+	typeText(t, bot, "ivan")
+	for _, data := range []string{"nu_skip", "nu_go limits", "nu_go tg", "nu_go review"} {
+		press(t, bot, data)
+	}
+	reply := press(t, bot, "nu_ok")
 	if !strings.Contains(reply.text, "Привязать существующего AWG-клиента <code>ivan-awg</code> к подписке?") {
 		t.Errorf("link question: %s", reply.text)
 	}
