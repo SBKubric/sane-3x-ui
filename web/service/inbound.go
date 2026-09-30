@@ -3208,34 +3208,18 @@ func (s *InboundService) DelDedicatedDepletedClients(id int) {
 
 func (s *InboundService) GetClientTrafficTgBot(tgId int64) ([]*xray.ClientTraffic, error) {
 	db := database.GetDB()
-	var inbounds []*model.Inbound
 
-	// Retrieve inbounds where settings contain the given tgId
-	err := db.Model(model.Inbound{}).Where("settings LIKE ?", fmt.Sprintf(`%%"tgId": %d%%`, tgId)).Find(&inbounds).Error
-	if err != nil && err != gorm.ErrRecordNotFound {
-		logger.Errorf("Error retrieving inbounds with tgId %d: %v", tgId, err)
+	// The clients carrying tgId, read from the parsed settings (#201).
+	owned, err := clientsOfTelegram(tgId)
+	if err != nil {
+		logger.Errorf("Error retrieving clients with tgId %d: %v", tgId, err)
 		return nil, err
-	}
-
-	var emails []string
-	for _, inbound := range inbounds {
-		clients, err := s.GetClients(inbound)
-		if err != nil {
-			logger.Errorf("Error retrieving clients for inbound %d: %v", inbound.Id, err)
-			continue
-		}
-		for _, client := range clients {
-			if client.TgID == tgId {
-				emails = append(emails, client.Email)
-			}
-		}
 	}
 
 	// Chunked to stay under SQLite's bind-variable limit when a single Telegram
 	// account owns thousands of clients across inbounds.
-	uniqEmails := uniqueNonEmptyStrings(emails)
-	traffics := make([]*xray.ClientTraffic, 0, len(uniqEmails))
-	for _, batch := range chunkStrings(uniqEmails, sqliteMaxVars) {
+	traffics := make([]*xray.ClientTraffic, 0, len(owned.xrayEmails)+len(owned.tunnels))
+	for _, batch := range chunkStrings(owned.xrayEmails, sqliteMaxVars) {
 		var page []*xray.ClientTraffic
 		if err = db.Model(xray.ClientTraffic{}).Where("email IN ?", batch).Find(&page).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
@@ -3246,10 +3230,6 @@ func (s *InboundService) GetClientTrafficTgBot(tgId int64) ([]*xray.ClientTraffi
 		}
 		traffics = append(traffics, page...)
 	}
-	if len(traffics) == 0 {
-		logger.Warning("No ClientTraffic records found for emails:", emails)
-		return nil, nil
-	}
 
 	// Populate UUID and other client data for each traffic record
 	for i := range traffics {
@@ -3259,7 +3239,12 @@ func (s *InboundService) GetClientTrafficTgBot(tgId int64) ([]*xray.ClientTraffi
 			traffics[i].SubId = client.SubID
 		}
 	}
+	traffics = append(traffics, tunnelClientTraffics(owned.tunnels)...)
 
+	if len(traffics) == 0 {
+		logger.Warning("No ClientTraffic records found for tgId:", tgId)
+		return nil, nil
+	}
 	return traffics, nil
 }
 
