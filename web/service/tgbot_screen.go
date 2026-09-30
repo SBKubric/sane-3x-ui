@@ -153,7 +153,7 @@ func (t *Tgbot) screenPressAs(query *telego.CallbackQuery, client int64) {
 		t.sendCallbackAnswerTgBot(query.ID, t.I18nBot("tgbot.screen.stale"))
 		return
 	}
-	delete(userStates, chatId)
+	userStates.clear(chatId)
 	data, err := t.decodeQuery(query.Data)
 	if err != nil {
 		// The button's data is gone (it outlived the hash storage): show the

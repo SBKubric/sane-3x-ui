@@ -40,11 +40,13 @@ const (
 )
 
 // telegramSubUsers are the users of a Telegram account: today, the regular
-// users one of whose clients carries its ID. This is the one place that ties
+// users one of whose clients carries its ID, as clientsOfTelegram reads it
+// from the parsed settings (#201). This is the one place that ties
 // an account to users; #186 moves it to the Telegram account itself.
 func telegramSubUsers(tgId int64) ([]*SubUserView, error) {
-	if tgId == 0 {
-		return nil, nil
+	owned, err := clientsOfTelegram(tgId)
+	if err != nil || owned.empty() {
+		return nil, err
 	}
 	all, err := (&SubUserService{}).List()
 	if err != nil {
@@ -52,7 +54,7 @@ func telegramSubUsers(tgId int64) ([]*SubUserView, error) {
 	}
 	var out []*SubUserView
 	for _, v := range all {
-		if !v.Technical && slices.ContainsFunc(v.Clients, func(c SubUserClient) bool { return c.TgId == tgId }) {
+		if !v.Technical && slices.ContainsFunc(v.Clients, owned.has) {
 			out = append(out, v)
 		}
 	}

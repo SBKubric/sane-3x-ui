@@ -50,7 +50,7 @@ func (t *Tgbot) usersList(chatId int64, page int) usersReply {
 		tu.InlineKeyboardButton("🤖 "+model.SubUserRobot).WithCallbackData("usr_c "+model.SubUserRobotKey),
 		tu.InlineKeyboardButton("📡 "+model.SubUserMonitoring).WithCallbackData("usr_c "+model.SubUserMonitoringKey),
 	))
-	userStates[chatId] = usersStateSearch
+	userStates.set(chatId, usersStateSearch)
 	return usersReply{text: t.I18nBot("tgbot.screen.usersTitle", "Count=="+strconv.Itoa(len(users))),
 		keyboard: tu.InlineKeyboard(rows...), route: fmt.Sprintf("%s %d", usersListAction, page)}
 }
@@ -144,12 +144,12 @@ func (t *Tgbot) usersSearchReply(chatId int64, query string) usersReply {
 	query = strings.TrimSpace(query)
 	users, err := (&SubUserService{}).Search(query)
 	if err != nil {
-		userStates[chatId] = usersStateSearch
+		userStates.set(chatId, usersStateSearch)
 		return t.usersError(err)
 	}
 	switch len(users) {
 	case 0:
-		userStates[chatId] = usersStateSearch
+		userStates.set(chatId, usersStateSearch)
 		return usersReply{text: t.I18nBot("tgbot.screen.notFound", "Query=="+html.EscapeString(query))}
 	case 1:
 		return t.usersCardReply(users[0].SubId)
@@ -163,7 +163,7 @@ func (t *Tgbot) usersFound(chatId int64, query string) usersReply {
 	if err != nil {
 		return t.usersError(err)
 	}
-	userStates[chatId] = usersStateSearch
+	userStates.set(chatId, usersStateSearch)
 	var kb *telego.InlineKeyboardMarkup
 	if rows := t.usersLines(users); len(rows) > 0 {
 		kb = tu.InlineKeyboard(rows...)

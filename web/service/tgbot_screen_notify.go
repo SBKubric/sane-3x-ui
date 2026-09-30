@@ -101,7 +101,7 @@ func (t *Tgbot) answerNotifyText(message *telego.Message, state string) bool {
 		return true
 	}
 	chatId := message.Chat.ID
-	delete(userStates, chatId)
+	userStates.clear(chatId)
 	t.screenText(chatId, message.MessageID, t.notifySet(chatId, message))
 	return true
 }
@@ -170,7 +170,7 @@ func (t *Tgbot) screenNotify(chatId int64) screenReply {
 	if err != nil {
 		return screenReply{usersReply: t.usersError(err)}
 	}
-	userStates[chatId] = notifyStateChannel
+	userStates.set(chatId, notifyStateChannel)
 	button := func(key, data string) telego.InlineKeyboardButton {
 		return tu.InlineKeyboardButton(t.I18nBot(key)).WithCallbackData(data)
 	}

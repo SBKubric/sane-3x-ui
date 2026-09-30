@@ -169,7 +169,7 @@ func TestScreenStartReplacesTheScreen(t *testing.T) {
 // the flow the chat waits in gets it.
 func adminText(t *testing.T, bot *Tgbot, id int, text string) {
 	t.Helper()
-	state, waiting := userStates[usersTestChat]
+	state, waiting := userStates.get(usersTestChat)
 	if !waiting {
 		t.Fatalf("the chat waits for no text (sending %q)", text)
 	}

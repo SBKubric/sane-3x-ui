@@ -43,7 +43,7 @@ func usersBotFixture(t *testing.T) *Tgbot {
 		hashStorage = prevHash
 		usersSessions.drop(usersTestChat)
 		botScreens.drop(usersTestChat)
-		delete(userStates, usersTestChat)
+		userStates.clear(usersTestChat)
 	})
 	return &Tgbot{}
 }
@@ -106,11 +106,11 @@ func buttonTexts(t *testing.T, kb *telego.InlineKeyboardMarkup) []string {
 // typeText sends text to the users flow the chat is waiting in.
 func typeText(t *testing.T, bot *Tgbot, text string) usersReply {
 	t.Helper()
-	state, waiting := userStates[usersTestChat]
+	state, waiting := userStates.get(usersTestChat)
 	if !waiting {
 		t.Fatalf("the chat waits for no text (typing %q)", text)
 	}
-	delete(userStates, usersTestChat) // as OnReceive's handlers do
+	userStates.clear(usersTestChat) // as OnReceive's handlers do
 	reply, ok := bot.usersText(usersTestChat, state, text)
 	if !ok {
 		t.Fatalf("state %q not handled", state)
@@ -280,8 +280,8 @@ func TestUserSearch(t *testing.T) {
 	}
 	press(t, bot, "usr_menu")
 	reply := typeText(t, bot, "nobody")
-	if !strings.Contains(reply.text, "Nobody found for «nobody»") || userStates[usersTestChat] != usersStateSearch {
-		t.Errorf("search for nobody: %+v, state %q", reply, userStates[usersTestChat])
+	if !strings.Contains(reply.text, "Nobody found for «nobody»") || stateOf(usersTestChat) != usersStateSearch {
+		t.Errorf("search for nobody: %+v, state %q", reply, stateOf(usersTestChat))
 	}
 }
 

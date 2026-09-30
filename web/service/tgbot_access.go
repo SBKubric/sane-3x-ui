@@ -35,11 +35,15 @@ var clientLinkCallbacks = []string{"client_sub_links", "client_individual_links"
 // clientMayPress reports whether a sender who is not an admin may press a
 // button carrying this data: one of clientCallbacks, or a route naming a
 // user of the sender's own, a tunnel client of theirs by uuid, or a client
-// of theirs by email. telegramSubUsers says whose they are.
+// of theirs by email. telegramSubUsers says whose they are. Data longer
+// than Telegram takes comes as a hash (encodeQuery), and the check is on
+// what it stands for. A hash the bot no longer knows (#199) stands for
+// nothing: it may be pressed, and the chat's screen shows its view afresh
+// (screenPressAs), through the client's routes, which check it again.
 func (t *Tgbot) clientMayPress(query *telego.CallbackQuery) bool {
 	data, err := t.decodeQuery(query.Data)
 	if err != nil {
-		return false
+		return true
 	}
 	if clientCallbacks[data] {
 		return true

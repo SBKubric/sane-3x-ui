@@ -65,8 +65,8 @@ func clientCommand(tg *Tgbot, text string) {
 		From: &telego.User{ID: usersTestChat, FirstName: "Client"}}, usersTestChat, checkAdmin(usersTestChat))
 }
 
-// botState is everything the bot could change: every table of the database,
-// the add-client draft, and the chat's state and session.
+// botState is everything the bot could change: every table of the database
+// and the chat's state and session.
 func botState(t *testing.T) string {
 	t.Helper()
 	db := database.GetDB()
@@ -94,12 +94,10 @@ func botState(t *testing.T) string {
 		}
 		rows.Close()
 	}
-	state, hasState := userStates[usersTestChat]
+	state, hasState := userStates.get(usersTestChat)
 	usersSessions.mu.Lock()
 	session := usersSessions.m[usersTestChat]
 	usersSessions.mu.Unlock()
-	fmt.Fprintf(&b, "draft id=%s email=%s sub=%s inbound=%d total=%d expiry=%d ip=%d\n",
-		client_Id, client_Email, client_SubID, receiver_inbound_ID, client_TotalGB, client_ExpiryTime, client_LimitIP)
 	fmt.Fprintf(&b, "state=%q/%v session=%v\n", state, hasState, session != nil)
 	return b.String()
 }

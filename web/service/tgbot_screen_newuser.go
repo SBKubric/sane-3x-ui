@@ -412,7 +412,7 @@ func (t *Tgbot) newUserView(chatId int64, d *usersDraft, errText string) usersRe
 	}
 	rows = append(rows, tu.InlineKeyboardRow(cancel))
 	if waits {
-		userStates[chatId] = usersStateNewUser
+		userStates.set(chatId, usersStateNewUser)
 	}
 	return usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...)}
 }

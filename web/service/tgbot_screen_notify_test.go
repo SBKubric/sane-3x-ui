@@ -69,17 +69,15 @@ func notifyScreenFixture(t *testing.T, channel string) (*Tgbot, *channelTelegram
 // channel, as the bot's message handler passes it on.
 func adminSends(t *testing.T, tg *Tgbot, message telego.Message) {
 	t.Helper()
-	state, waiting := userStates[usersTestChat]
-	if !waiting {
-		t.Fatalf("the chat waits for no message")
+	state, waiting := userStates.get(usersTestChat)
+	if !waiting || state != notifyStateChannel {
+		t.Fatalf("the chat does not wait for the channel (state %q)", state)
 	}
 	message.Chat = telego.Chat{ID: usersTestChat}
 	if message.From == nil {
 		message.From = &telego.User{ID: 1}
 	}
-	if !tg.answerNotifyText(&message, state) {
-		t.Fatalf("the notification screen did not take the message (state %q)", state)
-	}
+	tg.answerChatState(&message)
 }
 
 func storedChannel(t *testing.T) string {
@@ -157,7 +155,7 @@ func TestNotifyScreenSetsTheChannel(t *testing.T) {
 			if len(fake.live()) != 1 {
 				t.Errorf("the chat shows %v", fake.live())
 			}
-			if _, waiting := userStates[usersTestChat]; !waiting {
+			if _, waiting := userStates.get(usersTestChat); !waiting {
 				t.Error("the screen should keep waiting for another channel")
 			}
 		})
@@ -195,7 +193,7 @@ func TestNotifyScreenRefusesWhatIsNoChannel(t *testing.T) {
 			if last := fake.calls[len(fake.calls)-1]; last != "deleteMessage #100" {
 				t.Errorf("the admin's message should be deleted: %q", fake.calls)
 			}
-			if _, waiting := userStates[usersTestChat]; !waiting {
+			if _, waiting := userStates.get(usersTestChat); !waiting {
 				t.Error("the screen should keep waiting for a channel")
 			}
 		})
@@ -263,7 +261,7 @@ func TestNotifyScreenDisables(t *testing.T) {
 	if len(fake.posts) != 0 {
 		t.Errorf("posted %q", fake.posts)
 	}
-	if _, waiting := userStates[usersTestChat]; !waiting {
+	if _, waiting := userStates.get(usersTestChat); !waiting {
 		t.Error("the screen should wait for a new channel")
 	}
 }
