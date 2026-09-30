@@ -45,8 +45,8 @@ func accessBotFixture(t *testing.T) *Tgbot {
 	return tg
 }
 
-// clientPress is a tap of usersTestChat, no admin, on a button carrying data.
-func clientPress(tg *Tgbot, data string) {
+// nonAdminPress is a tap of usersTestChat, no admin, on a button carrying data.
+func nonAdminPress(tg *Tgbot, data string) {
 	tg.answerCallback(&telego.CallbackQuery{ID: "q", From: telego.User{ID: usersTestChat}, Data: data,
 		Message: &telego.Message{MessageID: 9, Chat: telego.Chat{ID: usersTestChat}}}, checkAdmin(usersTestChat))
 }
@@ -156,7 +156,7 @@ func TestNonAdminCallbacksAreLimitedToClientActions(t *testing.T) {
 				continue
 			}
 			fake.calls = nil
-			clientPress(tg, data)
+			nonAdminPress(tg, data)
 			if len(fake.calls) != 1 || fake.calls[0].method != "answerCallbackQuery" ||
 				fake.calls[0].params["text"] != "❗ No result!" {
 				t.Errorf("%q: the bot said\n%s", data, fake.texts())
@@ -174,20 +174,20 @@ func TestNonAdminClientMenuStillWorks(t *testing.T) {
 	tg := accessBotFixture(t)
 	fake := withFakeTelegram(t)
 
-	clientPress(tg, "client_traffic")
+	nonAdminPress(tg, "client_traffic")
 	if got := fake.texts(); !strings.Contains(got, "mine-1") || strings.Contains(got, "other-") {
 		t.Errorf("client_traffic:\n%s", got)
 	}
 
 	fake.calls = nil
-	clientPress(tg, "client_commands")
+	nonAdminPress(tg, "client_commands")
 	if text, _ := fake.lastSent(t); !strings.Contains(text, "/usage [Email]") || strings.Contains(text, "/restart") {
 		t.Errorf("client_commands: %q", text)
 	}
 
 	for _, action := range []string{"client_sub_links", "client_individual_links", "client_qr_links"} {
 		fake.calls = nil
-		clientPress(tg, action)
+		nonAdminPress(tg, action)
 		_, labels, data := fake.lastKeyboard(t)
 		if strings.Join(labels, "|") != "mine-1" || data["mine-1"] != action+" mine-1" {
 			t.Errorf("%s: %q %v", action, labels, data)
@@ -198,7 +198,7 @@ func TestNonAdminClientMenuStillWorks(t *testing.T) {
 	}
 
 	fake.calls = nil
-	clientPress(tg, "client_sub_links mine-1")
+	nonAdminPress(tg, "client_sub_links mine-1")
 	if text, _ := fake.lastSent(t); !strings.Contains(text, "Subscription URL") || !strings.Contains(text, "s-mine") {
 		t.Errorf("client_sub_links mine-1: %q", text)
 	}
