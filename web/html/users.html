@@ -43,6 +43,11 @@
                         <a-tag color="orange" data-testid="user-technical" :style="{ marginInlineStart: '6px' }">{{
                           i18n "pages.subUsers.technical" }}</a-tag>
                       </a-tooltip>
+                      <!-- #186: a client carries a Telegram ID other than the user's -->
+                      <a-tooltip v-if="user.tgConflict" title='{{ i18n "pages.subUsers.telegram.conflictDesc" }}'>
+                        <a-tag color="red" data-testid="user-tg-conflict" class="users-tag-link"
+                          @click="openTelegram(user)">{{ i18n "pages.subUsers.telegram.conflict" }}</a-tag>
+                      </a-tooltip>
                       <div class="users-muted" v-if="user.comment">[[ user.comment ]]</div>
                     </template>
 
@@ -108,6 +113,11 @@
                           <a-button size="small" data-testid="user-clients" @click="openClients(user)">
                             <a-icon type="unordered-list"></a-icon>[[ user.clients.length ]]
                           </a-button>
+                        </a-tooltip>
+                        <a-tooltip v-if="!user.technical && (user.tgId || user.tgConflict)"
+                          title='{{ i18n "pages.subUsers.telegram.button" }}'>
+                          <a-button size="small" icon="message" data-testid="user-telegram"
+                            @click="openTelegram(user)"></a-button>
                         </a-tooltip>
                         <a-tooltip v-if="!user.technical" title='{{ i18n "delete" }}'>
                           <a-button size="small" type="danger" icon="delete" data-testid="user-delete"
@@ -237,6 +247,48 @@
     </template>
   </a-modal>
 
+  <!-- The user's Telegram (#186): its id, the ids on its clients with who else has each; assign or unlink. -->
+  <a-modal v-model="telegramModal.visible" :title="telegramModal.tg ? TEXT.telegram + ': ' + telegramModal.tg.name : ''"
+    :class="themeSwitcher.currentTheme" :width="isMobile ? '100%' : 760">
+    <template v-if="telegramModal.tg">
+      <p data-testid="users-tg-current">
+        {{ i18n "pages.subUsers.telegram.current" }}:
+        <b v-if="telegramModal.tg.tgId">[[ telegramModal.tg.tgId ]]<span class="users-muted"> [[
+            accountLabel(telegramModal.tg.account) ]]</span></b>
+        <span v-else class="users-muted">{{ i18n "pages.subUsers.telegram.none" }}</span>
+        <a-tag v-if="telegramModal.tg.conflict" color="red" :style="{ marginInlineStart: '8px' }">{{ i18n
+          "pages.subUsers.telegram.conflict" }}</a-tag>
+      </p>
+      <template v-if="telegramModal.tg.candidates.length">
+        <h4>{{ i18n "pages.subUsers.telegram.onClients" }}</h4>
+        <a-table :columns="telegramColumns" :data-source="telegramModal.tg.candidates" :row-key="c => String(c.tgId)"
+          :pagination="false" size="small" :scroll="isMobile ? { x: 600 } : {}">
+          <template slot="tgId" slot-scope="text, c">
+            <b :data-testid="'users-tg-candidate-' + c.tgId">[[ c.tgId ]]</b>
+            <span class="users-muted"> [[ accountLabel(c.account) ]]</span>
+          </template>
+          <template slot="clients" slot-scope="text, c">[[ c.clients.join(', ') ]]</template>
+          <template slot="others" slot-scope="text, c">
+            <div v-if="c.owner">{{ i18n "pages.subUsers.telegram.owner" }} <b>[[ c.owner ]]</b></div>
+            <div v-if="c.alsoOn.length" class="users-muted">{{ i18n "pages.subUsers.telegram.alsoOn" }} [[
+              c.alsoOn.join(', ') ]]</div>
+          </template>
+          <template slot="action" slot-scope="text, c">
+            <a-button v-if="c.assignable" size="small" type="primary" :data-testid="'users-tg-assign-' + c.tgId"
+              :loading="telegramModal.loading === c.tgId" @click="assignTelegram(c.tgId)">{{ i18n
+              "pages.subUsers.telegram.assign" }} [[ c.tgId ]]</a-button>
+          </template>
+        </a-table>
+      </template>
+    </template>
+    <template slot="footer">
+      <a-button v-if="telegramModal.tg && (telegramModal.tg.tgId || telegramModal.tg.candidates.length)" type="danger"
+        data-testid="users-tg-unlink" @click="confirmUnlinkTelegram">{{ i18n "pages.subUsers.telegram.unlink"
+        }}</a-button>
+      <a-button data-testid="users-tg-close" @click="telegramModal.visible = false">{{ i18n "close" }}</a-button>
+    </template>
+  </a-modal>
+
   <!-- The subscription link as a QR code; a click on it copies the link. -->
   <a-modal v-model="qrModal.visible" :title="qrModal.user ? qrModal.user.name : ''" :class="themeSwitcher.currentTheme"
     width="fit-content">
@@ -283,6 +335,11 @@
   .users-tag-action {
     margin-inline-start: 4px;
     cursor: pointer;
+  }
+
+  .users-tag-link {
+    cursor: pointer;
+    margin-inline-start: 6px;
   }
 
   .users-tag-add {
@@ -346,6 +403,10 @@
     linkTitle: '{{ i18n "pages.subUsers.linkTitle" }}',
     link: '{{ i18n "pages.subUsers.link" }}',
     copied: '{{ i18n "copied" }}',
+    telegram: '{{ i18n "pages.subUsers.telegram.title" }}',
+    unlinkTitle: '{{ i18n "pages.subUsers.telegram.unlinkTitle" }}',
+    unlinkContent: '{{ i18n "pages.subUsers.telegram.unlinkContent" }}',
+    unlink: '{{ i18n "pages.subUsers.telegram.unlink" }}',
   };
 
   // usersApi calls /panel/api/users/<path> and answers the panel envelope
@@ -389,6 +450,13 @@
       clientsModal: { visible: false, user: null },
       assignModal: { visible: false, loading: false, client: null, target: undefined },
       qrModal: { visible: false, user: null, link: '' },
+      telegramModal: { visible: false, loading: null, tg: null },
+      telegramColumns: [
+        { title: 'Telegram ID', scopedSlots: { customRender: 'tgId' } },
+        { title: '{{ i18n "pages.subUsers.telegram.clients" }}', scopedSlots: { customRender: 'clients' } },
+        { title: '', scopedSlots: { customRender: 'others' } },
+        { title: '', scopedSlots: { customRender: 'action' } },
+      ],
       columns: [
         // Protocols and the subscription link take what the others leave.
         { title: '{{ i18n "pages.subUsers.name" }}', width: 140, scopedSlots: { customRender: 'name' } },
@@ -675,6 +743,52 @@
         const msg = await usersApi('assign/' + encodeURIComponent(m.target), { client: m.client.name });
         m.loading = false;
         if (await this.after(msg)) m.visible = false;
+      },
+
+      // --- Telegram (#186) --------------------------------------------------------
+
+      // accountLabel names a Telegram account the bot saw: its @nick, else its name.
+      accountLabel(account) {
+        if (!account) return '';
+        if (account.username) return '(@' + account.username + ')';
+        const name = [account.firstName, account.lastName].filter(Boolean).join(' ');
+        return name ? '(' + name + ')' : '';
+      },
+      async loadTelegram(subId) {
+        const msg = await usersApi('telegram/' + encodeURIComponent(subId));
+        if (!msg.success) {
+          this.$message.error(msg.msg);
+          return false;
+        }
+        this.telegramModal.tg = msg.obj;
+        return true;
+      },
+      async openTelegram(user) {
+        this.telegramModal = { visible: false, loading: null, tg: null };
+        if (await this.loadTelegram(user.subId)) this.telegramModal.visible = true;
+      },
+      async assignTelegram(tgId) {
+        const m = this.telegramModal;
+        m.loading = tgId;
+        const msg = await usersApi('setTelegram/' + encodeURIComponent(m.tg.subId), { tgId: tgId });
+        m.loading = null;
+        if (await this.after(msg)) await this.loadTelegram(m.tg.subId);
+      },
+      confirmUnlinkTelegram() {
+        const m = this.telegramModal;
+        this.$confirm({
+          title: USERS_TEXT.unlinkTitle + ': ' + m.tg.name,
+          content: USERS_TEXT.unlinkContent,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.unlink,
+          okType: 'danger',
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            if (await this.after(await usersApi('unlinkTelegram/' + encodeURIComponent(m.tg.subId), {}))) {
+              await this.loadTelegram(m.tg.subId);
+            }
+          },
+        });
       },
 
       // --- QR ------------------------------------------------------------------

@@ -39,14 +39,13 @@ const (
 	mysubTunnelAction = "my_tun" // my_tun <uuid>: a tunnel client's .conf and QR, as files
 )
 
-// telegramSubUsers are the users of a Telegram account: today, the regular
-// users one of whose clients carries its ID, as clientsOfTelegram reads it
-// from the parsed settings (#201). This is the one place that ties
-// an account to users; #186 moves it to the Telegram account itself.
+// telegramSubUsers are the users of a Telegram account: the regular user
+// whose tgId it is (#186 — sub_users.tg_id is the source, one to one). The
+// clients' tgIds are not read: a client that carries the id of a user
+// without one is a conflict for an admin to resolve, not a way in.
 func telegramSubUsers(tgId int64) ([]*SubUserView, error) {
-	owned, err := clientsOfTelegram(tgId)
-	if err != nil || owned.empty() {
-		return nil, err
+	if tgId == 0 {
+		return nil, nil
 	}
 	all, err := (&SubUserService{}).List()
 	if err != nil {
@@ -54,7 +53,7 @@ func telegramSubUsers(tgId int64) ([]*SubUserView, error) {
 	}
 	var out []*SubUserView
 	for _, v := range all {
-		if !v.Technical && slices.ContainsFunc(v.Clients, owned.has) {
+		if !v.Technical && v.TgId == tgId {
 			out = append(out, v)
 		}
 	}

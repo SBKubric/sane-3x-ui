@@ -163,7 +163,11 @@ func (s *SubUserService) loadIndex() (*subUserIndex, error) {
 			continue
 		}
 		clients, _ := s.inboundService.GetClients(ib)
-		for _, c := range clients {
+		tgIds := xrayClientTgIds(ib.Settings) // a tgId stored as a string too (#186)
+		for i, c := range clients {
+			if len(tgIds) == len(clients) {
+				c.TgID = tgIds[i]
+			}
 			uc := SubUserClient{
 				Kind: SubUserClientXray, InboundId: ib.Id, InboundRemark: ib.Remark, Protocol: string(ib.Protocol),
 				Name: c.Email, Key: xrayClientKey(ib.Protocol, c), SubId: c.SubID, Enable: c.Enable,
@@ -284,11 +288,14 @@ type SubUserView struct {
 	// the subscription's Subscription-Userinfo counts them.
 	Total      int64 `json:"total"`
 	ExpiryTime int64 `json:"expiryTime"`
+	// TgConflict: a client carries a Telegram id other than the user's
+	// (#186) — «⚠️ Telegram: конфликт» until an admin resolves it.
+	TgConflict bool `json:"tgConflict"`
 }
 
 // view builds the view of the user under key.
 func (idx *subUserIndex) view(u *model.SubUser) *SubUserView {
-	v := &SubUserView{SubUser: *u, Technical: u.IsTechnical(), Clients: idx.clientsOf(u.SubId)}
+	v := &SubUserView{SubUser: *u, Technical: u.IsTechnical(), Clients: idx.clientsOf(u.SubId), TgConflict: idx.tgConflict(u)}
 	if v.Clients == nil {
 		v.Clients = []SubUserClient{}
 	}

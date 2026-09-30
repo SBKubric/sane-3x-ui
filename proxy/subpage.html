@@ -29,10 +29,23 @@
   pre.conf { white-space:pre-wrap; max-height:220px; overflow:auto; margin:12px 0 0; }
   a.button { display:inline-block; background:#2d6cdf; color:#fff; text-decoration:none; border-radius:8px; padding:10px 14px; font-size:14px; margin:10px 6px 0 0; }
   .hint { color:#9aa4b2; font-size:12px; }
+  .stores { display:flex; gap:12px; margin:0 0 20px; }
+  a.store { flex:1; display:block; background:#2d6cdf; color:#fff; text-decoration:none; border-radius:12px; padding:18px 20px; font-size:17px; text-align:center; }
+  a.store:hover { background:#3a78e8; }
+  a.store span { color:#dbe6fb; }
+  @media (max-width:560px) { .stores { flex-direction:column; } }
 </style>
 </head>
 <body>
 <div class="wrap">
+  {{if .Install}}
+  <div class="stores">
+    {{range .Install}}
+    <a class="store" href="{{.URL}}"><b>{{.Platform}}</b> <span>· {{.Store}} →</span></a>
+    {{end}}
+  </div>
+  {{end}}
+
   <h1>{{.Title}}</h1>
 
   {{if .Used}}

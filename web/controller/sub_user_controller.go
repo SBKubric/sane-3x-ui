@@ -36,6 +36,7 @@ func NewSubUserController(g *gin.RouterGroup) *SubUserController {
 	g.POST("/enable/:subId", a.enable)
 	g.POST("/del/:subId", a.del)
 	g.POST("/assign/:subId", a.assign)
+	a.initTelegramRoutes(g) // #186: sub_user_telegram_controller.go
 	return a
 }
 

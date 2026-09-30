@@ -1,7 +1,6 @@
 package service
 
 import (
-	"slices"
 	"strconv"
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
@@ -46,18 +45,6 @@ func clientsOfTelegram(tgId int64) (telegramClients, error) {
 		return out, err
 	}
 	return out, nil
-}
-
-// has reports whether c is one of the clients.
-func (tc telegramClients) has(c SubUserClient) bool {
-	if c.Kind == SubUserClientXray {
-		return slices.Contains(tc.xrayEmails, c.Name)
-	}
-	return slices.ContainsFunc(tc.tunnels, func(p model.TunnelClient) bool { return p.UUID == c.Key })
-}
-
-func (tc telegramClients) empty() bool {
-	return len(tc.xrayEmails) == 0 && len(tc.tunnels) == 0
 }
 
 // tunnelClientTraffics are the AWG/WG clients as the traffic records the bot
