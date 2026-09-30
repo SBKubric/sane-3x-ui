@@ -144,7 +144,18 @@ func botCallbackData(t *testing.T) []string {
 			return true
 		})
 	}
-	for _, must := range []string{"get_backup", "reset_all_traffics_c", "add_client_submit_enable", "usr_menu", "tun_rtc"} {
+	// The old admin menu's buttons: their handlers are gone (#194), but the
+	// buttons are still in the chats.
+	for _, old := range []string{"get_usage", "usage_refresh", "inbounds", "deplete_soon", "get_backup", "get_banlogs",
+		"onlines", "onlines_refresh", "commands", "add_client", "add_client_ch_default_email", "add_client_ch_default_id",
+		"add_client_ch_default_pass_tr", "add_client_ch_default_pass_sh", "add_client_ch_default_comment",
+		"add_client_ch_default_traffic", "add_client_ch_default_exp", "add_client_ch_default_ip_limit",
+		"add_client_default_info", "add_client_cancel", "add_client_default_traffic_exp", "add_client_default_ip_limit",
+		"add_client_submit_disable", "add_client_submit_enable", "reset_all_traffics_cancel", "reset_all_traffics",
+		"reset_all_traffics_c", "get_sorted_traffic_usage_report"} {
+		seen[old] = true
+	}
+	for _, must := range []string{"usr_menu", "tun_rtc", "reset_traffic_c"} {
 		if !seen[must] {
 			t.Fatalf("case %q not found: the scan misses the bot's callbacks", must)
 		}
