@@ -35,6 +35,10 @@ type SubUserCreate struct {
 	// generated name and no subscription, instead of refusing the create
 	// with a SubUserConflictAwgLinkable conflict.
 	LinkExisting bool `json:"linkExisting"`
+
+	// ContactEmail is the user's mail address for contact, optional: not an
+	// xray email (CheckContactEmail).
+	ContactEmail string `json:"contactEmail"`
 }
 
 // SubUserInbound is an inbound a user can have a client in.
@@ -171,13 +175,20 @@ func (s *SubUserService) Create(req SubUserCreate) (*SubUserView, error) {
 	if err := idx.checkNewUserName(name); err != nil {
 		return nil, err
 	}
+	contactEmail, err := CheckContactEmail(req.ContactEmail)
+	if err != nil {
+		return nil, err
+	}
+	if err := idx.checkNewTgId(req.TgId); err != nil {
+		return nil, err
+	}
 	subId := strings.TrimSpace(req.SubId)
 	if subId == "" {
 		subId = idx.freeSubId()
 	} else if err := idx.checkNewSubId(subId); err != nil {
 		return nil, err
 	}
-	u := &model.SubUser{SubId: subId, Name: name, TgId: req.TgId, Comment: req.Comment}
+	u := &model.SubUser{SubId: subId, Name: name, TgId: req.TgId, Comment: req.Comment, ContactEmail: contactEmail}
 	plans, err := idx.planClients(u, req.InboundIds, req.LinkExisting)
 	if err != nil {
 		return nil, err
