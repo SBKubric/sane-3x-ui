@@ -369,13 +369,13 @@ func TestScreenLostMessage(t *testing.T) {
 }
 
 // TestScreenMainMenu: the admin's main menu as the prototype lays it out,
-// incoming requests hidden.
+// with the incoming requests counted (#221).
 func TestScreenMainMenu(t *testing.T) {
 	tg := usersBotFixture(t)
 	fake := withScreenTelegram(t)
 
 	adminCommand(tg, "/help")
-	want := []string{"👥 Users", "➕ New user", "📋 Inbounds and clients", "🟢 Online", "📊 Reports", "📡 Monitoring",
+	want := []string{"👥 Users", "➕ New user", "📥 Incoming requests (0)", "📋 Inbounds and clients", "🟢 Online", "📊 Reports", "📡 Monitoring",
 		"⚙️ Server", "🔧 Admin panel"}
 	if got := fake.messages[1].labels; strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("main menu:\n got %q\nwant %q", got, want)
@@ -392,7 +392,7 @@ func TestScreenMainMenu(t *testing.T) {
 
 	initTestBotLocale(t, "ru-RU")
 	adminCommand(tg, "/start")
-	wantRu := []string{"👥 Пользователи", "➕ Новый пользователь", "📋 Inbounds и клиенты", "🟢 Онлайн", "📊 Отчёты", "📡 Мониторинг",
+	wantRu := []string{"👥 Пользователи", "➕ Новый пользователь", "📥 Входящие заявки (0)", "📋 Inbounds и клиенты", "🟢 Онлайн", "📊 Отчёты", "📡 Мониторинг",
 		"⚙️ Сервер", "🔧 Админка"}
 	if got := fake.messages[2].labels; strings.Join(got, "|") != strings.Join(wantRu, "|") {
 		t.Errorf("main menu in Russian:\n got %q\nwant %q", got, wantRu)

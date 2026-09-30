@@ -76,6 +76,38 @@
             </template>
         </a-setting-list-item>
     </a-collapse-panel>
+    <!-- request defaults (#221): what «✅ Approve» in the bot gives a request's user -->
+    <a-collapse-panel key="4" header='{{ i18n "pages.settings.subRequestTitle" }}'>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subRequestInbounds" }}</template>
+            <template #description>{{ i18n "pages.settings.subRequestInboundsDesc" }}</template>
+            <template #control>
+                <a-select data-testid="sub-request-inbounds" mode="multiple" v-model="subRequestInboundIds"
+                    placeholder='{{ i18n "pages.settings.subRequestAll" }}'
+                    :dropdown-class-name="themeSwitcher.currentTheme" :style="{ width: '100%' }">
+                    <a-select-option v-for="ib in userInbounds" :key="ib.id" :value="ib.id">
+                        [[ ib.remark ]] ([[ ib.protocol ]])[[ ib.enable ? '' : ' ⏸' ]]
+                    </a-select-option>
+                </a-select>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subRequestTraffic" }}</template>
+            <template #description>{{ i18n "pages.settings.subRequestTrafficDesc" }}</template>
+            <template #control>
+                <a-input-number data-testid="sub-request-traffic" :min="0" :max="999999"
+                    v-model="allSetting.subRequestTrafficGB" :style="{ width: '100%' }"></a-input-number>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subRequestExpiry" }}</template>
+            <template #description>{{ i18n "pages.settings.subRequestExpiryDesc" }}</template>
+            <template #control>
+                <a-input-number data-testid="sub-request-expiry" :min="0" :max="999999"
+                    v-model="allSetting.subRequestExpiryDays" :style="{ width: '100%' }"></a-input-number>
+            </template>
+        </a-setting-list-item>
+    </a-collapse-panel>
     <a-collapse-panel key="3" header='{{ i18n "pages.settings.proxyAndServer" }}'>
         <a-setting-list-item paddings="small">
             <template #title>{{ i18n "pages.settings.telegramProxy"}}</template>

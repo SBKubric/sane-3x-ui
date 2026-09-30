@@ -51,6 +51,9 @@ type usersSession struct {
 	assignClient string
 	// telegramKey is the user the chat is asked a tg_id or @nick for (#219).
 	telegramKey string
+	// rejectRequest is the request the chat is asked a reason to reject
+	// for (#221).
+	rejectRequest int64
 }
 
 type usersSessionStore struct {
@@ -89,6 +92,10 @@ func (t *Tgbot) answerUsersText(message *telego.Message, state string) bool {
 		return true
 	}
 	userStates.clear(message.Chat.ID)
+	if state == requestReasonState { // a request's rejection (#221), which tells the applicant after
+		t.screenText(message.Chat.ID, message.MessageID, t.requestReasonTyped(message.Chat.ID, message.Text))
+		return true
+	}
 	reply, _ := t.usersText(message.Chat.ID, state, message.Text)
 	t.screenText(message.Chat.ID, message.MessageID, screenReply{usersReply: reply})
 	return true

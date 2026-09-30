@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"html"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -24,7 +25,13 @@ import (
 //
 // then the review, whose «✅ Create» makes the user through
 // SubUserService.Create (all or nothing) and shows its card, and whose
-// «◀ Change» goes back to the protocols. «✖ Cancel» on every step drops the
+// «◀ Change» goes back to the protocols.
+//
+// «⚙️ Approve with changes» of a request (#221) opens the review of a draft
+// for the request: its name, the request defaults, the applicant's
+// Telegram. The review adds «✏️ Name», which comes back to it; the Telegram
+// step is skipped; «Create» approves the request (SubRequestService.Approve)
+// and tells the applicant. «✖ Cancel» on every step drops the
 // draft and shows the main menu. The draft is the chat's (usersSessions), so
 // two admins never share one (#200); the typed texts go through the chat
 // state usersStateNewUser, and the screen deletes them.
@@ -80,11 +87,14 @@ type usersDraft struct {
 	invite bool
 	// awgClient is the AmneziaWG client Create offered to link.
 	awgClient string
+	// request is the request the user is made for (#221), 0 for none: its
+	// applicant's Telegram (tgId) is fixed.
+	request int64
 }
 
-// request is the draft as the service takes it, the inbounds in the order
+// create is the draft as the service takes it, the inbounds in the order
 // they were offered.
-func (d *usersDraft) request(linkExisting bool) SubUserCreate {
+func (d *usersDraft) create(linkExisting bool) SubUserCreate {
 	req := SubUserCreate{Name: d.name, ContactEmail: d.email, TgId: d.tgId, LinkExisting: linkExisting,
 		SubUserParams: SubUserParams{TotalGB: int64(d.gb) << 30, ExpiryTime: -int64(d.days) * 86400000}}
 	for _, ib := range d.inbounds {
@@ -140,11 +150,22 @@ func (t *Tgbot) newUserCallback(chatId int64, data string) (usersReply, bool) {
 	case "nu_tgin": // «Enter tg_id / @nick»
 		return t.newUserEdit(chatId, func(d *usersDraft) string {
 			d.step = newUserStepTgInput
+			if d.request != 0 { // a request's Telegram is the applicant's
+				d.step = newUserStepReview
+			}
 			return ""
 		}), true
 	case "nu_inv", "nu_later": // «Create an invite link», «Later»
 		return t.newUserEdit(chatId, func(d *usersDraft) string {
-			d.tgId, d.invite, d.step = 0, action == "nu_inv", newUserStepReview
+			if d.request == 0 {
+				d.tgId, d.invite = 0, action == "nu_inv"
+			}
+			d.step = newUserStepReview
+			return ""
+		}), true
+	case "nu_nm": // «✏️ Name» on a request's review
+		return t.newUserEdit(chatId, func(d *usersDraft) string {
+			d.step = newUserStepName
 			return ""
 		}), true
 	case "nu_ok":
@@ -224,9 +245,11 @@ func (t *Tgbot) newUserGo(chatId int64, step string) usersReply {
 		switch {
 		case d.name == "":
 			d.step = newUserStepName
-		case step != newUserStepProtocols && len(d.request(false).InboundIds) == 0:
+		case step != newUserStepProtocols && len(d.create(false).InboundIds) == 0:
 			toast = t.I18nBot("tgbot.users.noneSelected")
 			d.step = newUserStepProtocols
+		case step == newUserStepTelegram && d.request != 0: // the applicant's Telegram
+			d.step = newUserStepReview
 		default:
 			d.step = step
 		}
@@ -278,6 +301,9 @@ func (t *Tgbot) newUserText(chatId int64, text string) usersReply {
 		switch step {
 		case newUserStepName:
 			d.name, d.step = text, newUserStepEmail
+			if d.request != 0 { // a request's review asked for the name alone
+				d.step = newUserStepReview
+			}
 		case newUserStepEmail:
 			d.email, d.step = email, newUserStepProtocols
 		case newUserStepTraffic:
@@ -297,16 +323,23 @@ func (t *Tgbot) newUserText(chatId int64, text string) usersReply {
 func (t *Tgbot) newUserCreate(chatId int64, linkExisting bool) usersReply {
 	var req *SubUserCreate
 	invite := false
+	var request int64
 	usersSessions.with(chatId, func(s *usersSession) {
 		if s.draft != nil && (s.draft.step == newUserStepReview || s.draft.step == newUserStepLink) {
-			r := s.draft.request(linkExisting)
-			req, invite = &r, s.draft.invite
+			r := s.draft.create(linkExisting)
+			req, invite, request = &r, s.draft.invite, s.draft.request
 		}
 	})
 	if req == nil {
 		return t.usersExpired()
 	}
-	v, err := (&SubUserService{}).Create(*req)
+	var v *SubUserView
+	var err error
+	if request != 0 { // «⚙️ Approve with changes» (#221)
+		v, err = (&SubRequestService{}).Approve(request, requestAdminLabel(chatId), *req)
+	} else {
+		v, err = (&SubUserService{}).Create(*req)
+	}
 	if conflict, ok := awgLinkable(err); ok {
 		return t.newUserEdit(chatId, func(d *usersDraft) string {
 			d.step, d.awgClient = newUserStepLink, conflict.Client
@@ -314,14 +347,24 @@ func (t *Tgbot) newUserCreate(chatId int64, linkExisting bool) usersReply {
 		})
 	}
 	if err != nil {
+		msg := err.Error()
+		if refusal := (*SubRequestRefusal)(nil); errors.As(err, &refusal) && refusal.Code == SubRequestNotPending {
+			msg = strings.TrimPrefix(t.I18nBot("tgbot.requests.notPending"), "⚠️ ")
+		}
 		reply := t.newUserEdit(chatId, func(d *usersDraft) string {
 			d.step = newUserStepReview
-			return err.Error()
+			return msg
 		})
 		reply.toast = t.I18nBot("tgbot.answers.errorOperation")
 		return reply
 	}
 	usersSessions.with(chatId, func(s *usersSession) { s.draft = nil })
+	if request != 0 {
+		reply := t.requestApproved(v, req.TgId)
+		reply.after(chatId)
+		reply.root = true
+		return reply.usersReply
+	}
 	reply := t.usersCardOf(v)
 	if invite { // its invite link instead of the card, the card a press away (#219)
 		reply = t.usersInvite(v.SubId, false)
@@ -432,11 +475,19 @@ func (t *Tgbot) newUserView(chatId int64, d *usersDraft, errText string) usersRe
 	if errText != "" {
 		b.WriteString(t.I18nBot("tgbot.newUser.error", "Error=="+html.EscapeString(errText)))
 	}
+	text := b.String()
+	if d.request != 0 { // a request's user (#221): whose, and its name to change on the review
+		text = t.I18nBot("tgbot.requests.draft",
+			"Account=="+html.EscapeString(requestAccountName(d.tgId, requestAccountOf(d.tgId)))) + text
+		if d.step == newUserStepReview {
+			rows = slices.Insert(rows, 1, tu.InlineKeyboardRow(key("tgbot.requests.changeName", "nu_nm")))
+		}
+	}
 	rows = append(rows, tu.InlineKeyboardRow(cancel))
 	if waits {
 		userStates.set(chatId, usersStateNewUser)
 	}
-	return usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...)}
+	return usersReply{text: text, keyboard: tu.InlineKeyboard(rows...)}
 }
 
 // newUserSummary is what the draft holds so far.

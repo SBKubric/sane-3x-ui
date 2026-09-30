@@ -51,6 +51,9 @@ var defaultValueMap = map[string]string{
 	"tgBotLoginNotify":            "true",
 	"tgCpu":                       "80",
 	"tgLang":                      "en-US",
+	"subRequestInbounds":          "", // request defaults (#221): every enabled inbound
+	"subRequestTrafficGB":         "50",
+	"subRequestExpiryDays":        "30",
 	"twoFactorEnable":             "false",
 	"twoFactorToken":              "",
 	"subEnable":                   "true",

@@ -64,5 +64,7 @@ jobs:
 
             # The panel is heavily concurrent (cron jobs, WebSocket hub, xray
             # process management), so the race detector is the point of this job.
+            # web/service alone takes about ten minutes under -race, Go's default
+            # timeout per package, hence the longer one.
             - name: Test with the race detector
-              run: go test -race -count=1 ./...
+              run: go test -race -count=1 -timeout 25m ./...

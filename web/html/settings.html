@@ -145,6 +145,8 @@
       user: {},
       lang: LanguageManager.getLanguage(),
       inboundOptions: [],
+      // the inbounds a user can have, for the request defaults (#221)
+      userInbounds: [],
       remarkModels: {
         i: 'Inbound',
         e: 'Email',
@@ -344,6 +346,10 @@
         } else {
           this.inboundOptions = [];
         }
+      },
+      async loadUserInbounds() {
+        const msg = await HttpUtil.get("/panel/api/users/inbounds");
+        this.userInbounds = msg && msg.success && Array.isArray(msg.obj) ? msg.obj : [];
       },
       async updateAllSetting() {
         this.loading(true);
@@ -702,6 +708,17 @@
           this.allSetting.subJsonRules = JSON.stringify(rules);
         }
       },
+      // The request defaults' inbounds (#221) as the multiple select takes
+      // them: ids, stored as "1,2"; none is every enabled inbound.
+      subRequestInboundIds: {
+        get: function() {
+          return (this.allSetting.subRequestInbounds || '').split(',')
+            .map(s => parseInt(s.trim(), 10)).filter(n => n > 0);
+        },
+        set: function(ids) {
+          this.allSetting.subRequestInbounds = ids.join(',');
+        }
+      },
       confAlerts: {
         get: function() {
           if (!this.allSetting) return [];
@@ -731,6 +748,7 @@
       this.entryIsIP = this._isIp(this.entryHost);
       await this.getAllSetting();
       await this.loadInboundTags();
+      await this.loadUserInbounds();
       while (true) {
         await PromiseUtil.sleep(1000);
         this.saveBtnDisable = this.oldAllSetting.equals(this.allSetting);

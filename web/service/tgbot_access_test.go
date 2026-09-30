@@ -122,7 +122,10 @@ func botCallbackData(t *testing.T) []string {
 		// The user's invite link, typed Telegram and move (#219).
 		tgInviteAction, tgReissueAction, tgInviteQRAction, tgEntryAction, tgMoveAction, tgMoveDoAction,
 		// The applicant's request (#220).
-		requestNewRoute, requestSkipAction, requestCancelAction} {
+		requestNewRoute, requestSkipAction, requestCancelAction,
+		// The admin's side of requests (#221).
+		requestsListRoute, requestCardRoute, requestApproveAction, requestEditAction, requestRejectRoute,
+		requestRejectAction, requestReasonAction, requestBlockAction, requestBlockedRoute, requestAccountRoute} {
 		seen[action] = true
 	}
 	fset := token.NewFileSet()

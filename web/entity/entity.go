@@ -50,6 +50,14 @@ type AllSetting struct {
 	TgCpu            int    `json:"tgCpu" form:"tgCpu"`                       // CPU usage threshold for alerts
 	TgLang           string `json:"tgLang" form:"tgLang"`                     // Telegram bot language
 
+	// Request defaults (#221, sub_request.go): what «✅ Approve» gives the
+	// user a request makes. The inbounds are a list of ids, "" for every
+	// enabled one; the traffic is per protocol, 0 = unlimited; the expiry
+	// counts from the first use, 0 = never.
+	SubRequestInbounds   string `json:"subRequestInbounds" form:"subRequestInbounds"`
+	SubRequestTrafficGB  int    `json:"subRequestTrafficGB" form:"subRequestTrafficGB"`
+	SubRequestExpiryDays int    `json:"subRequestExpiryDays" form:"subRequestExpiryDays"`
+
 	// Security settings
 	TimeLocation    string `json:"timeLocation" form:"timeLocation"`       // Time zone location
 	TwoFactorEnable bool   `json:"twoFactorEnable" form:"twoFactorEnable"` // Enable two-factor authentication
@@ -225,6 +233,9 @@ func (s *AllSetting) CheckValid() error {
 	}
 
 	if err := checkTgNotifyChatId(s); err != nil {
+		return err
+	}
+	if err := checkSubRequestDefaults(s); err != nil {
 		return err
 	}
 

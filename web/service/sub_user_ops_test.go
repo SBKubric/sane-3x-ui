@@ -84,6 +84,10 @@ func TestCreateUserWithSeveralProtocols(t *testing.T) {
 	if _, err := users.Create(SubUserCreate{Name: "petr", SubId: v.SubId}); err == nil {
 		t.Error("Create with ivan's subId succeeded")
 	}
+	// Nor is the captcha page's path under the subscription path (#220).
+	if _, err := users.Create(SubUserCreate{Name: "petr", SubId: "captcha"}); err == nil || !strings.Contains(err.Error(), "reserved") {
+		t.Errorf("Create with the subId captcha: %v", err)
+	}
 	// A user without clients is fine: it keeps its link.
 	if p, err := users.Create(SubUserCreate{Name: "petr", SubId: "s-petr"}); err != nil || p.SubId != "s-petr" || len(p.Clients) != 0 {
 		t.Errorf("Create(petr) without inbounds: %+v, %v", p, err)

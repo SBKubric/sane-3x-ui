@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/coinman-dev/3ax-ui/v2/captcha"
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
 	"github.com/coinman-dev/3ax-ui/v2/util/common"
@@ -70,6 +71,11 @@ func (idx *subUserIndex) checkSubId(subId, user string) error {
 	}
 	if isReservedSubId(subId) {
 		return common.NewErrorf("subId %q is reserved for a technical user", subId)
+	}
+	if strings.EqualFold(subId, captcha.Segment) {
+		// <subPath>captcha is the captcha page (#220): a subscription there
+		// would never be served.
+		return common.NewErrorf("subId %q is reserved: it is the captcha page's path", subId)
 	}
 	if idx.probeSubId != "" && subId == idx.probeSubId {
 		return common.NewErrorf("subId %q belongs to technical user %s", subId, model.SubUserMonitoring)

@@ -47,7 +47,7 @@ export default defineConfig({
     {
       name: 'panel',
       testIgnore:
-        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|users-telegram-invite|requests-captcha)\.spec\.ts/,
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|request-defaults-settings|users-telegram-invite|requests-captcha)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The chain registry (its hops and the active edge) is one per panel, and
@@ -62,14 +62,15 @@ export default defineConfig({
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
-    // tg-notify-settings.spec.ts saves the whole settings form (#195). A save
+    // tg-notify-settings.spec.ts (#195) and request-defaults-settings.spec.ts
+    // (#221) save the whole settings form, one after the other. A save
     // posts back every setting as the page loaded it, among them the
     // proxy-front override the chain specs switch through the registry and
     // the monitoring switch the contract specs flip, so it runs after the
     // former and before the latter, never beside either.
     {
       name: 'settings-form',
-      testMatch: /tg-notify-settings\.spec\.ts/,
+      testMatch: /(tg-notify-settings|request-defaults-settings)\.spec\.ts/,
       dependencies: ['chain-registry'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },

@@ -200,6 +200,9 @@ func (t *Tgbot) screenRoute(chatId int64, data string) screenReply {
 	if r, ok := t.notifyCallback(chatId, data); ok {
 		return r
 	}
+	if r, ok := t.requestAdminCallback(chatId, data); ok { // requests (#221)
+		return r
+	}
 	if r, ok := t.probeCallback(data); ok {
 		return screenReply{usersReply: r}
 	}
