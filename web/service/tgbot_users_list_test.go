@@ -117,9 +117,9 @@ func TestUsersListSinglePage(t *testing.T) {
 	}
 }
 
-// TestUsersSearch: one field finds a user exactly, ignoring case, by name,
-// subId, xray email or Telegram id; several are listed, none is said so,
-// and the chat keeps waiting for a search until a card opens.
+// TestUsersSearch: one field finds a user, ignoring case, by name, subId,
+// xray email or Telegram id, exactly or fuzzily; several are listed, none is
+// said so, and the chat keeps waiting for a search until a card opens.
 func TestUsersSearch(t *testing.T) {
 	bot := usersBotFixture(t)
 	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: 424242, InboundIds: []int{2}})
@@ -149,7 +149,17 @@ func TestUsersSearch(t *testing.T) {
 		t.Errorf("the found list shows again: %q", again.text)
 	}
 
-	for _, q := range []string{"iva", "ivan-d", "4242", "@ivan"} {
+	// The search forgives: a start, a typo and a part of a client name each
+	// find the one user, and a single hit opens its card.
+	for _, q := range []string{"iva", "IVN", "ivan-d"} {
+		press(t, bot, "usr_menu")
+		if reply := typeText(t, bot, q); reply.route != "usr_c "+ivan.SubId {
+			t.Errorf("search %q: %+v", q, reply)
+		}
+	}
+
+	// A part of a Telegram id is no id, and nobody has a nick yet (#210).
+	for _, q := range []string{"4242", "@ivan", "zzzz"} {
 		press(t, bot, "usr_menu")
 		reply := typeText(t, bot, q)
 		if !strings.Contains(reply.text, "Nobody found") || reply.route != "" || stateOf(usersTestChat) != usersStateSearch {
@@ -158,8 +168,9 @@ func TestUsersSearch(t *testing.T) {
 	}
 }
 
-// TestUsersSearchService: Search is exact and ignores case, and finds every
-// user a query names.
+// TestUsersSearchService: Search ignores case and finds every user a query
+// names, whole or at the start of a field (sub_user_search_test.go has the
+// rest of the ranking).
 func TestUsersSearchService(t *testing.T) {
 	usersBotFixture(t)
 	mustCreateUser(t, SubUserCreate{Name: "Ivan", InboundIds: []int{2}})
@@ -175,7 +186,7 @@ func TestUsersSearchService(t *testing.T) {
 		}
 		return strings.Join(out, ",")
 	}
-	for q, want := range map[string]string{"ivan": "Ivan,oleg", "ivan-de": "Ivan", "robot": "robot", "": "", "i": ""} {
+	for q, want := range map[string]string{"ivan": "Ivan,oleg", "ivan-de": "Ivan", "robot": "robot", "": "", "i": "Ivan,oleg"} {
 		if got := names(q); got != want {
 			t.Errorf("Search(%q) = %q, want %q", q, got, want)
 		}

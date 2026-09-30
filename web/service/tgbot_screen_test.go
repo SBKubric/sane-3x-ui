@@ -407,7 +407,7 @@ func TestScreenCommands(t *testing.T) {
 	screen := func() *screenMessage { live := fake.live(); return fake.messages[live[len(live)-1]] }
 
 	cases := []struct{ command, want string }{
-		{"/usage ivan-de", "Email: ivan-de"},
+		{"/usage ivan-de", "xray email: ivan-de"},
 		{"/usage IVAN", "<b>ivan</b>"},
 		{"/usage " + ivan.SubId, "<b>ivan</b>"},
 		{"/usage nobody", "Nobody found for «nobody»"},
