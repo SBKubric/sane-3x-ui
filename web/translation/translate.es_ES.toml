@@ -91,6 +91,8 @@
 "tunnels" = "Túneles"
 "downloadConf" = "Descargar"
 "copyConf" = "Copiar configuración"
+"copyLink" = "Copiar enlace"
+"copyJson" = "Copiar JSON"
 "tunnelHint" = "Ábrelo con AmneziaVPN o la app AmneziaWG / WireGuard. Los cambios no se envían: descárgalo de nuevo tras cambios en el servidor."
 "noTunnels" = "No hay configuraciones de túnel en esta suscripción"
 

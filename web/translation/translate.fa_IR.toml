@@ -91,6 +91,8 @@
 "tunnels" = "تونل‌ها"
 "downloadConf" = "دانلود"
 "copyConf" = "کپی پیکربندی"
+"copyLink" = "کپی لینک"
+"copyJson" = "کپی JSON"
 "tunnelHint" = "با AmneziaVPN یا برنامه AmneziaWG / WireGuard باز کنید. تغییرات خودکار ارسال نمی‌شوند: پس از تغییر سرور دوباره دانلود کنید."
 "noTunnels" = "این اشتراک پیکربندی تونل ندارد"
 

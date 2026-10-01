@@ -75,14 +75,14 @@ func TestPageRenders(t *testing.T) {
 
 	var buf bytes.Buffer
 	err := s.tmpl.Execute(&buf, pageData{
-		Title: "Subscription", SubURL: "https://proxy/sub/abc", JsonURL: "https://proxy/json/abc",
-		Configs: []string{"vless://a@h:443#x"}, Used: "1 MB", Total: "∞", Install: installLinks, Apps: recommendedApps,
+		Title: "Subscription", SubURL: "https://proxy/sub/abc",
+		Configs: []pageConfig{{Link: "vless://a@h:443#x", JSON: `{"remarks": "x"}`}}, Used: "1 MB", Total: "∞", Install: installLinks, Apps: recommendedApps,
 	})
 	if err != nil {
 		t.Fatalf("template execute: %v", err)
 	}
 	out := buf.String()
-	for _, want := range []string{"https://proxy/sub/abc", "Copy VLESS JSON", "Amnezia", "DefaultVPN", "vless://a@h:443#x"} {
+	for _, want := range []string{"https://proxy/sub/abc", "Copy JSON", "Amnezia", "DefaultVPN", "vless://a@h:443#x"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("rendered page missing %q", want)
 		}
@@ -177,14 +177,14 @@ func TestPublicURLAndProfileHeaderRewrite(t *testing.T) {
 	// box that terminates the sub port elsewhere (#98).
 	cfg.Domain = "proxy.example.com"
 	cfg.CertFile, cfg.KeyFile = "c", "k"
-	if got := s.publicURL(c, s.publicJsonPath(), "abc"); got != "https://proxy.example.com:2096/json/abc" {
+	if got := s.publicURL(c, s.publicSubPath(), "abc"); got != "https://proxy.example.com:2096/sub/abc" {
 		t.Errorf("publicURL with domain+TLS+non-default port = %q", got)
 	}
 
 	// The scheme's default port is left off: it need not appear for the URL
 	// to reach the sub server.
 	cfg.SubPort = 443
-	if got := s.publicURL(c, s.publicJsonPath(), "abc"); got != "https://proxy.example.com/json/abc" {
+	if got := s.publicURL(c, s.publicSubPath(), "abc"); got != "https://proxy.example.com/sub/abc" {
 		t.Errorf("publicURL with domain+TLS+default port = %q", got)
 	}
 	cfg.Domain, cfg.CertFile, cfg.KeyFile = "", "", ""

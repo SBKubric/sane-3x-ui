@@ -1,9 +1,11 @@
 package proxy
 
 import (
+	"bytes"
 	"crypto/tls"
 	_ "embed"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"io"
@@ -350,6 +352,10 @@ func subscriptionID(path, documentPath, fallback string) (string, bool) {
 // handleSub serves the raw subscription to apps and the custom page to browsers.
 func (s *SubServer) handleSub(c *gin.Context, subid string) {
 	base, subPath, _ := s.nextHop()
+	if c.Query("format") == jsonListFormat && !wantsHTML(c) {
+		s.handleJSONList(c, base, subPath, subid)
+		return
+	}
 	body, header, status, err := s.fetchUpstream(base, subPath, subid)
 	if err == nil && isRefusal(status) {
 		// A subscription of tunnels alone has no xray links for the panel to
@@ -374,7 +380,55 @@ func (s *SubServer) handleSub(c *gin.Context, subid string) {
 	c.String(http.StatusOK, string(body))
 }
 
-// handleJson proxies the JSON subscription straight through (the copy-JSON action).
+// jsonListFormat is the query of the subscription path that asks for the
+// client JSON config of every link instead of the links (#231): the panel
+// answers it with or without its JSON subscription on.
+const jsonListFormat = "json"
+
+// handleJSONList passes the next hop's JSON config list on, so a hop nearer
+// the clients can fetch it for its page through this one.
+func (s *SubServer) handleJSONList(c *gin.Context, base, subPath, subid string) {
+	body, header, status, err := s.fetchUpstream(base, subPath, subid+"?format="+jsonListFormat)
+	if err == nil && isRefusal(status) {
+		passRefusal(c, status, header, body)
+		return
+	}
+	if err != nil || status != http.StatusOK || len(body) == 0 {
+		c.String(http.StatusBadGateway, "subscription unavailable")
+		return
+	}
+	copyHeaders(c, header)
+	c.Header("Profile-Web-Page-Url", s.publicURL(c, subPath, subid))
+	c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+}
+
+// pageJSONConfigs fetches the client JSON config of every link from the next
+// hop for the page, one per link in the links' order and indented as the
+// JSON subscription answers for one link. nil when the next hop has none —
+// an older panel answers the links again — or they do not line up with the
+// links; the page then offers the links alone.
+func (s *SubServer) pageJSONConfigs(subid string, links int) []string {
+	base, subPath, _ := s.nextHop()
+	body, _, status, err := s.fetchUpstream(base, subPath, subid+"?format="+jsonListFormat)
+	if err != nil || status != http.StatusOK {
+		return nil
+	}
+	var list []json.RawMessage
+	if json.Unmarshal(body, &list) != nil || len(list) != links {
+		return nil
+	}
+	configs := make([]string, 0, len(list))
+	for _, config := range list {
+		var text bytes.Buffer
+		if json.Indent(&text, config, "", "  ") != nil {
+			return nil
+		}
+		configs = append(configs, text.String())
+	}
+	return configs
+}
+
+// handleJson proxies the JSON subscription straight through.
 func (s *SubServer) handleJson(c *gin.Context, subid string) {
 	base, _, jsonPath := s.nextHop()
 	body, header, status, err := s.fetchUpstream(base, jsonPath, subid)
@@ -396,12 +450,6 @@ func (s *SubServer) handleJson(c *gin.Context, subid string) {
 func (s *SubServer) publicSubPath() string {
 	_, subPath, _ := s.nextHop()
 	return subPath
-}
-
-// publicJsonPath is the JSON subscription path on this hop.
-func (s *SubServer) publicJsonPath() string {
-	_, _, jsonPath := s.nextHop()
-	return jsonPath
 }
 
 // publicURL is the address of this hop's own subscription endpoint as a client
@@ -475,13 +523,19 @@ func wantsHTML(c *gin.Context) bool {
 	return strings.Contains(strings.ToLower(c.GetHeader("Accept")), "text/html")
 }
 
+// pageConfig is one link of the subscription on the page, with its client
+// JSON config when the next hop gave one (#231).
+type pageConfig struct {
+	Link string
+	JSON string
+}
+
 // pageData is the view model for subpage.html.
 type pageData struct {
 	Title   string
 	SubURL  string
-	JsonURL string
 	QR      template.URL
-	Configs []string
+	Configs []pageConfig
 	// Tunnels are the subscription's AmneziaWG/WireGuard configs, shown when
 	// TunnelSection is set: the next hop answered /tun (spec §7).
 	Tunnels       []pageTunnel
@@ -499,7 +553,15 @@ type pageData struct {
 
 func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header http.Header) {
 	subURL := s.publicURL(c, s.publicSubPath(), subid)
-	jsonURL := s.publicURL(c, s.publicJsonPath(), subid)
+	links := decodeConfigs(body)
+	configs := make([]pageConfig, len(links))
+	jsons := s.pageJSONConfigs(subid, len(links))
+	for i, link := range links {
+		configs[i].Link = link
+		if jsons != nil {
+			configs[i].JSON = jsons[i]
+		}
+	}
 
 	used, total, expire := parseUserinfo(header.Get("Subscription-Userinfo"))
 
@@ -515,9 +577,8 @@ func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header
 	if err := s.tmpl.Execute(c.Writer, pageData{
 		Title:         "Subscription",
 		SubURL:        subURL,
-		JsonURL:       jsonURL,
 		QR:            qr,
-		Configs:       decodeConfigs(body),
+		Configs:       configs,
 		Tunnels:       tunnels,
 		TunnelSection: tunnelSection,
 		Used:          used,

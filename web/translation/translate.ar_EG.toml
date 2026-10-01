@@ -91,6 +91,8 @@
 "tunnels" = "الأنفاق"
 "downloadConf" = "تنزيل"
 "copyConf" = "نسخ الإعداد"
+"copyLink" = "نسخ الرابط"
+"copyJson" = "نسخ JSON"
 "tunnelHint" = "افتحه باستخدام AmneziaVPN أو تطبيق AmneziaWG / WireGuard. التغييرات لا تصل تلقائيًا: نزّله مجددًا بعد تغيّر الخادم."
 "noTunnels" = "لا توجد إعدادات أنفاق في هذا الاشتراك"
 

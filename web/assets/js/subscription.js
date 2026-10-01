@@ -35,6 +35,19 @@
     }
   }
 
+  // The client JSON config of every link, in the links' order (#231): the
+  // JSON subscription's configs, embedded at render so the copy needs no
+  // JSON path. Empty when the page has none to offer.
+  let jsonConfigs = [];
+  if (el.hasAttribute('data-json-configs')) {
+    try {
+      const list = JSON.parse(el.getAttribute('data-json-configs') || '[]');
+      if (Array.isArray(list) && list.length === rawLinks.length) jsonConfigs = list;
+    } catch (e) {
+      jsonConfigs = [];
+    }
+  }
+
   // A .conf file straight from the page: nothing to fetch, the text is here.
   function downloadConf(tun) {
     const blob = new Blob([tun.conf], { type: 'text/plain' });
@@ -129,6 +142,7 @@
       themeSwitcher,
       app: data,
       links: rawLinks,
+      jsonConfigs,
       tunnels,
       lang: '',
       viewportWidth: (typeof window !== 'undefined' ? window.innerWidth : 1024),
