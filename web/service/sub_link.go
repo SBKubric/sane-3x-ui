@@ -19,8 +19,9 @@ import (
 // The detectors of the link broadcast (#214, #222, docs/spec/users.md §13).
 // A subscription link dies when the active edge changes (the host
 // override), when the subscriptions' path changes, when the front's address
-// or port changes, and when a person's subscription is another subId. All
-// four show in one place: the link the panel hands out now
+// or port changes, when the public subscription address is set or changed
+// (#224), and when a person's subscription is another subId. All five show
+// in one place: the link the panel hands out now
 // (subscriptionURLs). So the detector does not hook the places that change
 // them; it compares, for every person — a Telegram account that is a user's
 // Telegram — the link they were last known to have (sub_link_knowns) with
@@ -74,7 +75,7 @@ func (c subLinkChanges) recipients() []subLinkChange {
 // reasons are the changes' reasons, each once, in a fixed order.
 func (c subLinkChanges) reasons() []string {
 	var out []string
-	for _, r := range []string{model.SubLinkReasonEdge, model.SubLinkReasonSubPath, model.SubLinkReasonFront, model.SubLinkReasonSubId} {
+	for _, r := range []string{model.SubLinkReasonPublic, model.SubLinkReasonEdge, model.SubLinkReasonSubPath, model.SubLinkReasonFront, model.SubLinkReasonSubId} {
 		for _, u := range c.users {
 			if slices.Contains(u.Reasons, r) {
 				out = append(out, r)
@@ -147,6 +148,7 @@ func (t *Tgbot) subLinkScan() (subLinkChanges, error) {
 		}
 	}
 	edges := subLinkEdgeHosts()
+	public := subLinkPublicHost()
 	seen := map[int64]bool{}
 	now := time.Now().UnixMilli()
 	for _, v := range users {
@@ -171,7 +173,7 @@ func (t *Tgbot) subLinkScan() (subLinkChanges, error) {
 		}
 		if r.URL != link {
 			changes.users = append(changes.users, subLinkChange{TgId: v.TgId, SubId: v.SubId, Name: v.Name, Enable: v.Enable,
-				OldURL: r.URL, NewURL: link, Reasons: subLinkReasons(r.URL, link, edges), view: v})
+				OldURL: r.URL, NewURL: link, Reasons: subLinkReasons(r.URL, link, edges, public), view: v})
 		}
 	}
 	for tgId := range known {
@@ -246,11 +248,28 @@ func subLinkEdgeHosts() map[string]bool {
 	return hosts
 }
 
-// subLinkReasons tell how a link changed: another host that is (or was) an
-// edge's — the active edge; another address, port or scheme otherwise — the
-// front; another path before the subId — the subscriptions' path; another
-// last part — the subId.
-func subLinkReasons(oldURL, newURL string, edges map[string]bool) []string {
+// subLinkPublicHost is the host of the public subscription address (#224),
+// "" while none is set.
+func subLinkPublicHost() string {
+	public, err := (&SettingService{}).GetSubPublicURL()
+	if err != nil || public == "" {
+		return ""
+	}
+	u, err := url.Parse(public)
+	if err != nil {
+		return ""
+	}
+	return strings.ToLower(u.Hostname())
+}
+
+// subLinkReasons tell how a link changed: another host where the new one is
+// the public subscription address — the public address; another host that is
+// (or was) an edge's — the active edge; another address, port or scheme
+// otherwise — the front; another path before the subId — the subscriptions'
+// path; another last part — the subId. A cleared public address is told by
+// the server the link names again (the edge or the front): the address it
+// had is not kept.
+func subLinkReasons(oldURL, newURL string, edges map[string]bool, public string) []string {
 	o, errOld := url.Parse(oldURL)
 	n, errNew := url.Parse(newURL)
 	if errOld != nil || errNew != nil {
@@ -258,7 +277,9 @@ func subLinkReasons(oldURL, newURL string, edges map[string]bool) []string {
 	}
 	var reasons []string
 	if o.Scheme != n.Scheme || !strings.EqualFold(o.Host, n.Host) {
-		if edges[strings.ToLower(o.Hostname())] || edges[strings.ToLower(n.Hostname())] {
+		if public != "" && strings.EqualFold(n.Hostname(), public) {
+			reasons = append(reasons, model.SubLinkReasonPublic)
+		} else if edges[strings.ToLower(o.Hostname())] || edges[strings.ToLower(n.Hostname())] {
 			reasons = append(reasons, model.SubLinkReasonEdge)
 		} else {
 			reasons = append(reasons, model.SubLinkReasonFront)

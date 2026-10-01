@@ -544,3 +544,52 @@ func TestThePanelAsNextHopFollowsItsFront(t *testing.T) {
 		})
 	}
 }
+
+// TestTheDocumentCarriesThePublicSubAddress (#224): every hop reads the
+// public subscription address, so the edge a client reaches through the
+// showcase names it in its links. Saving a new one moves the revision — the
+// hops poll by ETag and would never fetch it otherwise — and saving the same
+// one again does not.
+func TestTheDocumentCarriesThePublicSubAddress(t *testing.T) {
+	documents, _ := exampleChain(t)
+	build := func() map[string]*chain.Document {
+		t.Helper()
+		all, err := documents.BuildAllWithPanelHost("")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return all
+	}
+	for name, document := range build() {
+		if document.PublicSubURL != "" {
+			t.Errorf("%s: publicSubUrl %q without the setting", name, document.PublicSubURL)
+		}
+	}
+
+	settings := &documents.settingService
+	before, _ := settings.GetChainRevision()
+	all, err := settings.GetAllSetting()
+	if err != nil {
+		t.Fatal(err)
+	}
+	all.SubPublicURL = "https://sub.example.com/"
+	if err := settings.UpdateAllSetting(all); err != nil {
+		t.Fatal(err)
+	}
+	for name, document := range build() {
+		if document.PublicSubURL != "https://sub.example.com" {
+			t.Errorf("%s: publicSubUrl %q", name, document.PublicSubURL)
+		}
+		if document.Revision <= before {
+			t.Errorf("%s: revision %d, want more than %d", name, document.Revision, before)
+		}
+	}
+
+	moved, _ := settings.GetChainRevision()
+	if err := settings.UpdateAllSetting(all); err != nil {
+		t.Fatal(err)
+	}
+	if again, _ := settings.GetChainRevision(); again != moved {
+		t.Errorf("saving the same address moved the revision %d → %d", moved, again)
+	}
+}

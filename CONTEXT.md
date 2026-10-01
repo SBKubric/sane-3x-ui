@@ -56,6 +56,14 @@ _Avoid_: user, account
 Ссылка `/sub/<subId>` пользователя.
 _Avoid_: sub link, subscription id (subId — ключ подписки, а не она сама)
 
+**Публичный адрес подписок** (public subscription address):
+Домен, через который панель выдаёт ссылки подписок (`subPublicURL`, например `https://sub.example.com`): origin всех ссылок — бот, страница подписки, `Profile-Web-Page-Url`, страницы панели, рассылка ссылок; пути подписок — свои. Пусто — ссылки как без него. Адреса внутри конфигов не меняет.
+_Avoid_: subURI, reverse proxy URI (это полный URI с путём), sub domain (`subDomain` — адрес sub-сервера)
+
+**Витрина подписок** (subscription showcase):
+Отдельный сервер под публичным адресом подписок, отдающий только пути подписок: пробует edge по очереди, остальное — заглушка. Не VPN-вход.
+_Avoid_: sub proxy, edge
+
 **Технический пользователь** (technical user):
 `robot` (клиенты без подписки) и `monitoring` (probe accounts); его нельзя удалить или переименовать, его имя нельзя занять.
 _Avoid_: system user, service user

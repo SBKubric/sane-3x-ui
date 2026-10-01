@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "Sisa traffic dan tanggal akan ditampilkan di aplikasi klien."
 "subURI" = "URI Proxy Terbalik"
 "subURIDesc" = "Path URI dari URL langganan untuk digunakan di belakang proxy."
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "Proxy depan (anti-blokir)"
 "proxyOverrideEnable" = "Ganti host di konfigurasi"
 "proxyOverrideEnableDesc" = "Berikan host proxy di konfigurasi klien dan tautan langganan alih-alih alamat server ini."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

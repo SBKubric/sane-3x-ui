@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "ترافیک و زمان باقی‌مانده را در برنامه‌های کاربری نمایش می‌دهد"
 "subURI" = "پروکسی معکوس URI مسیر"
 "subURIDesc" = "سابسکریپشن را برای استفاده در پشت پراکسی‌ها تغییر می‌دهد URI مسیر"
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "پراکسی جلویی (ضد مسدودسازی)"
 "proxyOverrideEnable" = "جایگزینی میزبان در پیکربندی‌ها"
 "proxyOverrideEnableDesc" = "در پیکربندی کلاینت‌ها و لینک‌های اشتراک، میزبان پراکسی به‌جای آدرس این سرور ارائه شود."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

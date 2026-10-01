@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "クライアントアプリで残りのトラフィックと日付情報を表示する"
 "subURI" = "リバースプロキシURI"
 "subURIDesc" = "プロキシ後ろのサブスクリプションURLのURIパスに使用する"
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "プロキシフロント（ブロック対策）"
 "proxyOverrideEnable" = "設定内のホストを置き換える"
 "proxyOverrideEnableDesc" = "クライアント設定とサブスクリプションリンクに、このサーバーのアドレスの代わりにプロキシホストを配布します。"
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

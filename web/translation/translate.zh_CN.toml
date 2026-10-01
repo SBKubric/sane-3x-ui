@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "客户端应用中将显示剩余流量和日期信息"
 "subURI" = "反向代理 URI"
 "subURIDesc" = "用于代理后面的订阅 URL 的 URI 路径"
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "前置代理（防封锁）"
 "proxyOverrideEnable" = "在配置中替换主机"
 "proxyOverrideEnableDesc" = "在客户端配置和订阅链接中下发代理主机，而不是本服务器的地址。"
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

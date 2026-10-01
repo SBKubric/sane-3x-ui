@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "هيظهر الترافيك المتبقي والتاريخ في تطبيقات العملاء."
 "subURI" = "مسار البروكسي العكسي"
 "subURIDesc" = "مسار URI لرابط الاشتراك عشان تستخدمه ورا البروكسي."
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "بروكسي أمامي (ضد الحجب)"
 "proxyOverrideEnable" = "استبدال المضيف في الإعدادات"
 "proxyOverrideEnableDesc" = "تسليم مضيف البروكسي في إعدادات العملاء وروابط الاشتراك بدلاً من عنوان هذا السيرفر."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

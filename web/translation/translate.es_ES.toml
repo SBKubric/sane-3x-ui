@@ -782,6 +782,8 @@
 "externalTrafficInformURI" = "URI de información de tráfico externo"
 "externalTrafficInformURIDesc" = "Las actualizaciones de tráfico se envían a este URI."
 "subURIDesc" = "Cambiar el URI base de la URL de suscripción para usar detrás de los servidores proxy"
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "Proxy frontal (antibloqueo)"
 "proxyOverrideEnable" = "Sustituir el host en las configuraciones"
 "proxyOverrideEnableDesc" = "Entregar el host del proxy en las configuraciones de cliente y enlaces de suscripción en lugar de la dirección de este servidor."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

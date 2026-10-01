@@ -17,6 +17,7 @@ const (
 	SubLinkReasonSubPath = "subPath" // the subscriptions' path changed
 	SubLinkReasonFront   = "front"   // the address, port or scheme of the front changed
 	SubLinkReasonSubId   = "subId"   // the user's subId changed
+	SubLinkReasonPublic  = "public"  // the link goes through the public subscription address now (#224)
 )
 
 // The outcomes of one delivery.

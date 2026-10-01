@@ -105,6 +105,10 @@ type AllSetting struct {
 	SubTunPath   string `json:"subTunPath" form:"subTunPath"`
 	SubTunURI    string `json:"subTunURI" form:"subTunURI"`
 
+	// The public subscription address (#224): the origin every subscription
+	// link the panel hands out goes through, "" for none (sub_public.go).
+	SubPublicURL string `json:"subPublicURL" form:"subPublicURL"`
+
 	// Chain registry preferences (docs/spec/proxy-chain.md §2.2).
 	// chainRevision is not here on purpose: it is registry state written in
 	// the same transaction as the registry itself, and a form save must not
@@ -232,6 +236,9 @@ func (s *AllSetting) CheckValid() error {
 		s.SubTunPath += "/"
 	}
 
+	if err := checkSubPublicURL(s); err != nil {
+		return err
+	}
 	if err := checkTgNotifyChatId(s); err != nil {
 		return err
 	}

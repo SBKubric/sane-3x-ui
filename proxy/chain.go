@@ -384,6 +384,7 @@ func documentDiffers(a, b *chain.Document) bool {
 		a.NextHop != b.NextHop ||
 		a.Self != b.Self ||
 		a.ActiveEdge != b.ActiveEdge ||
+		a.PublicSubURL != b.PublicSubURL ||
 		secretsDiffer(a, b)
 }
 

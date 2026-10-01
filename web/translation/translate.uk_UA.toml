@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "Залишок трафіку та дата відображатимуться в клієнтських програмах."
 "subURI" = "URI зворотного проксі"
 "subURIDesc" = "URI до URL-адреси підписки для використання за проксі."
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "Проксі-фронт (антиблокування)"
 "proxyOverrideEnable" = "Підміняти хост у конфігах"
 "proxyOverrideEnableDesc" = "Видавати в конфігах клієнтів і посиланнях підписки хост проксі замість адреси цього сервера."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

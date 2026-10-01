@@ -60,6 +60,7 @@ class AllSetting {
         this.subTunEnable = true;
         this.subTunPath = "/tun/";
         this.subTunURI = "";
+        this.subPublicURL = "";
         this.subJsonFragment = "";
         this.subJsonNoises = "";
         this.subJsonMux = "";

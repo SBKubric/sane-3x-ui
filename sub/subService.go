@@ -1454,6 +1454,14 @@ func (s *SubService) BuildURLs(scheme, hostWithPort, subPath, subJsonPath, subCl
 		return "", "", ""
 	}
 
+	// The public subscription address (#224) is the origin of every link
+	// when set: it wins over the configured URIs, the host override and the
+	// front alike, and keeps the panel's own paths.
+	if public, _ := s.settingService.GetSubPublicURL(); public != "" {
+		return service.SubPublicLink(public, subPath, subId), service.SubPublicLink(public, subJsonPath, subId),
+			service.SubPublicLink(public, subClashPath, subId)
+	}
+
 	configuredSubURI, _ := s.settingService.GetSubURI()
 	configuredSubJsonURI, _ := s.settingService.GetSubJsonURI()
 	configuredSubClashURI, _ := s.settingService.GetSubClashURI()

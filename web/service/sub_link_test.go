@@ -66,6 +66,17 @@ func TestSubLinkDetectors(t *testing.T) {
 			model.SubLinkReasonFront, "https://vpn.example.com/sub/"},
 		{"front port", func(t *testing.T, _ *SubUserView) { setSetting(t, "subPort", "2443") },
 			model.SubLinkReasonFront, "http://localhost:2443/sub/"},
+		// The public subscription address (#224) is a reason of its own,
+		// even with the active edge switched in the same look: the link
+		// names the address, not the edge.
+		{"public address", func(t *testing.T, _ *SubUserView) {
+			setSetting(t, "subPublicURL", "https://sub.example.com")
+			var edge model.ChainHop
+			database.GetDB().Where("name = ?", "edge-b").First(&edge)
+			if err := (&ChainService{}).SetActive(edge.Id); err != nil {
+				t.Fatal(err)
+			}
+		}, model.SubLinkReasonPublic, "https://sub.example.com/sub/"},
 		{"subId", func(t *testing.T, ivan *SubUserView) {
 			// ivan's Telegram moves to petr: the person's subscription is petr's now.
 			petr := mustCreateUser(t, SubUserCreate{Name: "petr", SubId: "petr-sub", InboundIds: []int{2}})

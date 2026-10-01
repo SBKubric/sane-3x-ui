@@ -77,6 +77,17 @@
                     v-model="allSetting.subURI"></a-input>
             </template>
         </a-setting-list-item>
+        <!-- The public subscription address (#224): the origin of every
+             subscription link the panel hands out; empty, the links are as
+             before. -->
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subPublicURL"}}</template>
+            <template #description>{{ i18n "pages.settings.subPublicURLDesc"}}</template>
+            <template #control>
+                <a-input type="text" placeholder="https://sub.example.com" data-testid="sub-public-url"
+                    v-model.trim="allSetting.subPublicURL"></a-input>
+            </template>
+        </a-setting-list-item>
         <a-divider>{{ i18n "pages.settings.proxyOverride"}}</a-divider>
         <!-- chain: the host handed out in links is the active edge of the chain
              registry, not a field of this form any more (§2.3). The two old

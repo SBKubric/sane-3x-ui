@@ -776,6 +776,8 @@
 "subShowInfoDesc" = "The remaining traffic and date will be displayed in the client apps."
 "subURI" = "Reverse Proxy URI"
 "subURIDesc" = "The URI path of the subscription URL for use behind proxies."
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
 "proxyOverride" = "Proxy front (anti-block)"
 "proxyOverrideEnable" = "Override host for configs"
 "proxyOverrideEnableDesc" = "Hand out the proxy host in client configs and subscription links instead of this server's address."
@@ -1846,6 +1848,7 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

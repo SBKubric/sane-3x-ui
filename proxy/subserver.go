@@ -409,7 +409,12 @@ func (s *SubServer) publicJsonPath() string {
 // on. The panel builds its Profile-Web-Page-Url from the Host it was fetched
 // by — an address deeper in the chain — so every hop must replace that header
 // with its own identity, or subscription apps would carry a link inward.
+// With a public subscription address in the document (#224) clients come
+// through the subscription showcase, and that address is the identity.
 func (s *SubServer) publicURL(c *gin.Context, path, subid string) string {
+	if doc := s.state.Document(); doc != nil && doc.PublicSubURL != "" {
+		return doc.PublicSubURL + path + subid
+	}
 	scheme := s.cfg.PublicScheme()
 	host := c.Request.Host
 	if s.cfg.Domain != "" {
