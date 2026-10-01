@@ -778,6 +778,8 @@
 "subURIDesc" = "مسار URI لرابط الاشتراك عشان تستخدمه ورا البروكسي."
 "subPublicURL" = "Public subscription address"
 "subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
+"frontTrustedAddrs" = "Front trusted addresses"
+"frontTrustedAddrsDesc" = "IP addresses or CIDR networks, comma-separated, such as the subscription showcase's: they call the fronts for many clients from one address. Every hop's front and the panel's own neither rate-limit them nor ban them in fail2ban; everybody else is guarded as before. Hops get the list with the next chain revision. Empty: nobody is trusted."
 "vpnNameTitle" = "VPN name (DNSExit)"
 "dnsExitApiKey" = "DNSExit API key"
 "dnsExitApiKeyDesc" = "The key of the DNSExit account that serves the domain. Stored as a secret: once saved it shows as ********. Empty: the panel never calls DNSExit."

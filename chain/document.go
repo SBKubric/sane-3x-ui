@@ -77,6 +77,14 @@ type Document struct {
 	// from a panel older than the field, and then a hop names itself.
 	PublicSubURL string `json:"publicSubUrl,omitempty"`
 
+	// FrontTrustedAddrs are the panel's front trusted addresses (#228):
+	// IPs or CIDR networks, such as the subscription showcase's, that call
+	// a hop's HTTP side for many clients at once. A hop's front exempts
+	// them as it does its chain neighbours — no limit_req, no limit_conn,
+	// in the probe jail's ignoreip. The same in every document; absent
+	// while none is set and from a panel older than the field.
+	FrontTrustedAddrs []string `json:"frontTrustedAddrs,omitempty"`
+
 	Hops  []Hop  `json:"hops"`
 	Ports []Port `json:"ports"`
 }

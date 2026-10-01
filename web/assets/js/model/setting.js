@@ -61,6 +61,7 @@ class AllSetting {
         this.subTunPath = "/tun/";
         this.subTunURI = "";
         this.subPublicURL = "";
+        this.frontTrustedAddrs = "";
         this.dnsExitApiKey = "";
         this.vpnName = "";
         this.vpnNameTtl = 5;

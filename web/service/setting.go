@@ -109,6 +109,10 @@ var defaultValueMap = map[string]string{
 	// set, the origin of every subscription link the panel hands out.
 	"subPublicURL": "",
 
+	// The front's trusted addresses (#228, setting_front_trusted.go): hosts
+	// such as the subscription showcase that no front limits or bans.
+	"frontTrustedAddrs": "",
+
 	// The VPN name (#225, setting_vpn_name.go): the DNSExit API key, the
 	// name the VLESS links name instead of the active edge, its TTL in
 	// minutes and the domain's expiry date. domainExpiryReminded is state —
@@ -891,6 +895,7 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 		return err
 	}
 	previousPublic, _ := s.GetSubPublicURL()
+	previousTrusted, _ := s.getString("frontTrustedAddrs")
 	// The masked DNSExit API key the form loaded comes back as the mask:
 	// the stored key stays (#225).
 	if allSetting.DnsExitApiKey == entity.DnsExitApiKeyMask {
@@ -919,6 +924,13 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 	// would keep naming the old one.
 	if allSetting.SubPublicURL != previousPublic {
 		if err := subPublicURLChanged(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	// So do the front's trusted addresses (#228): an edge exempts the
+	// showcase only once it has the revision that names it.
+	if allSetting.FrontTrustedAddrs != previousTrusted {
+		if err := frontTrustedAddrsChanged(); err != nil {
 			errs = append(errs, err)
 		}
 	}

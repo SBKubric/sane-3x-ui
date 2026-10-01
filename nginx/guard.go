@@ -101,6 +101,11 @@ func exemptEntry(value string) (string, bool) {
 	return "", false
 }
 
+// ExemptEntry normalises an exemption that may be a network — a front
+// trusted address (#228) — as the guard renders it, and says false for
+// anything it would refuse: a name, a port, nothing.
+func ExemptEntry(value string) (string, bool) { return exemptEntry(value) }
+
 // ExemptAddress turns an address as the chain stores it — an IP, host:port,
 // [v6]:port — into the IP a guard can exempt. A host name is not resolved:
 // its address can change under the config, and resolving it here would make

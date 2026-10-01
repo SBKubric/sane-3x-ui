@@ -88,6 +88,17 @@
                     v-model.trim="allSetting.subPublicURL"></a-input>
             </template>
         </a-setting-list-item>
+        <!-- The front's trusted addresses (#228): the subscription showcase
+             calls the edges from one address for all its clients, so no
+             front (every hop's, the panel's) limits or bans it. -->
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.frontTrustedAddrs"}}</template>
+            <template #description>{{ i18n "pages.settings.frontTrustedAddrsDesc"}}</template>
+            <template #control>
+                <a-input type="text" placeholder="203.0.113.5, 2001:db8::/48" data-testid="front-trusted-addrs"
+                    v-model.trim="allSetting.frontTrustedAddrs"></a-input>
+            </template>
+        </a-setting-list-item>
         <!-- The VPN name (#225): a DNS name whose A record the panel keeps on
              the active edge through DNSExit; the VLESS links name it. The API
              key comes back masked (********): saved as it is, the key stays. -->

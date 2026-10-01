@@ -400,6 +400,21 @@ func runVPNNameSetting(w io.Writer, set map[string]string) error {
 	return nil
 }
 
+// runFrontTrustedSetting applies -frontTrustedAddrs (#228): the hosts, such
+// as the subscription showcase, that no front limits or bans. The list is
+// checked as the settings form checks it, "" clearing it, and the stored
+// list is printed back. A new list moves the chain revision, so the hops
+// pick it up on their next poll.
+func runFrontTrustedSetting(w io.Writer, value string) error {
+	settingService := service.SettingService{}
+	if err := settingService.SetFrontTrustedAddrs(value); err != nil {
+		return fmt.Errorf("failed to set frontTrustedAddrs: %w", err)
+	}
+	list, _ := settingService.GetFrontTrustedAddrs()
+	fmt.Fprintf(w, "frontTrustedAddrs: %s\n", strings.Join(list, ","))
+	return nil
+}
+
 // updateSetting updates various panel settings including port, credentials, base path, listen IP, and two-factor authentication.
 func updateSetting(port int, username string, password string, webBasePath string, listenIP string, resetTwoFactor bool) error {
 	err := database.InitDB(config.GetDBPath())
@@ -807,6 +822,7 @@ func main() {
 	settingCmd.String("vpnName", "", "Set the VPN name, such as vpn.example.com, kept on the active edge (\"\" turns it off)")
 	settingCmd.String("vpnNameTtl", "", "Set the TTL of the VPN name's A record in minutes (1-1440)")
 	settingCmd.String("domainExpiry", "", "Set the domain's registration expiry date, YYYY-MM-DD, for the renewal reminder (\"\" for none)")
+	settingCmd.String("frontTrustedAddrs", "", "Set the front's trusted addresses: IPs or CIDRs, comma-separated, such as the subscription showcase's, that no front limits or bans (\"\" for none)")
 
 	oldUsage := flag.Usage
 	flag.Usage = func() {
@@ -888,6 +904,18 @@ func main() {
 		})
 		if len(vpnName) > 0 {
 			if err = runVPNNameSetting(os.Stdout, vpnName); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+		var frontTrusted *flag.Flag
+		settingCmd.Visit(func(f *flag.Flag) {
+			if f.Name == "frontTrustedAddrs" {
+				frontTrusted = f
+			}
+		})
+		if frontTrusted != nil {
+			if err = runFrontTrustedSetting(os.Stdout, frontTrusted.Value.String()); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}
