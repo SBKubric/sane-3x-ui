@@ -105,7 +105,7 @@
     "peers": [{"name": "probe-awg-ams-1-direct", "conf": "[Interface]\nPrivateKey = …\n[Peer]\nEndpoint = probe.invalid:51820\n…"},
               {"name": "probe-awg-ams-1-edge-edge-a", "conf": "…"}, "…"]},
    {"kind": "xray", "inboundId": 12, "protocol": "vless", "port": 443, "enable": true, "listen": "",
-    "stream": {"network": "tcp", "security": "reality", "realitySettings": {"serverNames": ["…"], "target": "…", "privateKey": "…", "shortIds": ["…"], "settings": {"publicKey": "…", "fingerprint": "chrome"}}},
+    "stream": {"network": "tcp", "security": "reality", "realitySettings": {"serverNames": ["…"], "target": "…", "privateKey": "…", "shortIds": ["…"], "settings": {"publicKey": "…", "fingerprint": "firefox"}}},
     "settings": {"clients": [{"email": "probe-12", "id": "<uuid>", "flow": "xtls-rprx-vision", …}], "decryption": "none"}}
  ],
  "override": {"enabled": true, "host": "front.example.net"},
