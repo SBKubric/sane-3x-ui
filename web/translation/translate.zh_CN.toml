@@ -91,6 +91,8 @@
 "tunnels" = "隧道"
 "downloadConf" = "下载"
 "copyConf" = "复制配置"
+"copyLink" = "复制链接"
+"copyJson" = "复制 JSON"
 "tunnelHint" = "请使用 AmneziaVPN 或 AmneziaWG / WireGuard 应用打开。更改不会自动推送：服务器变更后请重新下载。"
 "noTunnels" = "此订阅中没有隧道配置"
 

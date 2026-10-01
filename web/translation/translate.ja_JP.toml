@@ -91,6 +91,8 @@
 "tunnels" = "トンネル"
 "downloadConf" = "ダウンロード"
 "copyConf" = "設定をコピー"
+"copyLink" = "リンクをコピー"
+"copyJson" = "JSONをコピー"
 "tunnelHint" = "AmneziaVPN または AmneziaWG / WireGuard アプリで開いてください。変更は自動では届きません。サーバー変更後に再度ダウンロードしてください。"
 "noTunnels" = "このサブスクリプションにトンネル設定はありません"
 

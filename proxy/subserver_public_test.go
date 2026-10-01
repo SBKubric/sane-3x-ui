@@ -16,7 +16,7 @@ import (
 // Profile-Web-Page-Url instead of itself.
 
 // TestTheHopNamesThePublicSubAddress: without the address the hop names
-// itself, as before; with it the page's links, its QR and the
+// itself, as before; with it the page's link, its QR and the
 // Profile-Web-Page-Url of /sub, /json and /tun start with it, on the
 // document's paths.
 func TestTheHopNamesThePublicSubAddress(t *testing.T) {
@@ -64,10 +64,12 @@ func TestTheHopNamesThePublicSubAddress(t *testing.T) {
 			w := httptest.NewRecorder()
 			s.Handler().ServeHTTP(w, req)
 			body := w.Body.String()
-			for _, want := range []string{tc.origin + "/s/abc", tc.origin + "/j/abc"} {
-				if !strings.Contains(body, want) {
-					t.Errorf("the page lacks %q", want)
-				}
+			if !strings.Contains(body, tc.origin+"/s/abc") {
+				t.Errorf("the page lacks %q", tc.origin+"/s/abc")
+			}
+			// The JSON configs are on the page itself (#231): no JSON link.
+			if strings.Contains(body, "/j/abc") {
+				t.Error("the page links the JSON path")
 			}
 			if tc.public != "" && strings.Contains(body, "edge.example.com") {
 				t.Error("the page still names the hop")

@@ -2,6 +2,7 @@ package sub
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -102,6 +103,10 @@ func (a *SUBController) initRouter(g *gin.RouterGroup) {
 // subs handles HTTP requests for subscription links, returning either HTML page or base64-encoded subscription data.
 func (a *SUBController) subs(c *gin.Context) {
 	subId := c.Param("subid")
+	if c.Query("format") == "json" {
+		a.subJSONList(c, subId)
+		return
+	}
 	scheme, host, hostWithPort, hostHeader := a.subService.ResolveRequest(c)
 	subs, lastOnline, traffic, err := a.subService.GetSubs(subId, host)
 	tunnels, tunnelsJSON, tunnelOnly := a.tunnelsOfPage(c, subId, err != nil || len(subs) == 0)
@@ -169,6 +174,7 @@ func (a *SUBController) subs(c *gin.Context) {
 				"result":       page.Result,
 				"defaultTheme": page.DefaultTheme,
 				"tunnels":      tunnelsJSON,
+				"jsonConfigs":  a.pageJSONConfigs(subId, host, page.Result),
 			})
 			return
 		}
@@ -184,6 +190,57 @@ func (a *SUBController) subs(c *gin.Context) {
 			c.String(200, result)
 		}
 	}
+}
+
+// pageJSONConfigs is the client JSON config of every link on the page, as a
+// JSON list of the configs' texts for the page's bootstrap element (#231):
+// built here rather than linked, so the copy works with the JSON
+// subscription off and its path closed. "" when the configs do not line up
+// with the links one to one; the page then offers the links alone.
+func (a *SUBController) pageJSONConfigs(subId, host string, subs []string) string {
+	var links int
+	for _, sub := range subs {
+		for _, line := range strings.Split(sub, "\n") {
+			if strings.TrimSpace(line) != "" {
+				links++
+			}
+		}
+	}
+	configs, _, err := a.subJsonService.GetConfigs(subId, host)
+	if err != nil || len(configs) == 0 || len(configs) != links {
+		return ""
+	}
+	list, err := json.Marshal(configs)
+	if err != nil {
+		return ""
+	}
+	return string(list)
+}
+
+// subJSONList answers /sub/<id>?format=json: the subscription's client JSON
+// configs as a list, one per link in the links' order (#231). A hop of the
+// chain fetches it for its own subscription page; the subscription path is
+// served wherever the subscription is, the JSON path only while the JSON
+// subscription is on, and not by the showcase at all.
+func (a *SUBController) subJSONList(c *gin.Context, subId string) {
+	scheme, host, hostWithPort, _ := a.subService.ResolveRequest(c)
+	configs, header, err := a.subJsonService.GetConfigs(subId, host)
+	if err != nil || len(configs) == 0 {
+		c.String(400, "Error!")
+		return
+	}
+	list := make([]json.RawMessage, 0, len(configs))
+	for _, config := range configs {
+		list = append(list, json.RawMessage(config))
+	}
+	body, err := json.MarshalIndent(list, "", "  ")
+	if err != nil {
+		c.String(500, "Error!")
+		return
+	}
+	profileUrl := a.profileURL(c, scheme, hostWithPort)
+	a.ApplyCommonHeaders(c, header, a.updateInterval, a.subTitle, a.subSupportUrl, profileUrl, a.subAnnounce, a.subEnableRouting, a.subRoutingRules)
+	c.Data(200, "application/json; charset=utf-8", body)
 }
 
 // subJsons handles HTTP requests for JSON subscription configurations.

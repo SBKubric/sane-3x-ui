@@ -61,16 +61,19 @@
     {{if .QR}}<img src="{{.QR}}" alt="Subscription QR">{{end}}
     <div class="url" id="suburl">{{.SubURL}}</div>
     <button onclick="copyText(document.getElementById('suburl').innerText, this)">Copy subscription</button>
-    <button class="secondary" data-json="{{.JsonURL}}" onclick="copyJSON(this)">Copy VLESS JSON</button>
   </div>
   {{end}}
 
   {{if .Configs}}
   <h2>Configs</h2>
   {{range .Configs}}
-  <div class="card">
-    <div class="cfg">{{.}}</div>
-    <button class="secondary" onclick="copyText(this.previousElementSibling.innerText, this)">Copy</button>
+  <div class="card" data-testid="sub-config">
+    <div class="cfg">{{.Link}}</div>
+    <button class="secondary" onclick="copyText(this.parentElement.querySelector('.cfg').innerText, this)">Copy link</button>
+    {{if .JSON}}
+    <textarea hidden data-testid="sub-config-json">{{.JSON}}</textarea>
+    <button class="secondary" onclick="copyText(this.parentElement.querySelector('textarea').value, this)">Copy JSON</button>
+    {{end}}
   </div>
   {{end}}
   {{end}}
@@ -107,13 +110,6 @@
   }
   function copyText(text, btn) {
     navigator.clipboard.writeText(text).then(function () { flash(btn, 'Copied'); });
-  }
-  function copyJSON(btn) {
-    fetch(btn.getAttribute('data-json'))
-      .then(function (r) { return r.text(); })
-      .then(function (t) { return navigator.clipboard.writeText(t); })
-      .then(function () { flash(btn, 'Copied'); })
-      .catch(function () { flash(btn, 'Failed'); });
   }
 </script>
 </body>

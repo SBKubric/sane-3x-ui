@@ -91,6 +91,8 @@
 "tunnels" = "Tüneller"
 "downloadConf" = "İndir"
 "copyConf" = "Yapılandırmayı kopyala"
+"copyLink" = "Bağlantıyı kopyala"
+"copyJson" = "JSON'u kopyala"
 "tunnelHint" = "AmneziaVPN veya AmneziaWG / WireGuard uygulamasıyla açın. Değişiklikler otomatik gelmez: sunucu değiştikten sonra yeniden indirin."
 "noTunnels" = "Bu abonelikte tünel yapılandırması yok"
 

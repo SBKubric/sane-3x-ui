@@ -232,7 +232,7 @@
                     </a-form>
 
                     <br />
-                    <div v-for="(link, idx) in links" :key="link"
+                    <div v-for="(link, idx) in links" :key="link" data-testid="sub-link"
                         style="position: relative; margin-bottom: 20px; text-align: center;">
                         <div class="qr-box" style="display: inline-block; width: 100%; max-width: 100%;">
                             <a-tag color="purple"
@@ -242,6 +242,14 @@
                             <div @click="copy(link)" class="subscription-link-box">
                                 [[ link ]]
                             </div>
+                            <!-- The link's client JSON config, embedded in the page (#231) -->
+                            <a-space wrap style="margin-top: 8px;">
+                                <a-button size="small" icon="copy" data-testid="sub-copy-link"
+                                    @click="copy(link)">{{ i18n "subscription.copyLink" }}</a-button>
+                                <a-button v-if="jsonConfigs[idx]" size="small" icon="copy"
+                                    data-testid="sub-copy-json" @click="copy(jsonConfigs[idx])">{{ i18n
+                                    "subscription.copyJson" }}</a-button>
+                            </a-space>
                         </div>
                     </div>
                     <br />
@@ -334,7 +342,8 @@
     data-subclash-url="{{ .subClashUrl }}" data-download="{{ .download }}" data-upload="{{ .upload }}"
     data-used="{{ .used }}" data-total="{{ .total }}" data-remained="{{ .remained }}" data-expire="{{ .expire }}"
     data-lastonline="{{ .lastOnline }}" data-downloadbyte="{{ .downloadByte }}" data-uploadbyte="{{ .uploadByte }}"
-    data-totalbyte="{{ .totalByte }}" data-datepicker="{{ .datepicker }}" data-enabled="{{ .enabled }}" {{ if .tunnels }}data-tunnels="{{ .tunnels }}"{{ end }}></template>
+    data-totalbyte="{{ .totalByte }}" data-datepicker="{{ .datepicker }}" data-enabled="{{ .enabled }}" {{ if .tunnels }}data-tunnels="{{ .tunnels }}"{{ end }}
+    {{ if .jsonConfigs }}data-json-configs="{{ .jsonConfigs }}"{{ end }}></template>
 <textarea id="subscription-links" style="display:none">{{ range .result }}{{ . }}
 {{ end }}</textarea>
 

@@ -91,6 +91,8 @@
 "tunnels" = "Đường hầm"
 "downloadConf" = "Tải xuống"
 "copyConf" = "Sao chép cấu hình"
+"copyLink" = "Sao chép liên kết"
+"copyJson" = "Sao chép JSON"
 "tunnelHint" = "Mở bằng AmneziaVPN hoặc ứng dụng AmneziaWG / WireGuard. Thay đổi không tự cập nhật: hãy tải lại sau khi máy chủ thay đổi."
 "noTunnels" = "Không có cấu hình đường hầm trong gói đăng ký này"
 

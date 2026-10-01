@@ -87,14 +87,56 @@ func NewSubJsonService(fragment string, noises string, mux string, rules string,
 
 // GetJson generates a JSON subscription configuration for the given subscription ID and host.
 func (s *SubJsonService) GetJson(subId string, host string) (string, string, error) {
+	configArray, header, err := s.configs(subId, host)
+	if err != nil || len(configArray) == 0 {
+		return "", "", err
+	}
+
+	// Combile outbounds
+	var finalJson []byte
+	if len(configArray) == 1 {
+		finalJson, _ = json.MarshalIndent(configArray[0], "", "  ")
+	} else {
+		finalJson, _ = json.MarshalIndent(configArray, "", "  ")
+	}
+	return string(finalJson), header, nil
+}
+
+// GetConfigs is the JSON subscription as a list: one client config per link
+// of the subscription, in the order GetSubs lists the links, each config the
+// text the JSON subscription answers with for a subscription of that link
+// alone (#231). The subscription page offers them beside the links.
+func (s *SubJsonService) GetConfigs(subId string, host string) ([]string, string, error) {
+	configArray, header, err := s.configs(subId, host)
+	if err != nil || len(configArray) == 0 {
+		return nil, "", err
+	}
+	configs := make([]string, 0, len(configArray))
+	for _, config := range configArray {
+		text, _ := json.MarshalIndent(config, "", "  ")
+		configs = append(configs, string(text))
+	}
+	return configs, header, nil
+}
+
+// configs builds the client configs of a subscription and its
+// Subscription-Userinfo header. The service is shared by every concurrent
+// request, so the per-request settings go on a copy (as in GetSubs).
+func (s *SubJsonService) configs(subId string, host string) ([]json_util.RawMessage, string, error) {
+	sub := *s.SubService
+	local := *s
+	local.SubService = &sub
+	return local.buildConfigs(subId, host)
+}
+
+func (s *SubJsonService) buildConfigs(subId string, host string) ([]json_util.RawMessage, string, error) {
 	s.SubService.overrideHost, s.SubService.overrideOn = s.SubService.settingService.GetProxyOverride()
 	s.SubService.linkHost, _ = s.SubService.settingService.GetLinkOverride()
 	inbounds, err := s.SubService.getInboundsBySubId(subId)
 	if err != nil || len(inbounds) == 0 {
-		return "", "", err
+		return nil, "", err
 	}
 
-	var header string
 	var traffic xray.ClientTraffic
 	var clientTraffics []xray.ClientTraffic
 	var configArray []json_util.RawMessage
@@ -127,7 +169,7 @@ func (s *SubJsonService) GetJson(subId string, host string) (string, string, err
 	}
 
 	if len(configArray) == 0 {
-		return "", "", nil
+		return nil, "", nil
 	}
 
 	// Prepare statistics
@@ -153,16 +195,8 @@ func (s *SubJsonService) GetJson(subId string, host string) (string, string, err
 		}
 	}
 
-	// Combile outbounds
-	var finalJson []byte
-	if len(configArray) == 1 {
-		finalJson, _ = json.MarshalIndent(configArray[0], "", "  ")
-	} else {
-		finalJson, _ = json.MarshalIndent(configArray, "", "  ")
-	}
-
-	header = fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d", traffic.Up, traffic.Down, traffic.Total, traffic.ExpiryTime/1000)
-	return string(finalJson), header, nil
+	header := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d", traffic.Up, traffic.Down, traffic.Total, traffic.ExpiryTime/1000)
+	return configArray, header, nil
 }
 
 func (s *SubJsonService) getConfig(inbound *model.Inbound, client model.Client, host string) []json_util.RawMessage {

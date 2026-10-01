@@ -91,6 +91,8 @@
 "tunnels" = "Tunnel"
 "downloadConf" = "Unduh"
 "copyConf" = "Salin konfigurasi"
+"copyLink" = "Salin tautan"
+"copyJson" = "Salin JSON"
 "tunnelHint" = "Buka dengan AmneziaVPN atau aplikasi AmneziaWG / WireGuard. Perubahan tidak dikirim otomatis: unduh lagi setelah server berubah."
 "noTunnels" = "Tidak ada konfigurasi tunnel dalam langganan ini"
 
