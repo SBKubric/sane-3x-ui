@@ -46,8 +46,10 @@ services:
   # (#219): users-telegram-invite.spec.ts turns the bot on through the
   # settings API (fixtures/tg-panel.ts) and restarts it, then checks the
   # invite link, its QR, and a person pressing Start with it;
-  # requests-captcha.spec.ts walks a request for a subscription (#220). A panel of its
-  # own, so no other spec ever sees a running bot or its settings.
+  # requests-captcha.spec.ts walks a request for a subscription (#220);
+  # users-link-broadcast.spec.ts sends the subscription links (#222). A
+  # panel of its own, so no other spec ever sees a running bot or its
+  # settings.
   panel-tg:
     build:
       context: ..

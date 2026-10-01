@@ -433,6 +433,10 @@ func (s *Server) startTask() {
 		// Requests for a subscription nobody decided on in 14 days expire (#220).
 		s.addJob("@every 10m", job.NewSubRequestExpireJob())
 
+		// The subscription links changed: ask the admins whether to send the
+		// new ones (#222).
+		s.addJob("@every 30s", job.NewSubLinkWatchJob())
+
 		// Check CPU load and alarm to TgBot if threshold passes
 		cpuThreshold, err := s.settingService.GetTgCpu()
 		if (err == nil) && (cpuThreshold > 0) {

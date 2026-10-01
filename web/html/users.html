@@ -29,6 +29,8 @@
                     <h2 data-testid="users-title" :style="{ margin: 0 }">{{ i18n "pages.subUsers.title" }}</h2>
                     <a-button type="primary" icon="user-add" data-testid="users-create" @click="openCreate">{{ i18n
                       "pages.subUsers.create" }}</a-button>
+                    <a-button icon="notification" data-testid="users-broadcast" @click="confirmBroadcast">{{ i18n
+                      "pages.subUsers.sublink.button" }}</a-button>
                     <span class="users-head-spacer"></span>
                     <a-input-search v-model.trim="search" allow-clear data-testid="users-search" @search="runSearch"
                       :style="{ maxWidth: '320px' }" placeholder='{{ i18n "pages.subUsers.search" }}'></a-input-search>
@@ -480,6 +482,10 @@
     unlink: '{{ i18n "pages.subUsers.telegram.unlink" }}',
     move: '{{ i18n "pages.subUsers.tginvite.move" }}',
     moveContent: '{{ i18n "pages.subUsers.tginvite.moveContent" }}',
+    broadcast: '{{ i18n "pages.subUsers.sublink.button" }}',
+    broadcastConfirm: '{{ i18n "pages.subUsers.sublink.confirm" }}',
+    broadcastHint: '{{ i18n "pages.subUsers.sublink.confirmHint" }}',
+    broadcastStarted: '{{ i18n "pages.subUsers.sublink.started" }}',
   };
 
   // telegramEntry is the request's Telegram for a typed tg_id or @nick
@@ -818,6 +824,30 @@
           cancelText: USERS_TEXT.cancel,
           onOk: async () => {
             await this.after(await usersApi('del/' + encodeURIComponent(user.subId), {}));
+          },
+        });
+      },
+
+      // --- the link broadcast (#222) --------------------------------------------
+
+      // confirmBroadcast asks, then has the bot send every enabled user with
+      // Telegram their subscription link; the report comes to the admins in
+      // Telegram.
+      confirmBroadcast() {
+        this.$confirm({
+          title: USERS_TEXT.broadcastConfirm,
+          content: USERS_TEXT.broadcastHint,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.broadcast,
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            const msg = await usersApi('broadcastLinks', {});
+            if (!msg.success) {
+              this.$message.error(msg.msg);
+              return;
+            }
+            this.$message.success(USERS_TEXT.broadcastStarted.replace('{id}', msg.obj.id)
+              .replace('{recipients}', msg.obj.recipients).replace('{noTelegram}', msg.obj.noTelegram), 8);
           },
         });
       },

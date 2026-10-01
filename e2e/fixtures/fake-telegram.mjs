@@ -105,7 +105,8 @@ const server = http.createServer(async (req, res) => {
     case 'sendDocument':
     case 'sendPhoto': {
       const messageId = Number(p.message_id) || nextMessageId++;
-      sent.push({ method, chat_id: p.chat_id, text: p.text || '', message_id: messageId, reply_markup: p.reply_markup });
+      // A photo's or a file's words are its caption.
+      sent.push({ method, chat_id: p.chat_id, text: p.text || p.caption || '', message_id: messageId, reply_markup: p.reply_markup });
       const chatId = Number(p.chat_id);
       return answer(res, {
         message_id: messageId,

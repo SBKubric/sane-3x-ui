@@ -111,6 +111,9 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 			rows = append(rows, row)
 		}
 		rows = append(rows, t.usersTelegramUnlinkedRows(v)...)
+		if v.TgId != 0 && v.Enable { // the subscription link to the user's Telegram (#222)
+			rows = append(rows, tu.InlineKeyboardRow(button(t.I18nBot("tgbot.sublink.sendUser"), subLinkUserAsk+" "+v.SubId)))
+		}
 		row = nil
 		if len(v.Clients) > 0 {
 			if v.Enable {
