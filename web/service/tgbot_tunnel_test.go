@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
@@ -95,12 +96,12 @@ func TestTunnelClientCard(t *testing.T) {
 		want []string
 		text []string
 	}{
-		{"linked", ivanAwg, []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📄 Config and QR", "👤 ivan"},
+		{"linked", ivanAwg, []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📅 Change Expiry Date", "📄 Config and QR", "👤 ivan"},
 			[]string{"<code>ivan-awg</code>", "awg (amneziawg)", "Enabled: ✅ Yes", "Offline", "Traffic: ↑↓0.00B / ♾ Unlimited",
 				"User: ivan", "http://localhost:2096/sub/" + ivan.SubId}},
-		{"without a subscription", uuidN(1), []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📄 Config and QR", "👤 robot"},
+		{"without a subscription", uuidN(1), []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📅 Change Expiry Date", "📄 Config and QR", "👤 robot"},
 			[]string{"<code>legacy-awg</code>", "User: robot", "No subscription"}},
-		{"wireguard", uuidN(2), []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📄 Config and QR", "👤 robot"},
+		{"wireguard", uuidN(2), []string{"🔄 Refresh", "📈 Reset Traffic", "🔴 Disable", "📅 Change Expiry Date", "📄 Config and QR", "👤 robot"},
 			[]string{"<code>vera-wg</code>", "wg (nativewg)"}},
 	}
 	for _, tc := range cases {
@@ -290,4 +291,96 @@ func TestTunnelTextsInEveryLanguage(t *testing.T) {
 			t.Errorf("%s: [tgbot.tunnel] keys\n got %q\nwant %q", e.Name(), got, want)
 		}
 	}
+}
+
+// TestExtendedExpiry: the rule both client cards extend by — from the expiry
+// date while it is ahead, N days from first use once it has passed or when it
+// already counts from first use, unlimited for 0 days.
+func TestExtendedExpiry(t *testing.T) {
+	const day = int64(24 * 60 * 60000)
+	now := int64(1_800_000_000_000)
+	cases := []struct {
+		name         string
+		expiry, days int64
+		want         int64
+	}{
+		{"ahead", now + 5*day, 30, now + 35*day},
+		{"passed", now - day, 30, -30 * day},
+		{"from first use", -10 * day, 30, -40 * day},
+		{"unlimited gets first use", 0, 7, -7 * day},
+		{"zero days is unlimited", now + 5*day, 0, 0},
+	}
+	for _, tc := range cases {
+		if got := extendedExpiry(tc.expiry, tc.days, now); got != tc.want {
+			t.Errorf("%s: extendedExpiry(%d, %d) = %d, want %d", tc.name, tc.expiry, tc.days, got, tc.want)
+		}
+	}
+}
+
+// TestTunnelClientExpiry: the AmneziaWG/WireGuard card changes the expiry as
+// the xray card does — presets, a custom number, cancel back to the card — and
+// a client switched off because its expiry passed comes back on.
+func TestTunnelClientExpiry(t *testing.T) {
+	bot := usersBotFixture(t)
+	const day = int64(24 * 60 * 60000)
+	now := time.Now().UnixMilli()
+	ahead := awgPeer(t, 1, "anna-awg", "")
+	expired := awgPeer(t, 2, "boris-awg", "")
+	db := database.GetDB()
+	if err := db.Model(ahead).Update("expiry_time", now+5*day).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Model(expired).Updates(map[string]any{"expiry_time": now - day, "enable": false}).Error; err != nil {
+		t.Fatal(err)
+	}
+
+	presets := tunnelPress(t, bot, button(t, tunnelPress(t, bot, "tun_c "+uuidN(1)).keyboard, "Change Expiry Date"))
+	if presets.text != "" || presets.route != "" {
+		t.Errorf("the presets replace the card's keyboard only: %+v", presets.usersReply)
+	}
+	if cancel := button(t, presets.keyboard, "Cancel"); cancel != "tun_r "+uuidN(1) {
+		t.Errorf("cancel = %q", cancel)
+	}
+	found := false
+	for _, b := range buttons(t, presets.keyboard) {
+		if data, _ := (&Tgbot{}).decodeQuery(b.CallbackData); data == "tun_exc "+uuidN(1)+" 30" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("no 30-day preset in %v", buttonTexts(t, presets.keyboard))
+	}
+
+	reply := tunnelPress(t, bot, "tun_exc "+uuidN(1)+" 30")
+	if reply.route != "tun_c "+uuidN(1) || reply.toast != "✅ anna-awg: Expire days reset successfully." {
+		t.Errorf("after the preset: %+v", reply.usersReply)
+	}
+	if got, _ := (&AwgService{}).GetClientByUUID(uuidN(1)); got.ExpiryTime != now+35*day || !got.Enable {
+		t.Errorf("anna: expiry %d (want %d), enable %v", got.ExpiryTime, now+35*day, got.Enable)
+	}
+
+	// Custom: 1, 4 → 14 days, confirmed; the expired client counts from first use and is on again.
+	pad := tunnelPress(t, bot, "tun_exi "+uuidN(2)+" 0")
+	if cancel := button(t, pad.keyboard, "Cancel"); cancel != "tun_r "+uuidN(2) {
+		t.Errorf("keypad cancel = %q", cancel)
+	}
+	pad = tunnelPress(t, bot, "tun_exi "+uuidN(2)+" 0 1")
+	pad = tunnelPress(t, bot, "tun_exi "+uuidN(2)+" 1 4")
+	if confirm := button(t, pad.keyboard, "14"); confirm != "tun_exc "+uuidN(2)+" 14" {
+		t.Errorf("confirm = %q", confirm)
+	}
+	tunnelPress(t, bot, "tun_exc "+uuidN(2)+" 14")
+	if got, _ := (&AwgService{}).GetClientByUUID(uuidN(2)); got.ExpiryTime != -14*day || !got.Enable {
+		t.Errorf("boris: expiry %d (want %d), enable %v", got.ExpiryTime, -14*day, got.Enable)
+	}
+
+	// 0 days: unlimited.
+	tunnelPress(t, bot, "tun_exc "+uuidN(1)+" 0")
+	if got, _ := (&AwgService{}).GetClientByUUID(uuidN(1)); got.ExpiryTime != 0 {
+		t.Errorf("unlimited: expiry %d", got.ExpiryTime)
+	}
+
+	// Callback data stays within Telegram's 64 bytes.
+	buttons(t, tunnelPress(t, bot, "tun_ex "+uuidN(1)).keyboard)
+	buttons(t, tunnelPress(t, bot, "tun_exi "+uuidN(1)+" 99999").keyboard)
 }
