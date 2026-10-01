@@ -270,3 +270,19 @@ func TestPlatformIcon(t *testing.T) {
 		}
 	}
 }
+
+// TestThePageRecommendsXHTTPOnPhones: the configurations section opens with
+// the advice to take VLESS + XHTTP on a smartphone, ahead of the cards.
+func TestThePageRecommendsXHTTPOnPhones(t *testing.T) {
+	page := render(t, testPage(), map[string]string{"Accept-Language": "ru-RU,ru;q=0.9"})
+	advice := strings.Index(page, `data-testid="sub-mobile-xhttp"`)
+	if advice < 0 {
+		t.Fatal("no smartphone advice on the page")
+	}
+	if card := strings.Index(page, `data-testid="sub-link"`); card >= 0 && card < advice {
+		t.Error("the smartphone advice comes after the configuration cards")
+	}
+	if !strings.Contains(page, "На смартфоне лучше использовать конфигурацию VLESS") {
+		t.Error("the Russian page lacks the smartphone advice")
+	}
+}

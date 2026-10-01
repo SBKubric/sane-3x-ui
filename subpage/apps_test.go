@@ -73,6 +73,12 @@ func TestDefaultAppsAreShowable(t *testing.T) {
 	if !strings.HasPrefix(apps[0].Name, "v2RayTun") {
 		t.Errorf("first default app = %q, want v2RayTun", apps[0].Name)
 	}
+	// The owner checked DefaultVPN with both of our configurations.
+	for _, app := range apps {
+		if app.Name == "DefaultVPN" && (!slices.Contains(app.Protocols, "VLESS + XHTTP") || !slices.Contains(app.Protocols, LabelAWG3)) {
+			t.Errorf("default DefaultVPN labels = %v, want VLESS + XHTTP and AWG 3", app.Protocols)
+		}
+	}
 	// The owner checked v2RayTun with our VLESS + XHTTP links on Android and iOS.
 	for _, app := range apps[:2] {
 		if app.Name != "v2RayTun" || !slices.Contains(app.Protocols, "VLESS + XHTTP") {

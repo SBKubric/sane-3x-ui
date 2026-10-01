@@ -32,7 +32,8 @@ type App struct {
 // check of our links on Android and iOS (2026-10-01), its release notes not
 // being public. V2rayNG is left out, it does not read
 // Profile-Update-Interval (#217). AmneziaVPN reads AWG 3 but not the xhttp
-// parameters of a VLESS link — the example the page's warning gives.
+// parameters of a VLESS link — the example the page's warning gives. DefaultVPN's
+// VLESS + XHTTP label rests on the owner's check (2026-10-01).
 var defaultApps = []App{
 	{Name: "v2RayTun", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "v2RayTun", Platform: "iPhone / iPad", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543", Protocols: []string{"VLESS + XHTTP"}},
@@ -45,7 +46,7 @@ var defaultApps = []App{
 	{Name: "AmneziaWG", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=org.amnezia.awg", Protocols: []string{LabelAWG3}},
 	{Name: "AmneziaWG", Platform: "iPhone / iPad / Mac", URL: "https://apps.apple.com/app/id6478942365", Protocols: []string{LabelAWG3}},
 	{Name: "AmneziaWG", Platform: "Windows", URL: "https://github.com/amnezia-vpn/amneziawg-windows-client/releases", Protocols: []string{LabelAWG3}},
-	{Name: "DefaultVPN", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id6744725017", Protocols: []string{LabelAWG3}},
+	{Name: "DefaultVPN", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id6744725017", Protocols: []string{"VLESS + XHTTP", LabelAWG3}},
 }
 
 // DefaultApps is a copy of the built-in list.

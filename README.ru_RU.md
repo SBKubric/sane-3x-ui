@@ -212,7 +212,7 @@ ansible-playbook -i inventories/stand-full wipe.yml -e wipe_confirm=yes --ask-va
 | v2rayN (Windows / macOS / Linux) | VLESS + XHTTP | исходники: `ServiceLib/Handler/Fmt/BaseFmt.cs` читает host, path, mode, extra (с 7.1.0) |
 | AmneziaVPN (все платформы) | AWG 3 | исходники: `configKeys.h` awgProtocolKeys при импорте `.conf` (5.0.1.5+). Его `vless.cpp` не читает параметры xhttp, поэтому VLESS + XHTTP не ставится |
 | AmneziaWG (Android; iOS / macOS; Windows) | AWG 3 | исходники: amneziawg-android `Interface.java`, amneziawg-apple `TunnelConfiguration+WgQuickConfig.swift`, amneziawg-windows `conf/parser.go` (релизы 3.1) |
-| DefaultVPN (iOS) | AWG 3 | release notes 2.0.0 «Added AWG 3 support», 2.0.1 «AWG 3.1» |
+| DefaultVPN (iOS) | VLESS + XHTTP, AWG 3 | AWG 3: release notes 2.0.0 «Added AWG 3 support», 2.0.1 «AWG 3.1»; VLESS + XHTTP: проверено владельцем (2026-10-01) |
 
 V2rayNG в списке нет: он не читает `Profile-Update-Interval` (#217). У sing-box и NekoBox нет транспорта XHTTP.
 

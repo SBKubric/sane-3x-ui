@@ -9,6 +9,7 @@
 "noApps" = "No apps are listed."
 "configsTitle" = "Your configurations"
 "configsHint" = "Use the one whose label your app has"
+"mobileXhttp" = "On a smartphone, prefer the VLESS + XHTTP configuration: it holds up better on mobile networks."
 "status" = "Status"
 "active" = "Active"
 "inactive" = "Inactive"

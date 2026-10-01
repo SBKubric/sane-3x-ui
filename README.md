@@ -212,7 +212,7 @@ The built-in list labels an app only where its source code or its own release no
 | v2rayN (Windows / macOS / Linux) | VLESS + XHTTP | source: `ServiceLib/Handler/Fmt/BaseFmt.cs` reads host, path, mode, extra (since 7.1.0) |
 | AmneziaVPN (all platforms) | AWG 3 | source: `configKeys.h` awgProtocolKeys used by `.conf` import (5.0.1.5+). Its `vless.cpp` does not read xhttp parameters, hence no VLESS + XHTTP |
 | AmneziaWG (Android; iOS / macOS; Windows) | AWG 3 | source: amneziawg-android `Interface.java`, amneziawg-apple `TunnelConfiguration+WgQuickConfig.swift`, amneziawg-windows `conf/parser.go` (3.1 releases) |
-| DefaultVPN (iOS) | AWG 3 | release notes 2.0.0 «Added AWG 3 support», 2.0.1 «AWG 3.1» |
+| DefaultVPN (iOS) | VLESS + XHTTP, AWG 3 | AWG 3: release notes 2.0.0 «Added AWG 3 support», 2.0.1 «AWG 3.1»; VLESS + XHTTP: confirmed by the owner (2026-10-01) |
 
 V2rayNG is not on the list because it does not read `Profile-Update-Interval` (#217). sing-box and NekoBox have no XHTTP transport.
 
