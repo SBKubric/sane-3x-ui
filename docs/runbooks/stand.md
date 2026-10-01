@@ -6,13 +6,13 @@
 
 ## 1. Инвентарь
 
-Пять VPS, все доступны по SSH под root по ключу; алиасы в `~/.ssh/config` рабочей машины.
+Пять VPS, все доступны по SSH под root по ключу; алиасы в `~/.ssh/config` рабочей машины. Реальные адреса в репозиториях не хранятся: они только в ansible vault orchestrator (`vault_hosts`) и в `~/.ssh/config` оператора.
 
-| SSH-хост | IP | ОС / ресурсы | Роль в цепочке | Что стоит |
+| SSH-хост | Адрес | ОС / ресурсы | Роль в цепочке | Что стоит |
 |---|---|---|---|---|
-| `real` | 201.50.117.213 | Ubuntu 24.04, ~870 MB | real server | панель x-ui (`/usr/local/x-ui`), xray, sub-сервер https:2096, nginx (держит 80 после переустановки) |
-| `bridge` | 194.87.80.122 | Debian 13, 1 vCPU / 380 MB | inner front | x-ui в режиме звена (`x-ui proxy`), relay dokodemo, sub-сервер 2096 |
-| `proxy` | 170.168.112.15 | — | edge front (активное) | до фазы 2 — старый proxy front v1 (`upstreamHost` + relay-manifest); после — звено v2 |
+| `real` | `vault_hosts.real` | Ubuntu 24.04, ~870 MB | real server | панель x-ui (`/usr/local/x-ui`), xray, sub-сервер https:2096, nginx (держит 80 после переустановки) |
+| `bridge` | `vault_hosts.bridge` | Debian 13, 1 vCPU / 380 MB | inner front | x-ui в режиме звена (`x-ui proxy`), relay dokodemo, sub-сервер 2096 |
+| `proxy` | `vault_hosts.proxy` | — | edge front (активное) | до фазы 2 — старый proxy front v1 (`upstreamHost` + relay-manifest); после — звено v2 |
 | `monserver` | — | — | mon-server | эпик мониторинга (`SBKubric/3ax-ui-monitoring`) |
 | `monclient` | — | — | mon-client | пробы через `direct`, `edge:<name>`, `inner:<name>` |
 
@@ -54,14 +54,14 @@
 
 ## 4. Доступ к панели из скриптов
 
-Учётные данные — в локальном файле оператора `panel-creds.env` (`PANEL_USER`, `PANEL_PASS`, `PANEL_PORT`, `PANEL_BASE`), `chmod 600`, не коммитить и не вставлять в чаты и тикеты.
+Учётные данные — в локальном файле оператора `panel-creds.env` (`PANEL_USER`, `PANEL_PASS`, `PANEL_PORT`, `PANEL_BASE`, `REAL_IP`, `BRIDGE_IP`), `chmod 600`, не коммитить и не вставлять в чаты и тикеты.
 
 ```sh
 . panel-creds.env
-P="https://201.50.117.213:${PANEL_PORT}${PANEL_BASE}"
+P="https://${REAL_IP}:${PANEL_PORT}${PANEL_BASE}"   # REAL_IP = vault_hosts.real
 curl -sk -c /tmp/c -X POST "${P}login" --data-urlencode "username=$PANEL_USER" --data-urlencode "password=$PANEL_PASS"
 curl -sk -b /tmp/c "${P}panel/api/chain/list"
-curl -sk -b /tmp/c -H 'Content-Type: application/json' -X POST "${P}panel/api/chain/add" -d '{"name":"bridge","host":"194.87.80.122","role":"inner"}'
+curl -sk -b /tmp/c -H 'Content-Type: application/json' -X POST "${P}panel/api/chain/add" -d '{"name":"bridge","host":"'"$BRIDGE_IP"'","role":"inner"}'
 ```
 
 Остальные ручки — proxy-front.md §11. Join-токен возвращается один раз в ответе `add`/`reissueToken`; в логи писать замаскированным.
