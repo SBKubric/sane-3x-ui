@@ -1,15 +1,13 @@
 package proxy
 
 import (
-	"encoding/base64"
 	"encoding/json"
-	"html/template"
 	"net/http"
 
 	"github.com/coinman-dev/3ax-ui/v2/logger"
+	"github.com/coinman-dev/3ax-ui/v2/subpage"
 
 	"github.com/gin-gonic/gin"
-	qrcode "github.com/skip2/go-qrcode"
 )
 
 // The tunnel subscription on a hop (docs/spec/tunnel-subscription.md §7):
@@ -26,18 +24,6 @@ type tunnelItem struct {
 	Enable     bool   `json:"enable"`
 	ExpiryTime int64  `json:"expiryTime"`
 	Conf       string `json:"conf"`
-}
-
-// pageTunnel is a tunnel as subpage.html shows it: the .conf ready to be
-// saved from a data URI and drawn as a QR code.
-type pageTunnel struct {
-	Protocol string
-	Name     string
-	Filename string
-	Enable   bool
-	Conf     string
-	Download template.URL
-	QR       template.URL
 }
 
 // tunPath is the tunnel subscription path of the current document, the
@@ -71,8 +57,8 @@ func (s *SubServer) handleTun(c *gin.Context, subid string) {
 
 // pageTunnels asks the next hop for the subscription's tunnels. ok is false
 // when it could not say — no /tun there, or a failure — and the page then
-// goes without the section.
-func (s *SubServer) pageTunnels(subid string) (tunnels []pageTunnel, header http.Header, ok bool) {
+// goes without them.
+func (s *SubServer) pageTunnels(subid string) (tunnels []subpage.Tunnel, header http.Header, ok bool) {
 	base, _, _ := s.nextHop()
 	body, header, status, err := s.fetchUpstream(base, s.tunPath(), subid)
 	if err != nil || status != http.StatusOK {
@@ -83,27 +69,9 @@ func (s *SubServer) pageTunnels(subid string) (tunnels []pageTunnel, header http
 		logger.Warning("proxy-front: next hop /tun answer is not a list:", err)
 		return nil, nil, false
 	}
-	tunnels = make([]pageTunnel, 0, len(items))
+	tunnels = make([]subpage.Tunnel, 0, len(items))
 	for _, item := range items {
-		t := pageTunnel{
-			Protocol: "WireGuard",
-			Name:     item.Name,
-			Filename: item.Filename,
-			Enable:   item.Enable,
-			Conf:     item.Conf,
-			Download: template.URL("data:text/plain;charset=utf-8;base64," + base64.StdEncoding.EncodeToString([]byte(item.Conf))),
-		}
-		if item.Kind == "awg" {
-			t.Protocol = "AmneziaWG"
-		}
-		if t.Filename == "" {
-			t.Filename = item.Kind
-		}
-		// Level L at 4 px a module: an AmneziaWG config is long.
-		if png, err := qrcode.Encode(item.Conf, qrcode.Low, -4); err == nil {
-			t.QR = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
-		}
-		tunnels = append(tunnels, t)
+		tunnels = append(tunnels, subpage.Tunnel{Kind: item.Kind, Name: item.Name, Filename: item.Filename, Enable: item.Enable, Conf: item.Conf})
 	}
 	return tunnels, header, true
 }
@@ -115,20 +83,12 @@ func (s *SubServer) renderTunnelsOnlyPage(c *gin.Context, subid string) bool {
 	if !ok || len(tunnels) == 0 {
 		return false
 	}
-	used, total, expire := parseUserinfo(header.Get("Subscription-Userinfo"))
-	c.Header("Content-Type", "text/html; charset=utf-8")
 	c.Status(http.StatusOK)
-	if err := s.tmpl.Execute(c.Writer, pageData{
-		Title:         "Subscription",
-		Tunnels:       tunnels,
-		TunnelSection: true,
-		TunnelsOnly:   true,
-		Used:          used,
-		Total:         total,
-		Expire:        expire,
-		Apps:          recommendedApps,
-	}); err != nil {
-		logger.Warning("proxy-front: render page:", err)
-	}
+	subpage.Render(c.Writer, c.Request, subpage.Page{
+		Title:   profileTitle(header),
+		Usage:   subpage.ParseUserinfo(header.Get("Subscription-Userinfo")),
+		Tunnels: tunnels,
+		Apps:    s.pageApps(subid),
+	})
 	return true
 }

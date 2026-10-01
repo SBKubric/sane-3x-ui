@@ -3,7 +3,7 @@ package sub
 import (
 	"html"
 	"net/http"
-	"strings"
+	"regexp"
 	"testing"
 
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
@@ -13,18 +13,18 @@ import (
 // links of the subscription page and the Profile-Web-Page-Url of /sub,
 // /json, /clash and /tun start with it; the paths are the panel's own.
 
-// pageLinks are the subscription and JSON links the page was rendered with.
-func pageLinks(t *testing.T, body string) (sub, json string) {
+// pageSubURLs are the subscription and JSON links the page was rendered
+// with: the first two links of its subscription card.
+func pageSubURLs(t *testing.T, body string) (sub, json string) {
 	t.Helper()
-	attr := func(name string) string {
-		i := strings.Index(body, name+`="`)
-		if i < 0 {
-			t.Fatalf("the page has no %s:\n%s", name, body)
-		}
-		rest := body[i+len(name)+2:]
-		return html.UnescapeString(rest[:strings.Index(rest, `"`)])
+	var urls []string
+	for _, m := range regexp.MustCompile(`data-role="sub">(.*?)</code>`).FindAllStringSubmatch(body, -1) {
+		urls = append(urls, html.UnescapeString(m[1]))
 	}
-	return attr("data-sub-url"), attr("data-subjson-url")
+	if len(urls) < 2 {
+		t.Fatalf("the page has %d subscription links:\n%s", len(urls), body)
+	}
+	return urls[0], urls[1]
 }
 
 func TestSubServerLinksGoThroughThePublicAddress(t *testing.T) {
@@ -51,7 +51,7 @@ func TestSubServerLinksGoThroughThePublicAddress(t *testing.T) {
 			if rec.Code != http.StatusOK {
 				t.Fatalf("page: %d %s", rec.Code, rec.Body.String())
 			}
-			if sub, json := pageLinks(t, rec.Body.String()); sub != page || json != tc.origin+"/js/pub-ivan" {
+			if sub, json := pageSubURLs(t, rec.Body.String()); sub != page || json != tc.origin+"/js/pub-ivan" {
 				t.Errorf("page links: %q %q", sub, json)
 			}
 

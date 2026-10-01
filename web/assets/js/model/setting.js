@@ -62,6 +62,7 @@ class AllSetting {
         this.subTunURI = "";
         this.subPublicURL = "";
         this.frontTrustedAddrs = "";
+        this.subPageApps = "";
         this.dnsExitApiKey = "";
         this.vpnName = "";
         this.vpnNameTtl = 5;

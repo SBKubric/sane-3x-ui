@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"bytes"
 	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
@@ -48,64 +47,18 @@ func TestDecodeConfigs(t *testing.T) {
 	}
 }
 
-func TestParseUserinfo(t *testing.T) {
-	used, total, expire := parseUserinfo("upload=1048576; download=1048576; total=10485760; expire=0")
-	if used == "" || total == "" {
-		t.Fatalf("used=%q total=%q", used, total)
-	}
-	if expire != "" {
-		t.Errorf("expire for 0 should be empty, got %q", expire)
-	}
-
-	_, total, expire = parseUserinfo("total=0; expire=1893456000")
-	if total != "∞" {
-		t.Errorf("total = %q, want ∞ for unlimited", total)
-	}
-	if expire == "" {
-		t.Error("expire should be set for a non-zero timestamp")
-	}
-
-	if u, to, e := parseUserinfo(""); u != "" || to != "" || e != "" {
-		t.Errorf("empty header should yield empties, got %q %q %q", u, to, e)
-	}
-}
-
-func TestPageRenders(t *testing.T) {
-	s := testSubServer(t, &Config{NextHop: NextHop{Host: "1.2.3.4"}}, NewState())
-
-	var buf bytes.Buffer
-	err := s.tmpl.Execute(&buf, pageData{
-		Title: "Subscription", SubURL: "https://proxy/sub/abc",
-		Configs: []pageConfig{{Link: "vless://a@h:443#x", JSON: `{"remarks": "x"}`}}, Used: "1 MB", Total: "∞", Install: installLinks, Apps: recommendedApps,
-	})
-	if err != nil {
-		t.Fatalf("template execute: %v", err)
-	}
-	out := buf.String()
-	for _, want := range []string{"https://proxy/sub/abc", "Copy JSON", "Amnezia", "DefaultVPN", "vless://a@h:443#x"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("rendered page missing %q", want)
-		}
-	}
-}
-
 // v2RayTun store pages the owner asked for at the top of the page (#217).
 const (
 	v2rayTunPlayURL  = "https://play.google.com/store/apps/details?id=com.v2raytun.android"
 	v2rayTunStoreURL = "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543"
 )
 
-// TestThePageLeadsWithTheV2RayTunStoreButtons: the page a client opens on
-// the edge starts with the two v2RayTun install buttons, above every other
-// block, and no longer recommends V2rayNG, which does not read
-// Profile-Update-Interval (#217).
-func TestThePageLeadsWithTheV2RayTunStoreButtons(t *testing.T) {
-	for _, a := range recommendedApps {
-		if strings.Contains(strings.ToLower(a.Name+a.URL), "v2rayng") {
-			t.Errorf("recommendedApps still lists %+v", a)
-		}
-	}
-
+// TestThePageLeadsWithTheWarningThenV2RayTun: the page a client opens on the
+// edge starts with the warning to check the app list (#235), and the list
+// starts with the two v2RayTun store pages (#217); V2rayNG, which does not
+// read Profile-Update-Interval, is not on it. The next hop here is a panel
+// older than the app list, so the page has the built-in one.
+func TestThePageLeadsWithTheWarningThenV2RayTun(t *testing.T) {
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Subscription-Userinfo", "upload=1; download=1; total=0; expire=0")
 		_, _ = w.Write([]byte("vless://a@h:443#x"))
@@ -130,22 +83,19 @@ func TestThePageLeadsWithTheV2RayTunStoreButtons(t *testing.T) {
 	}
 	page := w.Body.String()
 
+	warning := strings.Index(page, `data-testid="sub-warning"`)
 	// html/template escapes & in attributes; the Play URL has none.
 	play := strings.Index(page, `href="`+v2rayTunPlayURL+`"`)
 	appStore := strings.Index(page, `href="`+v2rayTunStoreURL+`"`)
-	if play < 0 || appStore < 0 {
-		t.Fatalf("page lacks a store button: Google Play at %d, App Store at %d", play, appStore)
+	firstApp := strings.Index(page, `data-testid="sub-app"`)
+	if warning < 0 || play < 0 || appStore < 0 {
+		t.Fatalf("page lacks the warning (%d) or a store card: Google Play at %d, App Store at %d", warning, play, appStore)
 	}
-	for _, want := range []string{"<b>Android</b>", "Google Play →", "<b>iPhone / iPad</b>", "App Store →"} {
-		if !strings.Contains(page, want) {
-			t.Errorf("page missing %q", want)
-		}
+	if !(warning < firstApp && firstApp < play && play < appStore) {
+		t.Errorf("order: warning %d, first app %d, Google Play %d, App Store %d", warning, firstApp, play, appStore)
 	}
-	// Above every other block: the title, the usage card and the QR card.
-	for _, later := range []string{"<h1>", `class="card`} {
-		if i := strings.Index(page, later); i < 0 || i < play || i < appStore {
-			t.Errorf("%q at %d is not below the store buttons (%d, %d)", later, i, play, appStore)
-		}
+	if second := strings.Index(page[firstApp+1:], `data-testid="sub-app"`) + firstApp + 1; second < play || second > appStore {
+		t.Errorf("the App Store card is not the second app card")
 	}
 	if strings.Contains(strings.ToLower(page), "v2rayng") {
 		t.Error("page still mentions V2rayNG")

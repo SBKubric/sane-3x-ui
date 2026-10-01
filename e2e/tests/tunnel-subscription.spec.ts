@@ -37,12 +37,11 @@ test.describe('tunnel subscription', () => {
     const settings = await (await authedRequest.post('/panel/setting/all')).json();
     expect(settings.success).toBe(true);
     await page.goto(`${SUB_URL}${settings.obj.subPath}${subId}`);
-    const tunnels = page.getByTestId('sub-tunnels');
-    await expect(tunnels).toBeVisible();
-    const card = tunnels.getByTestId('sub-tunnel');
+    const card = page.getByTestId('sub-tunnel');
     await expect(card).toHaveCount(1);
     await expect(card).toContainText('e2e-tun-phone');
-    await expect(card).toContainText('AmneziaWG');
+    // The protocol label of the config's AmneziaWG generation (#235).
+    await expect(card.getByTestId('sub-label')).toHaveText(/^AWG [123]$/);
     await expect(card.getByTestId('sub-tunnel-conf')).toContainText('[Interface]');
     await expect(card.getByRole('button', { name: /e2e-tun-phone\.conf/ })).toBeVisible();
 

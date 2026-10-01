@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="{{.Lang}}"{{if .RTL}} dir="rtl"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>{{.Title}}</title>
+<script>
+  // The viewer's own theme choice, before the first paint; the system's otherwise.
+  (function () {
+    try {
+      var theme = localStorage.getItem('sub-theme');
+      if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+    } catch (e) { /* storage blocked: follow the system */ }
+  })();
+</script>
+<style>
+  :root {
+    --bg: #f5f7f9;
+    --surface: #ffffff;
+    --ink: #161a1f;
+    --muted: #5d6673;
+    --line: #dde2e8;
+    --accent: #0f766e;
+    --accent-ink: #ffffff;
+    --accent-soft: #e6f4f2;
+    --warn: #9a3412;
+    --warn-soft: #fff4e5;
+    --warn-line: #f6c48f;
+    --code-bg: #0f1418;
+    --code-ink: #dfe6ec;
+    --code-muted: #8d99a5;
+    --code-key: #8fd3c9;
+    --code-str: #f2c48d;
+    --code-num: #c8b4f5;
+    --ok: #15803d;
+    --bad: #b91c1c;
+    --shadow: 0 1px 2px rgba(22, 26, 31, .06), 0 8px 24px -12px rgba(22, 26, 31, .18);
+    --font-display: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-body: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1114;
+      --surface: #171b20;
+      --ink: #e7ebef;
+      --muted: #8c95a1;
+      --line: #2a3139;
+      --accent: #2dd4bf;
+      --accent-ink: #062622;
+      --accent-soft: #143a36;
+      --warn: #fbbf77;
+      --warn-soft: #2a1d0f;
+      --warn-line: #6b4519;
+      --code-bg: #0a0d10;
+      --code-ink: #d6dde4;
+      --ok: #4ade80;
+      --bad: #f87171;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1114;
+    --surface: #171b20;
+    --ink: #e7ebef;
+    --muted: #8c95a1;
+    --line: #2a3139;
+    --accent: #2dd4bf;
+    --accent-ink: #062622;
+    --accent-soft: #143a36;
+    --warn: #fbbf77;
+    --warn-soft: #2a1d0f;
+    --warn-line: #6b4519;
+    --code-bg: #0a0d10;
+    --code-ink: #d6dde4;
+    --ok: #4ade80;
+    --bad: #f87171;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -12px rgba(0, 0, 0, .6);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.55;
+    padding-inline: 16px;
+    padding-block: 32px 64px;
+    -webkit-font-smoothing: antialiased;
+  }
+  main {
+    max-width: 720px;
+    margin-inline: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+  }
+
+  h1, h2 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+  h1 { font-size: clamp(24px, 5vw, 32px); font-weight: 700; letter-spacing: -.02em; line-height: 1.2; }
+  h2 { font-size: 20px; font-weight: 700; letter-spacing: -.01em; }
+  p { margin: 0; }
+  code { font-family: var(--font-mono); }
+  .lead { font-size: 17px; max-width: 62ch; }
+  .eyebrow {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .warning {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 22px 22px 24px;
+    background: var(--warn-soft);
+    border: 1px solid var(--warn-line);
+    border-inline-start: 6px solid var(--warn);
+    border-radius: 14px;
+  }
+  .warning h1 { color: var(--warn); }
+
+  section { display: flex; flex-direction: column; gap: 14px; }
+  .section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .hint { color: var(--muted); font-size: 14px; }
+
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag {
+    display: inline-block;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+  .config .tag { background: rgba(143, 211, 201, .14); color: var(--code-key); }
+  .tag.off, .config .tag.off { background: rgba(185, 28, 28, .18); color: var(--bad); }
+
+  .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+  .app {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 18px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--ink);
+    text-decoration: none;
+    box-shadow: var(--shadow);
+    transition: border-color .15s, transform .15s;
+  }
+  .app:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .app:focus-visible, button:focus-visible, select:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .app svg { width: 28px; height: 28px; flex: none; fill: currentColor; }
+  .app .label { display: flex; flex-direction: column; gap: 6px; line-height: 1.3; min-width: 0; }
+  .app .label small { color: var(--muted); font-size: 13px; }
+  .app .label strong { font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+  .app .arrow { margin-inline-start: auto; color: var(--muted); font-size: 18px; }
+  [dir="rtl"] .app .arrow { transform: scaleX(-1); }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .card-head strong { font-family: var(--font-display); }
+  .sub-body { display: grid; grid-template-columns: 148px 1fr; gap: 16px; align-items: start; }
+  .sub-body > div { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .qr { display: block; background: #fff; padding: 8px; border-radius: 8px; image-rendering: pixelated; }
+  .sub-body .qr { width: 148px; height: 148px; }
+  .plain-link {
+    display: block;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    font-size: 13px;
+    word-break: break-all;
+  }
+  .other { display: flex; flex-direction: column; gap: 6px; }
+  .other .hint { font-size: 13px; }
+
+  .usage { display: flex; flex-wrap: wrap; gap: 8px 28px; margin: 0; }
+  .usage div { display: flex; flex-direction: column; }
+  .usage dt { color: var(--muted); font-size: 12px; }
+  .usage dd { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+  .status { font-weight: 700; }
+  .status.on { color: var(--ok); }
+  .status.off { color: var(--bad); }
+
+  .configs { display: flex; flex-direction: column; gap: 14px; }
+  .config {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .config-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 10px 14px 10px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, .08);
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+  .config-bar .name { overflow-wrap: anywhere; }
+  .config-bar .tags { margin-inline-start: auto; }
+  .config pre {
+    margin: 0;
+    padding: 14px 16px;
+    color: var(--code-ink);
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 1.55;
+    tab-size: 2;
+  }
+  .config pre.wrap { white-space: pre-wrap; word-break: break-all; }
+  .config pre.scroll { overflow: auto; max-height: 360px; }
+  .config .qr-wrap { padding: 16px 16px 0; }
+  .config .qr-wrap .qr { max-width: 100%; height: auto; }
+  .config details { border-top: 1px solid rgba(255, 255, 255, .08); }
+  .config summary { cursor: pointer; padding: 10px 16px; color: var(--code-muted); font-size: 13px; }
+  .k { color: var(--code-key); }
+  .s { color: var(--code-str); }
+  .n { color: var(--code-num); }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 14px; }
+  .card .actions { padding: 0; }
+
+  button { font: inherit; }
+  .copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border: 0;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: filter .15s;
+  }
+  .copy:hover { filter: brightness(1.08); }
+  .copy svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .copy.ghost { background: transparent; color: inherit; box-shadow: inset 0 0 0 1px currentColor; }
+  .config .copy.ghost { color: var(--code-ink); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+  .copy[data-state="done"] { background: var(--ok); color: #fff; box-shadow: none; }
+  .copy[data-state="error"] { background: var(--bad); color: #fff; box-shadow: none; }
+
+  .note { padding: 12px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); font-size: 14px; }
+
+  ol.steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  ol.steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 12px;
+    align-items: start;
+  }
+  ol.steps li::before {
+    content: counter(step);
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 13px;
+  }
+  ol.steps li p { padding-top: 3px; }
+
+  footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 20px;
+    color: var(--muted);
+    font-size: 13px;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+  }
+  footer label { display: inline-flex; align-items: center; gap: 8px; }
+  footer select, footer button {
+    padding: 6px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  @media (max-width: 480px) {
+    body { padding-block: 20px 48px; }
+    main { gap: 28px; }
+    .warning { padding: 18px 16px 20px; }
+    .sub-body { grid-template-columns: 1fr; }
+    .sub-body .qr { width: 168px; height: 168px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .app, .copy { transition: none; }
+    .app:hover { transform: none; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <header class="warning" data-testid="sub-warning">
+    <span class="eyebrow">{{.Title}}</span>
+    <h1>{{.T "page.warnTitle"}}</h1>
+    <p class="lead">{{.T "page.warnText"}}</p>
+  </header>
+
+  <section aria-labelledby="apps-title">
+    <div class="section-head">
+      <h2 id="apps-title">{{.T "page.appsTitle"}}</h2>
+      <span class="hint">{{.T "page.appsHint"}}</span>
+    </div>
+    {{if .Apps}}
+    <div class="apps">
+      {{range .Apps}}
+      <a class="app" data-testid="sub-app" href="{{.URL}}" target="_blank" rel="noopener noreferrer">
+        {{if eq .Icon "android"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.6 9.48l1.84-3.18c.16-.31.04-.69-.26-.85a.64.64 0 00-.86.25l-1.87 3.23a11.4 11.4 0 00-8.9 0L5.67 5.7a.64.64 0 00-.86-.25c-.3.16-.42.54-.26.85L6.4 9.48A10.8 10.8 0 001 18h22a10.8 10.8 0 00-5.4-8.52zM7 15.25a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5zm10 0a1.25 1.25 0 110-2.5 1.25 1.25 0 010 2.5z"/></svg>
+        {{else if eq .Icon "apple"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.37 12.67c-.02-2.36 1.93-3.49 2.02-3.55-1.1-1.61-2.81-1.83-3.42-1.85-1.45-.15-2.84.86-3.58.86-.74 0-1.88-.84-3.09-.82-1.59.02-3.06.93-3.88 2.35-1.65 2.87-.42 7.12 1.19 9.45.79 1.14 1.72 2.42 2.95 2.37 1.19-.05 1.64-.77 3.07-.77 1.44 0 1.84.77 3.09.75 1.28-.02 2.09-1.16 2.87-2.31.9-1.32 1.28-2.6 1.3-2.67-.03-.01-2.49-.96-2.52-3.81zM14.02 5.74c.65-.79 1.09-1.89.97-2.99-.94.04-2.08.63-2.75 1.42-.6.7-1.13 1.82-.99 2.89 1.05.08 2.12-.53 2.77-1.32z"/></svg>
+        {{else if eq .Icon "windows"}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5l7.5-1v7H3zm0 13l7.5 1v-7H3zm8.5 1.1L21 21v-8.5h-9.5zm0-15.2v7.1H21V3z"/></svg>
+        {{else}}<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16a1 1 0 011 1v11a1 1 0 01-1 1h-6v2h3v2H7v-2h3v-2H4a1 1 0 01-1-1V5a1 1 0 011-1zm1 2v9h14V6z"/></svg>{{end}}
+        <span class="label">
+          <small>{{.Platform}}</small>
+          <strong>{{.Name}}</strong>
+          {{if .Protocols}}<span class="tags">{{range .Protocols}}<span class="tag" data-testid="sub-app-label">{{.}}</span>{{end}}</span>{{end}}
+        </span>
+        <span class="arrow" aria-hidden="true">→</span>
+      </a>
+      {{end}}
+    </div>
+    {{else}}
+    <p class="hint" data-testid="sub-no-apps">{{.T "page.noApps"}}</p>
+    {{end}}
+  </section>
+
+  <section aria-labelledby="configs-title">
+    <div class="section-head">
+      <h2 id="configs-title">{{.T "page.configsTitle"}}</h2>
+      <span class="hint">{{.T "page.configsHint"}}</span>
+    </div>
+    <p class="note" data-testid="sub-mobile-xhttp">{{.T "page.mobileXhttp"}}</p>
+
+    {{with .Usage}}
+    <dl class="usage" data-testid="sub-usage">
+      <div><dt>{{$.T "page.status"}}</dt><dd class="status {{if .Active}}on{{else}}off{{end}}">{{if .Active}}{{$.T "page.active"}}{{else}}{{$.T "page.inactive"}}{{end}}</dd></div>
+      <div><dt>{{$.T "page.used"}}</dt><dd>{{.Used}}</dd></div>
+      <div><dt>{{$.T "page.total"}}</dt><dd>{{.Total}}</dd></div>
+      {{if .Remained}}<div><dt>{{$.T "page.remained"}}</dt><dd>{{.Remained}}</dd></div>{{end}}
+      <div><dt>{{$.T "page.expires"}}</dt><dd>{{if .Expire}}{{.Expire}}{{else if .ExpireDays}}{{$.TD "page.afterFirstUse" .ExpireDays}}{{else}}{{$.T "page.noExpiry"}}{{end}}</dd></div>
+    </dl>
+    {{end}}
+
+    {{if .SubURL}}
+    <div class="card" data-testid="sub-subscription" data-card>
+      <div class="card-head"><strong>{{.T "page.subscription"}}</strong></div>
+      <div class="sub-body">
+        {{if .SubQR}}<img class="qr" src="{{.SubQR}}" alt="{{.T "page.subscriptionQr"}}" width="148" height="148">{{end}}
+        <div>
+          <p class="hint">{{.T "page.subscriptionHint"}}</p>
+          <code class="plain-link" data-role="sub">{{.SubURL}}</code>
+          <div class="actions"><button class="copy" type="button" data-copy="sub"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span>{{.T "page.copyLink"}}</span></button></div>
+          {{range .SubURLs}}
+          <div class="other" data-card>
+            <span class="hint">{{.Name}}</span>
+            <code class="plain-link" data-role="sub">{{.URL}}</code>
+            <div class="actions"><button class="copy ghost" type="button" data-copy="sub"><span>{{$.T "page.copyLink"}}</span></button></div>
+          </div>
+          {{end}}
+        </div>
+      </div>
+    </div>
+    {{end}}
+
+    <div class="configs">
+      {{range .Links}}
+      <article class="config" data-testid="sub-link" data-card>
+        <div class="config-bar">
+          <span class="name">{{.Name}}</span>
+          {{if .Label}}<span class="tags"><span class="tag" data-testid="sub-label">{{.Label}}</span></span>{{end}}
+        </div>
+        <pre class="wrap"><code data-role="link">{{.URL}}</code></pre>
+        <div class="actions">
+          <button class="copy" type="button" data-testid="sub-copy-link" data-copy="link"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span>{{$.T "page.copyLink"}}</span></button>
+          {{if .JSON}}<button class="copy ghost" type="button" data-testid="sub-copy-json" data-copy="json"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg><span>{{$.T "page.copyJson"}}</span></button>{{end}}
+        </div>
+        {{if .JSON}}
+        <details>
+          <summary>{{$.T "page.showJson"}}</summary>
+          <pre class="scroll"><code data-testid="sub-json" data-role="json">{{.JSON}}</code></pre>
+        </details>
+        {{end}}
+      </article>
+      {{end}}
+
+      {{range .Tunnels}}
+      <article class="config" data-testid="sub-tunnel" data-card>
+        <div class="config-bar">
+          <span class="name">{{.Name}}</span>
+          <span class="tags">{{if not .Enable}}<span class="tag off">{{$.T "page.disabled"}}</span>{{end}}{{if .Label}}<span class="tag" data-testid="sub-label">{{.Label}}</span>{{end}}</span>
+        </div>
+        {{if .QR}}<div class="qr-wrap"><img class="qr" src="{{.QR}}" alt="{{$.T "page.confQr"}}"></div>{{end}}
+        <pre class="wrap scroll"><code data-testid="sub-tunnel-conf" data-role="conf">{{.Conf}}</code></pre>
+        <div class="actions">
+          <button class="copy" type="button" data-download="{{.Filename}}.conf"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0l-5-5m5 5l5-5M4 21h16"/></svg><span>{{$.TD "page.download" (printf "%s.conf" .Filename)}}</span></button>
+          <button class="copy ghost" type="button" data-copy="conf"><span>{{$.T "page.copyConf"}}</span></button>
+        </div>
+      </article>
+      {{end}}
+    </div>
+
+    <p class="note" data-testid="sub-do-not-share">{{.T "page.doNotShare"}}</p>
+  </section>
+
+  <section aria-labelledby="steps-title" data-testid="sub-steps">
+    <h2 id="steps-title">{{.T "page.howTitle"}}</h2>
+    <ol class="steps">
+      <li><p>{{.T "page.step1"}}</p></li>
+      <li><p>{{.T "page.step2"}}</p></li>
+      <li><p>{{.T "page.step3"}}</p></li>
+      <li><p>{{.T "page.step4"}}</p></li>
+      {{if .Tunnels}}<li><p>{{.T "page.stepTunnel"}}</p></li>{{end}}
+    </ol>
+    <p class="hint" data-testid="sub-import-error">{{.T "page.importError"}}</p>
+  </section>
+
+  <footer>
+    <label>{{.T "page.language"}}
+      <select id="sub-lang">
+        {{range .Languages}}<option value="{{.Code}}"{{if eq .Code $.Lang}} selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+    </label>
+    <button type="button" id="sub-theme">{{.T "page.theme"}}</button>
+  </footer>
+</main>
+
+<script>
+(function () {
+  var text = {
+    copied: {{.T "page.copied"}},
+    selected: {{.T "page.selected"}},
+  };
+
+  // JSON highlighting: keys, strings, and numbers or literals. The spans
+  // leave the text as it was, so a copy takes the config unchanged.
+  function highlight(json) {
+    var esc = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return esc.replace(/("(?:\\.|[^"\\])*")(\s*:)?|\b(true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\b/g,
+      function (m, str, colon, lit) {
+        if (str) return colon ? '<span class="k">' + str + '</span>' + colon : '<span class="s">' + str + '</span>';
+        return '<span class="n">' + lit + '</span>';
+      });
+  }
+  document.querySelectorAll('[data-role="json"]').forEach(function (el) {
+    el.innerHTML = highlight(el.textContent);
+  });
+
+  function setState(btn, state, message) {
+    var label = btn.querySelector('span') || btn;
+    if (!btn.dataset.label) btn.dataset.label = label.textContent;
+    btn.dataset.state = state;
+    label.textContent = message;
+    clearTimeout(btn._reset);
+    btn._reset = setTimeout(function () {
+      btn.dataset.state = 'idle';
+      label.textContent = btn.dataset.label;
+    }, 2200);
+  }
+
+  function legacyCopy(value) {
+    var ta = document.createElement('textarea');
+    ta.value = value;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+
+  // The last resort: select the text, for the user to copy by hand.
+  function selectText(el) {
+    var details = el.closest('details');
+    if (details) details.open = true;
+    var range = document.createRange();
+    range.selectNodeContents(el);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function copy(btn, el) {
+    var value = el.textContent;
+    var done = function () { setState(btn, 'done', text.copied); };
+    var fail = function () { selectText(el); setState(btn, 'error', text.selected); };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(value).then(done, function () { legacyCopy(value) ? done() : fail(); });
+    } else if (legacyCopy(value)) {
+      done();
+    } else {
+      fail();
+    }
+  }
+
+  function download(name, value) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([value], { type: 'text/plain' }));
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  }
+
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-copy], button[data-download]');
+    if (!btn) return;
+    var card = btn.closest('[data-card]');
+    if (btn.dataset.download) {
+      download(btn.dataset.download, card.querySelector('[data-role="conf"]').textContent);
+      return;
+    }
+    var el = card.querySelector('[data-role="' + btn.dataset.copy + '"]');
+    if (el) copy(btn, el);
+  });
+
+  document.getElementById('sub-lang').addEventListener('change', function (event) {
+    document.cookie = 'lang=' + encodeURIComponent(event.target.value) + '; path=/; max-age=31536000; SameSite=Lax';
+    location.reload();
+  });
+
+  document.getElementById('sub-theme').addEventListener('click', function () {
+    var root = document.documentElement;
+    var current = root.getAttribute('data-theme') ||
+      (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    var next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('sub-theme', next); } catch (e) { /* this visit only */ }
+  });
+})();
+</script>
+</body>
+</html>

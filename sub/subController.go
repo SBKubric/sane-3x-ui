@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/coinman-dev/3ax-ui/v2/config"
-
 	"github.com/gin-gonic/gin"
 )
 
@@ -107,9 +105,13 @@ func (a *SUBController) subs(c *gin.Context) {
 		a.subJSONList(c, subId)
 		return
 	}
+	if c.Query("format") == appsListFormat {
+		a.subAppsList(c, subId)
+		return
+	}
 	scheme, host, hostWithPort, hostHeader := a.subService.ResolveRequest(c)
 	subs, lastOnline, traffic, err := a.subService.GetSubs(subId, host)
-	tunnels, tunnelsJSON, tunnelOnly := a.tunnelsOfPage(c, subId, err != nil || len(subs) == 0)
+	tunnels, tunnelOnly := a.tunnelsOfPage(c, subId, err != nil || len(subs) == 0)
 	if tunnelOnly {
 		traffic = a.tunnels.svc.Traffic(tunnels)
 		lastOnline = traffic.LastOnline
@@ -150,32 +152,8 @@ func (a *SUBController) subs(c *gin.Context) {
 				basePathStr = strings.TrimRight(basePathStr, "/") + "/" + subId + "/"
 			}
 			page := a.subService.BuildPageData(subId, hostHeader, traffic, lastOnline, subs, subURL, subJsonURL, subClashURL, basePathStr)
-			c.HTML(200, "subpage.html", gin.H{
-				"title":        "subscription.title",
-				"cur_ver":      config.GetVersion(),
-				"host":         page.Host,
-				"base_path":    page.BasePath,
-				"sId":          page.SId,
-				"enabled":      page.Enabled,
-				"download":     page.Download,
-				"upload":       page.Upload,
-				"total":        page.Total,
-				"used":         page.Used,
-				"remained":     page.Remained,
-				"expire":       page.Expire,
-				"lastOnline":   page.LastOnline,
-				"datepicker":   page.Datepicker,
-				"downloadByte": page.DownloadByte,
-				"uploadByte":   page.UploadByte,
-				"totalByte":    page.TotalByte,
-				"subUrl":       page.SubUrl,
-				"subJsonUrl":   page.SubJsonUrl,
-				"subClashUrl":  page.SubClashUrl,
-				"result":       page.Result,
-				"defaultTheme": page.DefaultTheme,
-				"tunnels":      tunnelsJSON,
-				"jsonConfigs":  a.pageJSONConfigs(subId, host, page.Result),
-			})
+			// The page of #235, the one every hop renders too.
+			a.renderSubPage(c, subId, host, page, tunnels)
 			return
 		}
 
@@ -190,31 +168,6 @@ func (a *SUBController) subs(c *gin.Context) {
 			c.String(200, result)
 		}
 	}
-}
-
-// pageJSONConfigs is the client JSON config of every link on the page, as a
-// JSON list of the configs' texts for the page's bootstrap element (#231):
-// built here rather than linked, so the copy works with the JSON
-// subscription off and its path closed. "" when the configs do not line up
-// with the links one to one; the page then offers the links alone.
-func (a *SUBController) pageJSONConfigs(subId, host string, subs []string) string {
-	var links int
-	for _, sub := range subs {
-		for _, line := range strings.Split(sub, "\n") {
-			if strings.TrimSpace(line) != "" {
-				links++
-			}
-		}
-	}
-	configs, _, err := a.subJsonService.GetConfigs(subId, host)
-	if err != nil || len(configs) == 0 || len(configs) != links {
-		return ""
-	}
-	list, err := json.Marshal(configs)
-	if err != nil {
-		return ""
-	}
-	return string(list)
 }
 
 // subJSONList answers /sub/<id>?format=json: the subscription's client JSON

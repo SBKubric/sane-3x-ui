@@ -164,14 +164,14 @@
                 <a-switch v-model="allSetting.subShowInfo"></a-switch>
             </template>
         </a-setting-list-item>
+        <!-- The subscription page's app list (#235). The page follows the
+             device's light or dark theme, so the old theme select is gone. -->
         <a-setting-list-item paddings="small">
-            <template #title>{{ i18n "menu.theme" }}</template>
-            <template #description>{{ i18n "subscription.pageThemeDesc" }}</template>
+            <template #title>{{ i18n "pages.settings.subPageApps"}}</template>
+            <template #description>{{ i18n "pages.settings.subPageAppsDesc"}}</template>
             <template #control>
-                <a-select v-model="allSetting.subTheme" style="width:110px">
-                    <a-select-option value="dark">{{ i18n "menu.dark" }}</a-select-option>
-                    <a-select-option value="light">Light</a-select-option>
-                </a-select>
+                <a-textarea v-model="allSetting.subPageApps" data-testid="sub-page-apps" spellcheck="false"
+                    :auto-size="{ minRows: 6, maxRows: 18 }" style="font-family: monospace; font-size: 12px;"></a-textarea>
             </template>
         </a-setting-list-item>
         <a-divider>{{ i18n "pages.xray.basicTemplate"}}</a-divider>

@@ -77,7 +77,7 @@ The registry also holds `chainExtraPorts` — the ports the real server serves *
 **b) Proxy run mode (`x-ui proxy`).** A disposable box runs the same binary as one hop and does two things:
 
 - **Relays traffic** — an xray `dokodemo-door` L4 passthrough forwards every relayed port to its next hop (raw TCP+UDP, dual-stack). TLS/Reality terminate on the real server, so **no keys ever live on a hop**. Which ports to relay arrives in the **chain document** the hop polls from its next hop — a truncated excerpt of the registry that shows the hop itself, everything outward of it and the port list, and nothing deeper.
-- **Serves subscriptions** — it fetches `/sub` and `/json` from its next hop and re-serves them: apps get the raw subscription, browsers get a custom page (traffic stats, QR, every link with **Copy link** and **Copy JSON** buttons, and a curated app list). The JSON configs come embedded in the page from the subscription path (`/sub/<id>?format=json`), so the button works with the JSON subscription off.
+- **Serves subscriptions** — it fetches `/sub` and `/json` from its next hop and re-serves them: apps get the raw subscription, browsers get the subscription page of the panel (see «Subscription page»: the warning, the app list with protocol labels, every link with **Copy link** and **Copy JSON**). The JSON configs come embedded in the page from the subscription path (`/sub/<id>?format=json`), so the button works with the JSON subscription off.
 
 **Joining a hop to the chain.** Always work inwards-out: the panel first, then the innermost hop, then outwards, edge last. Creating the hop in the registry does **not** bump the chain revision — a `pending` hop is not in the document yet, so there is nothing in it to change; the revision moves once, when the box actually joins.
 
@@ -185,6 +185,36 @@ Running the chain and monitoring end-to-end on a real stand turned up bugs the u
 - **Installer fixes.** ACME runs over IPv4 by default. A version tag passed without a TTY is no longer dropped. `--beta` no longer leaves a box without the service. An existing install is handed to this fork's `update.sh`, not upstream's.
 - **Subscriptions.** VLESS users get `"encryption":"none"` in the JSON subscription. The profile page URL carries the proxy's own address and port.
 - **UDP through WireGuard outbounds (WARP, NordVPN).** New WireGuard outbounds start with `noKernelTun: true`. xray runs as root under the panel and then picks a kernel TUN, and through a kernel TUN UDP fails (`use of WriteTo with pre-connected connection`) while TCP works. Outbounds created earlier are left as they are: switch **No Kernel Tun** on in the outbound's settings if UDP through it does not work.
+
+### 5. Subscription page
+
+A browser that opens a subscription link gets one page, from the panel and from every hop of the chain alike (the hop renders the same template, `subpage/`). It is built so that a user picks an app that will actually work:
+
+1. **A warning first:** check that your app is in the list below, otherwise the connection will not work. An app may import a configuration and show «connected» while no traffic goes through. AmneziaVPN, for example, imports a VLESS + XHTTP link but ignores its XHTTP parameters.
+2. **Apps:** cards with the platform, the store link and **protocol labels** such as `VLESS + XHTTP` or `AWG 3`.
+3. **Your configurations:** usage, the subscription link with its QR code, then every configuration with its label. A VLESS or other xray link has **Copy link** and **Copy JSON**. An AWG or WireGuard configuration has its QR code, **Download .conf** and **Copy config**. Below them: «do not forward these configurations to anyone».
+4. **How to connect:** short steps (import from the clipboard) and what to do when an import fails.
+
+The labels come from one dictionary. A configuration is labelled by its protocol and transport (`VLESS + XHTTP`, `VLESS + TCP`, `Trojan + WS`, `Shadowsocks` …) or by its tunnel generation (`AWG 1`, `AWG 2`, `AWG 3`, `WireGuard`). An app card carries the labels of the configurations the app is known to handle.
+
+The page has no external dependencies: system fonts, inline CSS and JS, and QR codes drawn by the server. It follows the device's light or dark theme, and the viewer can switch it. It speaks the panel's languages, chosen by the `lang` cookie or by `Accept-Language`. The page's own strings are in `subpage/translation/`; the translations are English apart from Russian. Copying falls back from the Clipboard API to `execCommand`, and then to selecting the text for a manual copy.
+
+**The app list** is a panel setting: *Subscription → Information → Subscription page apps*. It is a JSON list of `{"name", "platform", "url", "protocols"}`. The form shows the built-in list. Saved unchanged, the built-in list follows future releases; `[]` shows no apps. A hop takes the list from its next hop at `/sub/<id>?format=apps`. A panel older than the list answers that with the links, and the hop then shows the built-in list.
+
+The built-in list labels an app only where its source code or its own release notes confirm the support (checked 2026-10-01):
+
+| App | Label | Source |
+|---|---|---|
+| v2RayTun (Android, iOS) | VLESS + XHTTP | first on the page (#217). Confirmed by the owner with our links on Android and iOS (2026-10-01); its release notes are not public |
+| Happ (Android; Windows / macOS / Linux) | VLESS + XHTTP | release notes: Android 2.0.2 «fix extra parsing for xhttp», desktop 1.4.0 «Added support for … xHTTP» |
+| Shadowrocket (iOS) | VLESS + XHTTP | release notes 2.2.66 «Added XHTTP transport support», 2.2.86 |
+| V2Box (iOS) | VLESS + XHTTP | release notes 9.0 «Implement xhttp … Add xhttp mode, extra fields» |
+| v2rayN (Windows / macOS / Linux) | VLESS + XHTTP | source: `ServiceLib/Handler/Fmt/BaseFmt.cs` reads host, path, mode, extra (since 7.1.0) |
+| AmneziaVPN (all platforms) | AWG 3 | source: `configKeys.h` awgProtocolKeys used by `.conf` import (5.0.1.5+). Its `vless.cpp` does not read xhttp parameters, hence no VLESS + XHTTP |
+| AmneziaWG (Android; iOS / macOS; Windows) | AWG 3 | source: amneziawg-android `Interface.java`, amneziawg-apple `TunnelConfiguration+WgQuickConfig.swift`, amneziawg-windows `conf/parser.go` (3.1 releases) |
+| DefaultVPN (iOS) | VLESS + XHTTP, AWG 3 | AWG 3: release notes 2.0.0 «Added AWG 3 support», 2.0.1 «AWG 3.1»; VLESS + XHTTP: confirmed by the owner (2026-10-01) |
+
+V2rayNG is not on the list because it does not read `Profile-Update-Interval` (#217). sing-box and NekoBox have no XHTTP transport.
 
 ---
 
@@ -434,7 +464,7 @@ The registry also holds `chainExtraPorts` — the ports the real server serves *
 **b) Proxy run mode (`x-ui proxy`).** A disposable box runs the same binary as one hop and does two things:
 
 - **Relays traffic** — an xray `dokodemo-door` L4 passthrough forwards every relayed port to its next hop (raw TCP+UDP, dual-stack). TLS/Reality terminate on the real server, so **no keys ever live on a hop**. Which ports to relay arrives in the **chain document** the hop polls from its next hop — a truncated excerpt of the registry that shows the hop itself, everything outward of it and the port list, and nothing deeper.
-- **Serves subscriptions** — it fetches `/sub` and `/json` from its next hop and re-serves them: apps get the raw subscription, browsers get a custom page (traffic stats, QR, every link with **Copy link** and **Copy JSON** buttons, and a curated app list). The JSON configs come embedded in the page from the subscription path (`/sub/<id>?format=json`), so the button works with the JSON subscription off.
+- **Serves subscriptions** — it fetches `/sub` and `/json` from its next hop and re-serves them: apps get the raw subscription, browsers get the subscription page of the panel (see «Subscription page»: the warning, the app list with protocol labels, every link with **Copy link** and **Copy JSON**). The JSON configs come embedded in the page from the subscription path (`/sub/<id>?format=json`), so the button works with the JSON subscription off.
 
 **Joining a hop to the chain.** Always work inwards-out: the panel first, then the innermost hop, then outwards, edge last. Creating the hop in the registry does **not** bump the chain revision — a `pending` hop is not in the document yet, so there is nothing in it to change; the revision moves once, when the box actually joins.
 
