@@ -25,7 +25,10 @@ import (
 //     «⚙️ Approve with changes» (the «New user» review, filled in, the
 //     Telegram bound), «❌ Reject» (a preset reason or one typed) and
 //     «🚫 Block» / «✅ Unblock»; a decided request's card says how;
-//   - an account's card, from the blocked list: «✅ Unblock» / «🚫 Block».
+//   - an account's card, from the blocked list: «✅ Unblock» / «🚫 Block»;
+//   - both cards say when the account passed the captcha, with «🧩 Reset
+//     the captcha»: its next request asks for the captcha again. A block
+//     resets it too.
 //
 // The applicant is told on a new screen of their own chat: «Your
 // subscription is ready» over «My subscription», or the rejection with its
@@ -45,6 +48,7 @@ const (
 	requestBlockAction   = "rq_b"    // rq_b <1|0> <tgId> [<id>]: block or unblock, then the request's card or the account's
 	requestBlockedRoute  = "rq_bl"   // rq_bl <page>: the blocked accounts
 	requestAccountRoute  = "rq_a"    // rq_a <tgId>: an account's card
+	requestCaptchaAction = "rq_cr"   // rq_cr <tgId> [<id>]: reset the account's captcha, then the request's card or the account's
 	requestReasonState   = "usr_rqr" // the chat waits for a reason (a users state: admins only)
 )
 
@@ -94,6 +98,8 @@ func (t *Tgbot) requestAdminCallback(chatId int64, data string) (screenReply, bo
 		return t.requestsBlocked(int(num(0))), true
 	case requestAccountRoute:
 		return t.requestAccount(num(0)), true
+	case requestCaptchaAction:
+		return t.requestCaptchaReset(num(0), num(1)), true
 	}
 	return screenReply{}, false
 }
@@ -241,6 +247,7 @@ func (t *Tgbot) requestCard(id int64, warning string) screenReply {
 	if blocked {
 		b.WriteString(t.I18nBot("tgbot.requests.blockedLine"))
 	}
+	passed := t.requestCaptchaLine(&b, r.TgId)
 	button := func(key, data string) []telego.InlineKeyboardButton {
 		return tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot(key)).WithCallbackData(data))
 	}
@@ -250,6 +257,9 @@ func (t *Tgbot) requestCard(id int64, warning string) screenReply {
 			button("tgbot.requests.approve", fmt.Sprintf("%s %d", requestApproveAction, r.Id)),
 			button("tgbot.requests.approveEdit", fmt.Sprintf("%s %d", requestEditAction, r.Id)),
 			button("tgbot.requests.reject", fmt.Sprintf("%s %d", requestRejectRoute, r.Id)))
+	}
+	if passed {
+		rows = append(rows, t.requestCaptchaRow(r.TgId, r.Id))
 	}
 	rows = append(rows, t.requestBlockRow(r.TgId, blocked, r.Id))
 	return screenReply{usersReply: usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...),
@@ -457,12 +467,63 @@ func (t *Tgbot) requestAccount(tgId int64) screenReply {
 	if err != nil {
 		return screenReply{usersReply: t.usersError(err)}
 	}
-	text := t.I18nBot("tgbot.requests.accountTitle") + t.requestAccountLines(tgId)
+	var b strings.Builder
+	b.WriteString(t.I18nBot("tgbot.requests.accountTitle") + t.requestAccountLines(tgId))
 	if st.Blocked {
-		text += t.I18nBot("tgbot.requests.blockedLine")
+		b.WriteString(t.I18nBot("tgbot.requests.blockedLine"))
 	}
-	return screenReply{usersReply: usersReply{text: text, keyboard: tu.InlineKeyboard(t.requestBlockRow(tgId, st.Blocked, 0)),
+	var rows [][]telego.InlineKeyboardButton
+	if t.requestCaptchaLine(&b, tgId) {
+		rows = append(rows, t.requestCaptchaRow(tgId, 0))
+	}
+	rows = append(rows, t.requestBlockRow(tgId, st.Blocked, 0))
+	return screenReply{usersReply: usersReply{text: b.String(), keyboard: tu.InlineKeyboard(rows...),
 		route: fmt.Sprintf("%s %d", requestAccountRoute, tgId)}}
+}
+
+// requestCaptchaLine writes when the account tgId passed the captcha, and
+// reports whether it has; nothing for an account that has not.
+func (t *Tgbot) requestCaptchaLine(b *strings.Builder, tgId int64) bool {
+	st, err := (&TgCaptchaService{}).State(tgId)
+	if err != nil {
+		logger.Warning("captcha:", err)
+		return false
+	}
+	if st.PassedAt == 0 {
+		return false
+	}
+	b.WriteString(t.I18nBot("tgbot.requests.captchaPassed", "Date=="+requestDate(st.PassedAt)))
+	return true
+}
+
+// requestCaptchaRow is «🧩 Reset the captcha» for the account tgId, back to
+// the card of request id, or to the account's card for 0.
+func (t *Tgbot) requestCaptchaRow(tgId, id int64) []telego.InlineKeyboardButton {
+	data := fmt.Sprintf("%s %d", requestCaptchaAction, tgId)
+	if id != 0 {
+		data += fmt.Sprintf(" %d", id)
+	}
+	return tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.requests.captchaReset")).WithCallbackData(data))
+}
+
+// requestCaptchaReset is «🧩 Reset the captcha»: the account tgId passes it
+// again on its next request; back on the card of request id, or on the
+// account's card for 0.
+func (t *Tgbot) requestCaptchaReset(tgId, id int64) screenReply {
+	if tgId <= 0 {
+		return t.requestsList(0, "")
+	}
+	if err := (&TgCaptchaService{}).Reset(tgId); err != nil {
+		return screenReply{usersReply: t.usersError(err)}
+	}
+	var reply screenReply
+	if id != 0 {
+		reply = t.requestCard(id, "")
+	} else {
+		reply = t.requestAccount(tgId)
+	}
+	reply.toast = t.I18nBot("tgbot.requests.captchaResetDone")
+	return reply
 }
 
 // newUserFromRequest is «⚙️ Approve with changes»: the «New user» review of

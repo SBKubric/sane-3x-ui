@@ -6,6 +6,7 @@ import (
 	"net"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
 	"github.com/coinman-dev/3ax-ui/v2/nginx"
@@ -213,8 +214,10 @@ func activeEdgeServerName(doc *chain.Document) string {
 
 // frontSubPaths is what the HTTP side passes to the box's sub server under
 // the subscription limit: the subscription paths of the document, the tunnel
-// subscription's (the default one for a document that names none), and the
-// wave. The join page goes to the same server under a limit of its own.
+// subscription's (the default one for a document that names none), the
+// wave, and the bot's own path when the document names one (#220) — the
+// box's only HTTP server, which passes that one on to the next hop. The join
+// page goes to the same server under a limit of its own.
 func frontSubPaths(doc *chain.Document) []string {
 	seen := map[string]bool{}
 	var paths []string
@@ -222,7 +225,8 @@ func frontSubPaths(doc *chain.Document) []string {
 	if tunPath == "" {
 		tunPath = fallbackTunPath
 	}
-	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, tunPath, ChainPathPrefix + "/"} {
+	for _, path := range []string{doc.NextHop.SubPath, doc.NextHop.JsonPath, tunPath, ChainPathPrefix + "/",
+		thirdPartyPathOf(doc)} {
 		if path == "" || path == "/" || seen[path] {
 			continue
 		}
@@ -335,4 +339,14 @@ func OldSubPortNeeded(doc *chain.Document, since int64, acks []OuterAck) bool {
 		}
 	}
 	return false
+}
+
+// thirdPartyPathOf is the bot's path doc names, "" for none or one that is
+// not a path with both slashes.
+func thirdPartyPathOf(doc *chain.Document) string {
+	path := doc.NextHop.ThirdPartyPath
+	if !strings.HasPrefix(path, "/") || !strings.HasSuffix(path, "/") || path == "/" {
+		return ""
+	}
+	return path
 }

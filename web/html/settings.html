@@ -147,6 +147,8 @@
       inboundOptions: [],
       // the inbounds a user can have, for the request defaults (#221)
       userInbounds: [],
+      // the bot's path /third-party/<secret>/ and its captcha's address (#220)
+      botPath: { path: '', captchaUrl: '' },
       remarkModels: {
         i: 'Inbound',
         e: 'Email',
@@ -346,6 +348,23 @@
         } else {
           this.inboundOptions = [];
         }
+      },
+      async loadBotPath() {
+        const msg = await HttpUtil.post("/panel/setting/botPath");
+        if (msg && msg.success && msg.obj) this.botPath = msg.obj;
+      },
+      renewBotPath() {
+        this.$confirm({
+          title: '{{ i18n "pages.settings.botPathRenew" }}',
+          content: '{{ i18n "pages.settings.botPathRenewConfirm" }}',
+          class: themeSwitcher.currentTheme,
+          okText: '{{ i18n "pages.settings.botPathRenew" }}',
+          cancelText: '{{ i18n "cancel" }}',
+          onOk: async () => {
+            const msg = await HttpUtil.post("/panel/setting/botPath/renew");
+            if (msg && msg.success && msg.obj) this.botPath = msg.obj;
+          },
+        });
       },
       async loadUserInbounds() {
         const msg = await HttpUtil.get("/panel/api/users/inbounds");
@@ -749,6 +768,7 @@
       await this.getAllSetting();
       await this.loadInboundTags();
       await this.loadUserInbounds();
+      await this.loadBotPath();
       while (true) {
         await PromiseUtil.sleep(1000);
         this.saveBtnDisable = this.oldAllSetting.equals(this.allSetting);

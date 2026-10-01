@@ -23,9 +23,11 @@ import (
 //     request»), the rejection with its reason and the date a new request
 //     becomes possible, or that the account is blocked;
 //   - «Leave a request» shows the captcha step: a web_app button opening the
-//     captcha page (package captcha) on the active edge, and «I passed the
-//     check», which looks again. The captcha's pass brings the comment step
-//     to the chat by itself (requestCaptchaPassed);
+//     captcha page (package captcha) at /third-party/<secret>/captcha on the
+//     active edge's https address, and «I passed the check», which looks
+//     again. The captcha's pass brings the comment step to the chat by
+//     itself (requestCaptchaPassed). An account that passed before goes
+//     straight to the comment step: the pass is remembered (tg_captcha);
 //   - the comment step waits for a text of up to 200 characters, or «Skip»;
 //     then the request is sent, the text deleted, the notification channel
 //     told, and the screen shows the pending request.
@@ -36,7 +38,7 @@ import (
 
 // Callback data and the chat state of the applicant's screens.
 const (
-	requestNewRoute     = "req_new"    // the captcha step, or the comment step once it is passed
+	requestNewRoute     = "req_new"    // the captcha step, or the comment step once the account has passed it
 	requestSkipAction   = "req_skip"   // send the request without a comment
 	requestCancelAction = "req_cancel" // take the pending request back
 	requestCommentState = "req_cmt"    // the chat waits for the comment
@@ -102,15 +104,20 @@ func (t *Tgbot) requestNone(tgId int64) screenReply {
 	return screenReply{usersReply: usersReply{text: text, keyboard: tu.InlineKeyboard(rows...), route: screenMenuRoute}}
 }
 
-// requestNew is «Leave a request»: the comment step while the captcha's 30
-// minutes run, the captcha step before. An account that may not ask gets its
-// main menu.
+// requestNew is «Leave a request»: the comment step once the account has
+// passed the captcha, the captcha step before. An account that may not ask —
+// it has a user, a pending request, a recent rejection, a block — gets its
+// main menu: that is the bot's to check, not the captcha's.
 func (t *Tgbot) requestNew(tgId int64) screenReply {
 	st, err := (&SubRequestService{}).Status(tgId)
 	if err != nil || !st.CanApply() {
 		return t.mysubHome(tgId)
 	}
-	if subRequestWindows.open(tgId) {
+	passed, err := (&TgCaptchaService{}).Passed(tgId)
+	if err != nil {
+		return screenReply{usersReply: t.usersError(err)}
+	}
+	if passed {
 		return t.requestCommentStep(tgId, "")
 	}
 	return t.requestCaptchaStep("")
@@ -134,15 +141,21 @@ func (t *Tgbot) requestCaptchaStep(warning string) screenReply {
 	return screenReply{usersReply: usersReply{text: text, keyboard: tu.InlineKeyboard(rows...), route: requestNewRoute}}
 }
 
-// requestCaptchaURL is the captcha page on the subscription path as clients
-// reach it — the active edge behind a chain — or "" when that is not https,
-// which is all Telegram opens a Mini App on.
+// requestCaptchaURL is the captcha page on the bot's path,
+// https://<edge>/third-party/<secret>/captcha, at the https address of the
+// active edge — or of the panel's own front without a chain (BotPublicBase);
+// "" when there is none, for Telegram opens a Mini App on https only.
 func (t *Tgbot) requestCaptchaURL() string {
-	url, _ := t.subscriptionURLs(captcha.Segment)
-	if !strings.HasPrefix(url, "https://") {
+	base, ok := BotPublicBase()
+	if !ok {
 		return ""
 	}
-	return url
+	path, err := t.settingService.ThirdPartyPath()
+	if err != nil {
+		logger.Warning("captcha: the bot's path:", err)
+		return ""
+	}
+	return base + path + captcha.Segment
 }
 
 // requestCommentStep asks for the comment and makes the chat wait for it,

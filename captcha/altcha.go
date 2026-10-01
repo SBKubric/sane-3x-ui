@@ -1,108 +1,100 @@
-// Package captcha is the ALTCHA check a person passes before they leave a
-// request for a subscription in the bot (#188 points 2, 9–11, #220,
+// Package captcha is the ALTCHA check a person passes in the bot before they
+// leave a request for a subscription (#188 points 2, 9–11, #220,
 // docs/spec/users.md §12): a proof-of-work captcha of our own, no third-party
-// service. The page and the widget (page.go) are served on the active edge
-// under the subscription path and on the panel's own sub server; the
-// challenge and the verification (Issuer) are the panel's, which the hops
-// reach through the chain as they reach subscriptions.
+// service. It belongs to the bot alone and is bound to nothing but the
+// person's Telegram account: every challenge is made for one tg_id, and only
+// a solution posted with that tg_id passes it. The page and the widget
+// (page.go) are served under the bot's own path on the 443 front,
+// /third-party/<secret>/captcha, which the hops of the chain pass on to the
+// panel on real.
 //
 // The server side is github.com/altcha-org/altcha-lib-go, ALTCHA's official
 // Go library: SHA-256 challenges signed with an HMAC key, the protocol the
 // widget of the same generation (altcha 2.x, served from altcha.js) solves.
+// The package keeps no state: which solutions have been used is the
+// caller's to remember (the panel keeps them in its database).
 package captcha
 
 import (
-	"crypto/rand"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"net/url"
 	"strconv"
-	"sync"
 	"time"
 
 	altcha "github.com/altcha-org/altcha-lib-go"
 )
 
-// ErrWrong is a solution that does not solve a live challenge of ours: a
-// wrong number, another key's challenge, an expired one, or no payload.
+// ErrWrong is a solution that does not solve a live challenge of ours made
+// for this tg_id: a wrong number, another key's challenge, another
+// account's, an expired one, or no payload.
 var ErrWrong = errors.New("captcha: wrong solution")
 
 // ErrReplayed is a solution that has been accepted before: each works once.
+// The caller tells it, by the Solution's signature.
 var ErrReplayed = errors.New("captcha: solution already used")
 
 // Challenge is what the widget fetches and solves.
 type Challenge = altcha.Challenge
 
-// Issuer makes challenges and verifies their solutions, each once. Its HMAC
-// key is random and lives with the process: a restart only makes the
-// challenges out at that moment unsolvable, and the widget fetches another.
+// tgParam is the parameter of a challenge's salt that names the tg_id it was
+// made for. The salt is under the HMAC, so it cannot be changed.
+const tgParam = "tg"
+
+// Issuer makes challenges and checks their solutions. Its HMAC key is the
+// caller's and stable across restarts, so a challenge fetched before a
+// restart is still solvable after it.
 type Issuer struct {
 	key       string
 	ttl       time.Duration
 	maxNumber int64
 	now       func() time.Time
-
-	mu    sync.Mutex
-	spent map[string]time.Time // signature → when its challenge expires
 }
 
-// NewIssuer is an issuer whose challenges live ttl and hide a number up to
-// maxNumber: the widget tries half of that on average.
-func NewIssuer(ttl time.Duration, maxNumber int64) (*Issuer, error) {
-	var b [32]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		return nil, err
-	}
-	return &Issuer{key: hex.EncodeToString(b[:]), ttl: ttl, maxNumber: maxNumber, now: time.Now,
-		spent: map[string]time.Time{}}, nil
+// NewIssuer is an issuer signing with key whose challenges live ttl and hide
+// a number up to maxNumber: the widget tries half of that on average.
+func NewIssuer(key string, ttl time.Duration, maxNumber int64) *Issuer {
+	return &Issuer{key: key, ttl: ttl, maxNumber: maxNumber, now: time.Now}
 }
 
-// Challenge is a new challenge, expiring after the issuer's ttl.
-func (is *Issuer) Challenge() (Challenge, error) {
+// Challenge is a new challenge for the account tgId, expiring after the
+// issuer's ttl.
+func (is *Issuer) Challenge(tgId int64) (Challenge, error) {
 	expires := is.now().Add(is.ttl)
 	return altcha.CreateChallenge(altcha.ChallengeOptions{Algorithm: altcha.SHA256, MaxNumber: is.maxNumber,
-		HMACKey: is.key, Expires: &expires})
+		HMACKey: is.key, Expires: &expires, Params: url.Values{tgParam: {strconv.FormatInt(tgId, 10)}}})
 }
 
-// Verify accepts payload — the widget's base64 JSON — once: ErrWrong when it
-// does not solve a live challenge of this issuer, ErrReplayed when it has
-// been accepted before.
-func (is *Issuer) Verify(payload string) error {
+// Solution is a checked solution: its signature, which the caller spends
+// once, and when its challenge expires — how long the caller has to
+// remember it.
+type Solution struct {
+	Signature string
+	Expires   time.Time
+}
+
+// Check accepts payload — the widget's base64 JSON — when it solves a live
+// challenge of this issuer made for tgId; ErrWrong otherwise. Whether the
+// solution was used before is the caller's to tell.
+func (is *Issuer) Check(payload string, tgId int64) (Solution, error) {
 	ok, err := altcha.VerifySolutionSafe(payload, is.key, true)
 	if err != nil || !ok {
-		return ErrWrong
+		return Solution{}, ErrWrong
 	}
 	p, err := decodePayload(payload)
 	if err != nil {
-		return ErrWrong
+		return Solution{}, ErrWrong
 	}
-	expires := is.now().Add(is.ttl)
-	if at := altcha.ExtractParams(p).Get("expires"); at != "" {
-		if sec, err := strconv.ParseInt(at, 10, 64); err == nil {
-			expires = time.Unix(sec, 0)
-		}
+	params := altcha.ExtractParams(p)
+	if params.Get(tgParam) != strconv.FormatInt(tgId, 10) {
+		return Solution{}, ErrWrong
 	}
-	is.mu.Lock()
-	defer is.mu.Unlock()
-	now := is.now()
-	for sig, until := range is.spent {
-		if now.After(until) {
-			delete(is.spent, sig)
-		}
+	sec, err := strconv.ParseInt(params.Get("expires"), 10, 64)
+	if err != nil {
+		return Solution{}, ErrWrong
 	}
-	if _, used := is.spent[p.Signature]; used {
-		return ErrReplayed
-	}
-	is.spent[p.Signature] = expires
-	return nil
-}
-
-// spentCount is how many accepted solutions the issuer remembers.
-func (is *Issuer) spentCount() int {
-	is.mu.Lock()
-	defer is.mu.Unlock()
-	return len(is.spent)
+	return Solution{Signature: p.Signature, Expires: time.Unix(sec, 0)}, nil
 }
 
 func decodePayload(payload string) (altcha.Payload, error) {

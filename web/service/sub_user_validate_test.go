@@ -80,11 +80,6 @@ func TestValidateClientWrites(t *testing.T) {
 	}
 	wantErr(t, "probe subId", users.ValidateClientWrites(ClientWrite{Name: "sneaky", SubId: "probesub"}), "monitoring")
 	wantErr(t, "technical key as subId", users.ValidateClientWrites(ClientWrite{Name: "sneaky", SubId: "@robot"}), "reserved")
-	// The captcha page is <subPath>captcha (#220): a subscription there
-	// would never be served.
-	for _, subId := range []string{"captcha", "Captcha"} {
-		wantErr(t, "subId "+subId, users.ValidateClientWrites(ClientWrite{Name: "sneaky", SubId: subId}), "reserved", "captcha")
-	}
 }
 
 // TestInboundServiceEnforcesUserRules: the panel's add and update paths go

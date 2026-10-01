@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -27,67 +28,70 @@ func solve(t *testing.T, c Challenge) string {
 	return ""
 }
 
-func testIssuer(t *testing.T) *Issuer {
-	t.Helper()
-	is, err := NewIssuer(time.Minute, 2000)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return is
-}
+func testIssuer() *Issuer { return NewIssuer("test-key", time.Minute, 2000) }
 
-// TestIssuerAcceptsASolutionOnce: the solution of a challenge the issuer
-// made passes, once; the same payload again is a replay.
-func TestIssuerAcceptsASolutionOnce(t *testing.T) {
-	is := testIssuer(t)
-	c, err := is.Challenge()
+// TestIssuerChecksASolutionForItsAccount: the solution of a challenge made
+// for an account passes for that account, with its signature and when its
+// challenge expires; the same solution posted for another account is wrong.
+func TestIssuerChecksASolutionForItsAccount(t *testing.T) {
+	is := testIssuer()
+	before := time.Now()
+	c, err := is.Challenge(5550001)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Algorithm != "SHA-256" || c.MaxNumber != 2000 || c.Signature == "" {
+	if c.Algorithm != "SHA-256" || c.MaxNumber != 2000 || c.Signature == "" || !strings.Contains(c.Salt, "tg=5550001") {
 		t.Fatalf("challenge %+v", c)
 	}
 	payload := solve(t, c)
-	if err := is.Verify(payload); err != nil {
+	sol, err := is.Check(payload, 5550001)
+	if err != nil {
 		t.Fatalf("a correct solution: %v", err)
 	}
-	if err := is.Verify(payload); !errors.Is(err, ErrReplayed) {
-		t.Fatalf("the same solution again: %v, want ErrReplayed", err)
+	if sol.Signature != c.Signature || sol.Expires.Before(before.Add(time.Minute-time.Second)) ||
+		sol.Expires.After(time.Now().Add(time.Minute+time.Second)) {
+		t.Errorf("solution %+v", sol)
+	}
+	if _, err := is.Check(payload, 5550002); !errors.Is(err, ErrWrong) {
+		t.Errorf("another account's solution: %v, want ErrWrong", err)
 	}
 }
 
 // TestIssuerRefusesAWrongSolution: a wrong number, a challenge signed by
-// another key, a payload that is no payload — each is refused as wrong,
-// and none burns the real solution.
+// another key, a salt moved to another account, a payload that is no
+// payload — each is refused as wrong.
 func TestIssuerRefusesAWrongSolution(t *testing.T) {
-	is := testIssuer(t)
-	c, err := is.Challenge()
+	is := testIssuer()
+	c, err := is.Challenge(7)
 	if err != nil {
 		t.Fatal(err)
 	}
 	good := solve(t, c)
 
-	var p map[string]any
-	raw, _ := base64.StdEncoding.DecodeString(good)
-	_ = json.Unmarshal(raw, &p)
-	p["number"] = p["number"].(float64) + 1
-	wrongRaw, _ := json.Marshal(p)
-	wrongNumber := base64.StdEncoding.EncodeToString(wrongRaw)
+	edit := func(change func(p map[string]any)) string {
+		var p map[string]any
+		raw, _ := base64.StdEncoding.DecodeString(good)
+		_ = json.Unmarshal(raw, &p)
+		change(p)
+		out, _ := json.Marshal(p)
+		return base64.StdEncoding.EncodeToString(out)
+	}
+	wrongNumber := edit(func(p map[string]any) { p["number"] = p["number"].(float64) + 1 })
+	movedSalt := edit(func(p map[string]any) { p["salt"] = strings.Replace(p["salt"].(string), "tg=7", "tg=8", 1) })
 
-	other := testIssuer(t)
-	oc, err := other.Challenge()
+	oc, err := NewIssuer("another-key", time.Minute, 2000).Challenge(7)
 	if err != nil {
 		t.Fatal(err)
 	}
 	foreign := solve(t, oc)
 
 	for name, payload := range map[string]string{"wrong number": wrongNumber, "another key": foreign,
-		"garbage": "not base64 at all", "empty": ""} {
-		if err := is.Verify(payload); !errors.Is(err, ErrWrong) {
+		"salt moved": movedSalt, "garbage": "not base64 at all", "empty": ""} {
+		if _, err := is.Check(payload, 7); !errors.Is(err, ErrWrong) {
 			t.Errorf("%s: %v, want ErrWrong", name, err)
 		}
 	}
-	if err := is.Verify(good); err != nil {
+	if _, err := is.Check(good, 7); err != nil {
 		t.Errorf("the real solution after the wrong ones: %v", err)
 	}
 }
@@ -95,41 +99,24 @@ func TestIssuerRefusesAWrongSolution(t *testing.T) {
 // TestIssuerRefusesAnExpiredChallenge: past its lifetime a challenge's
 // solution is wrong, even solved correctly.
 func TestIssuerRefusesAnExpiredChallenge(t *testing.T) {
-	is, err := NewIssuer(-time.Minute, 2000) // born expired
+	is := NewIssuer("test-key", -time.Minute, 2000) // born expired
+	c, err := is.Challenge(7)
 	if err != nil {
 		t.Fatal(err)
 	}
-	c, err := is.Challenge()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := is.Verify(solve(t, c)); !errors.Is(err, ErrWrong) {
+	if _, err := is.Check(solve(t, c), 7); !errors.Is(err, ErrWrong) {
 		t.Fatalf("an expired challenge: %v, want ErrWrong", err)
 	}
 }
 
-// TestIssuerForgetsSpentSolutionsPastTheirLifetime: the replay memory holds
-// a solution only while its challenge lives, so it does not grow forever.
-func TestIssuerForgetsSpentSolutionsPastTheirLifetime(t *testing.T) {
-	is := testIssuer(t)
-	now := time.Now()
-	is.now = func() time.Time { return now }
-	c, err := is.Challenge()
+// TestIssuerKeySurvivesARestart: an issuer made again with the same key — the
+// panel after a restart — accepts a challenge the first one made.
+func TestIssuerKeySurvivesARestart(t *testing.T) {
+	c, err := testIssuer().Challenge(7)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := is.Verify(solve(t, c)); err != nil {
-		t.Fatal(err)
-	}
-	if n := is.spentCount(); n != 1 {
-		t.Fatalf("spent: %d", n)
-	}
-	now = now.Add(2 * time.Minute)
-	c2, _ := is.Challenge()
-	if err := is.Verify(solve(t, c2)); err != nil && !errors.Is(err, ErrWrong) {
-		t.Fatal(err)
-	}
-	if n := is.spentCount(); n > 1 {
-		t.Fatalf("spent past the lifetime: %d", n)
+	if _, err := testIssuer().Check(solve(t, c), 7); err != nil {
+		t.Fatalf("after a restart: %v", err)
 	}
 }

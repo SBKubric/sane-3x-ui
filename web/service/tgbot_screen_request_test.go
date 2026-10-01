@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coinman-dev/3ax-ui/v2/chain"
+	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
 	"github.com/mymmrac/telego"
 	"github.com/pelletier/go-toml/v2"
@@ -21,16 +23,27 @@ import (
 // «Write to the admin».
 
 // requestScreenFixture is the users fixture seen by usersTestChat, no admin,
-// with no user: the requests' clock at 30.09.2026 12:00, and the
-// subscription page on https, as the active edge serves it.
+// with no user: the requests' clock at 30.09.2026 12:00, the bot's path
+// /third-party/s3cr3t/, and an active edge whose front is up, so the captcha
+// is at https://edge.example.com/third-party/s3cr3t/captcha.
 func requestScreenFixture(t *testing.T) (*Tgbot, *screenTelegram, *time.Time) {
 	t.Helper()
 	tg := usersBotFixture(t)
-	setSetting(t, "subURI", "https://edge.example.com/sub/")
+	setSetting(t, tgThirdPartySecretKey, "s3cr3t")
+	activeEdge(t, model.ChainHop{Host: "edge.example.com", FrontMode: chain.FrontOnly443, SubPort: 443, SubScheme: "https"})
 	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.Local)
 	requestClock(t, &now)
 	fake := withScreenTelegram(t)
 	return tg, fake, &now
+}
+
+// activeEdge puts hop in the registry as the chain's active edge.
+func activeEdge(t *testing.T, hop model.ChainHop) {
+	t.Helper()
+	hop.Name, hop.Role, hop.State, hop.IsActive = "edge-a", chain.RoleEdge, chain.StateJoined, true
+	if err := database.GetDB().Create(&hop).Error; err != nil {
+		t.Fatal(err)
+	}
 }
 
 // clientText is a text usersTestChat sends in their private chat, as the
@@ -60,7 +73,7 @@ func TestRequestScreensLeadThroughTheCaptcha(t *testing.T) {
 	if !strings.Contains(m.text, "Check") || labels(m) != "🧩 Pass the check|🔄 I passed the check|⬅️ Back|🏠 Menu" {
 		t.Fatalf("the captcha step: %q %q", m.text, m.labels)
 	}
-	if url := m.urls[labelIndex(t, m, "Pass the check")]; url != "web_app:https://edge.example.com/sub/captcha" {
+	if url := m.urls[labelIndex(t, m, "Pass the check")]; url != "web_app:https://edge.example.com/third-party/s3cr3t/captcha" {
 		t.Errorf("the Mini App opens %q", url)
 	}
 	// Pressed too early, the button shows the same step.
@@ -70,7 +83,7 @@ func TestRequestScreensLeadThroughTheCaptcha(t *testing.T) {
 	}
 
 	// The captcha passed: the panel brings the comment step to the chat.
-	(&SubRequestService{}).CaptchaPassed(usersTestChat)
+	(&TgCaptchaService{}).Pass(usersTestChat)
 	tg.requestCaptchaPassed(usersTestChat)
 	m = fake.messages[1]
 	if !strings.Contains(m.text, "Comment") || labels(m) != "Skip ▶|⬅️ Back|🏠 Menu" || fake.sent() != 1 {
@@ -116,13 +129,13 @@ func TestRequestScreensLeadThroughTheCaptcha(t *testing.T) {
 
 // TestRequestScreenSkipAndLimits: «Skip» sends the request without a
 // comment; a comment over 200 characters or a non-text message is refused
-// on the comment step, which keeps waiting; past the 30 minutes after the
-// captcha the comment leads back to the captcha.
+// on the comment step, which keeps waiting; after an admin reset the
+// captcha, the comment leads back to it.
 func TestRequestScreenSkipAndLimits(t *testing.T) {
 	tg, fake, now := requestScreenFixture(t)
 	clientCommand(tg, "/start")
 	fake.clientPress(t, tg, 1, "Leave a request")
-	(&SubRequestService{}).CaptchaPassed(usersTestChat)
+	(&TgCaptchaService{}).Pass(usersTestChat)
 	tg.requestCaptchaPassed(usersTestChat)
 
 	clientText(tg, 50, strings.Repeat("я", 201))
@@ -138,12 +151,15 @@ func TestRequestScreenSkipAndLimits(t *testing.T) {
 	}
 
 	*now = now.Add(31 * time.Minute)
+	if err := (&TgCaptchaService{}).Reset(usersTestChat); err != nil {
+		t.Fatal(err)
+	}
 	clientText(tg, 52, "late")
-	if m := fake.messages[1]; !strings.Contains(m.text, "time after the check is up") || !strings.Contains(labels(m), "Pass the check") {
-		t.Fatalf("past the window: %q %q", m.text, m.labels)
+	if m := fake.messages[1]; !strings.Contains(m.text, "Pass the check again") || !strings.Contains(labels(m), "Pass the check") {
+		t.Fatalf("after a reset: %q %q", m.text, m.labels)
 	}
 
-	(&SubRequestService{}).CaptchaPassed(usersTestChat)
+	(&TgCaptchaService{}).Pass(usersTestChat)
 	tg.requestCaptchaPassed(usersTestChat)
 	fake.clientPress(t, tg, 1, "Skip")
 	st, _ := (&SubRequestService{}).Status(usersTestChat)
@@ -189,7 +205,7 @@ func TestRequestScreenRejectedAndBlocked(t *testing.T) {
 	}
 	// A request route pressed anyway leads home and makes nothing.
 	nonAdminPress(tg, requestNewRoute)
-	requests.CaptchaPassed(usersTestChat)
+	(&TgCaptchaService{}).Pass(usersTestChat)
 	tg.requestCaptchaPassed(usersTestChat)
 	nonAdminPress(tg, requestSkipAction)
 	if st, _ := requests.Status(usersTestChat); st.Pending != nil {
@@ -198,16 +214,40 @@ func TestRequestScreenRejectedAndBlocked(t *testing.T) {
 }
 
 // TestRequestScreenCaptchaNeedsHTTPS: Telegram opens a Mini App on https
-// only; while the subscription page is not there, the step says the check is
-// unavailable instead of a button Telegram would refuse.
+// only. The address is the active edge's — its front, or its own port when
+// that is https — never the subscription URL; with no https there, the step
+// says the check is unavailable instead of a button Telegram would refuse.
 func TestRequestScreenCaptchaNeedsHTTPS(t *testing.T) {
 	tg, fake, _ := requestScreenFixture(t)
-	setSetting(t, "subURI", "")
-	clientCommand(tg, "/start")
-	fake.clientPress(t, tg, 1, "Leave a request")
-	m := fake.messages[1]
-	if !strings.Contains(m.text, "check is unavailable") || strings.Contains(labels(m), "Pass the check") {
-		t.Errorf("http: %q %q", m.text, m.labels)
+	setSetting(t, "subURI", "https://subs.example.com/sub/") // not where the captcha is
+	for _, c := range []struct {
+		name string
+		hop  model.ChainHop
+		want string
+	}{
+		{"front", model.ChainHop{FrontMode: chain.FrontOnly443, SubPort: 443, SubScheme: "https"},
+			"web_app:https://edge.example.com/third-party/s3cr3t/captcha"},
+		{"https sub port", model.ChainHop{FrontMode: chain.FrontOff, SubPort: 2096, SubScheme: "https"},
+			"web_app:https://edge.example.com:2096/third-party/s3cr3t/captcha"},
+		{"http sub port", model.ChainHop{FrontMode: chain.FrontOff, SubPort: 2096, SubScheme: "http"}, ""},
+	} {
+		if err := database.GetDB().Where("1 = 1").Delete(&model.ChainHop{}).Error; err != nil {
+			t.Fatal(err)
+		}
+		c.hop.Host = "edge.example.com"
+		activeEdge(t, c.hop)
+		clientCommand(tg, "/start")
+		fake.clientPress(t, tg, fake.next, "Leave a request")
+		m := fake.clientScreen(t)
+		if c.want == "" {
+			if !strings.Contains(m.text, "check is unavailable") || strings.Contains(labels(m), "Pass the check") {
+				t.Errorf("%s: %q %q", c.name, m.text, m.labels)
+			}
+			continue
+		}
+		if url := m.urls[labelIndex(t, m, "Pass the check")]; url != c.want {
+			t.Errorf("%s: the Mini App opens %q, want %q", c.name, url, c.want)
+		}
 	}
 }
 
@@ -269,7 +309,7 @@ func TestRequestNotifiesTheChannel(t *testing.T) {
 	if _, err := writeTgAccount(model.TgAccount{TgId: usersTestChat, Username: "petrov", FirstName: "Petr"}); err != nil {
 		t.Fatal(err)
 	}
-	(&SubRequestService{}).CaptchaPassed(usersTestChat)
+	(&TgCaptchaService{}).Pass(usersTestChat)
 	tg.requestCaptchaPassed(usersTestChat)
 	clientText(tg, 50, "<b>hi</b>")
 

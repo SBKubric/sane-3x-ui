@@ -101,15 +101,22 @@ type Self struct {
 func (s Self) Draining() bool { return s.State == StateDraining }
 
 // NextHop is the one address a hop knows towards the real server, plus the
-// subscription paths it must proxy. The paths travel in the document so
-// proxy.json does not have to store them.
+// paths it must proxy. The paths travel in the document so proxy.json does
+// not have to store them.
+//
+// ThirdPartyPath is the bot's own path, /third-party/<secret>/ (#220,
+// docs/spec/users.md §12): the hop passes everything under it on to its
+// next hop as it came, until the panel on real answers. It is not a
+// subscription path and has nothing to do with them. Absent from a panel
+// older than the field, and then the hop serves nothing there.
 type NextHop struct {
-	Host      string `json:"host"`
-	SubPort   int    `json:"subPort"`
-	SubScheme string `json:"subScheme"`
-	SubPath   string `json:"subPath"`
-	JsonPath  string `json:"jsonPath"`
-	TunPath   string `json:"tunPath"`
+	Host           string `json:"host"`
+	SubPort        int    `json:"subPort"`
+	SubScheme      string `json:"subScheme"`
+	SubPath        string `json:"subPath"`
+	JsonPath       string `json:"jsonPath"`
+	TunPath        string `json:"tunPath"`
+	ThirdPartyPath string `json:"thirdPartyPath,omitempty"`
 }
 
 // Hop is one entry of the outward-truncated hop list. SecretHash is the sha256

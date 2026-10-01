@@ -14,7 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/coinman-dev/3ax-ui/v2/captcha"
 	"github.com/coinman-dev/3ax-ui/v2/logger"
 	"github.com/coinman-dev/3ax-ui/v2/util/common"
 
@@ -302,14 +301,9 @@ func (s *SubServer) route(c *gin.Context) {
 	_, subPath, jsonPath := s.nextHop()
 	doc := s.state.Document()
 
-	// The captcha before a request (#220) sits under the subscription path:
-	// matched first, or «captcha» would be taken for a subscription id.
-	if part, ok := captcha.Route(path, subPath); ok {
-		if doc == nil {
-			c.String(http.StatusServiceUnavailable, "this box has not joined the chain yet")
-			return
-		}
-		s.handleCaptcha(c, part)
+	// The bot's own path (#220): its Mini App, passed on to the next hop.
+	if prefix := s.thirdPartyPath(); prefix != "" && strings.HasPrefix(path, prefix) {
+		s.handleThirdParty(c)
 		return
 	}
 	if id, ok := subscriptionID(path, subPath, fallbackSubPath); ok {

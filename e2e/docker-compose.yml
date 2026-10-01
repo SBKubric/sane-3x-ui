@@ -66,8 +66,9 @@ services:
         exec /app/DockerEntrypoint.sh
     ports:
       - "${E2E_TG_PANEL_PORT:-2054}:2053"
-      # Its sub server: requests-captcha.spec.ts opens the captcha page there
-      # as Telegram opens the Mini App, and posts its verification (#220).
+      # Its sub server: requests-captcha.spec.ts checks that the captcha is
+      # not under the subscription path any more (#220); the captcha itself is
+      # on the panel's port, at /third-party/<secret>/captcha.
       - "${E2E_TG_SUB_PORT:-2097}:2096"
     volumes:
       - /etc/x-ui

@@ -64,6 +64,8 @@ func initModels() error {
 		&model.TgAccount{},
 		&model.TgInvite{},
 		&model.SubRequest{},
+		&model.TgCaptcha{},
+		&model.TgCaptchaSolution{},
 	}
 	for _, model := range models {
 		if err := db.AutoMigrate(model); err != nil {

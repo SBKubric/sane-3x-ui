@@ -30,7 +30,7 @@ func edgeFrontDocument() *chain.Document {
 		Self: chain.Self{Name: "edge-a", Role: chain.RoleEdge, Host: "198.51.100.20", State: chain.StateJoined,
 			RealityTarget: "www.neighbour.example:443", RealityServerName: "www.neighbour.example"},
 		NextHop: chain.NextHop{Host: "203.0.113.9", SubPort: 2096, SubScheme: "https",
-			SubPath: "/sub-abc123/", JsonPath: "/json/", TunPath: "/tun/"},
+			SubPath: "/sub-abc123/", JsonPath: "/json/", TunPath: "/tun/", ThirdPartyPath: "/third-party/s3cr3t/"},
 		ActiveEdge: "edge-a",
 		Hops: []chain.Hop{{Name: "edge-a", Role: chain.RoleEdge, Host: "198.51.100.20", SubPort: 2096,
 			SecretHash: chain.HashSecret("edge-a-secret"), State: chain.StateJoined,
@@ -115,7 +115,10 @@ func TestFrontOfAnEdge(t *testing.T) {
 			t.Errorf("stream lacks %q", want)
 		}
 	}
+	// The bot's path (#220) goes to the sub server as well, which passes it
+	// on to the next hop.
 	for _, want := range []string{"location /sub-abc123/ {", "location /json/ {", "location /chain/v1/ {", "location /join/ {",
+		"location /third-party/s3cr3t/ {",
 		"proxy_pass http://" + layout.SubListen + ";", "ssl_certificate     " + testIPCert + ";"} {
 		if !strings.Contains(http, want) {
 			t.Errorf("HTTP side lacks %q", want)

@@ -11,16 +11,18 @@ import (
 
 // The requests' rules (#188 point 2, #220): one pending request per
 // account, expiry after 14 days, a new one 7 days after a rejection, no
-// request from an account that has a user or is blocked, and none without
-// a captcha passed in the last 30 minutes.
+// request from an account that has a user or is blocked, and none from an
+// account that has not passed the bot's captcha — which, once passed, is
+// remembered.
 
-// requestClock sets the requests' clock to *now for the test; the test moves
-// it by changing now.
+// requestClock sets the requests' and the captcha's clocks to *now for the
+// test; the test moves them by changing now.
 func requestClock(t *testing.T, now *time.Time) {
 	t.Helper()
-	prev := subRequestNow
+	prev, prevCaptcha := subRequestNow, tgCaptchaNow
 	subRequestNow = func() time.Time { return *now }
-	t.Cleanup(func() { subRequestNow = prev; subRequestWindows.reset() })
+	tgCaptchaNow = func() time.Time { return *now }
+	t.Cleanup(func() { subRequestNow, tgCaptchaNow = prev, prevCaptcha })
 }
 
 // requestRefusal is the code of err's refusal, "" for none.
@@ -35,36 +37,36 @@ func requestRefusal(err error) string {
 // mustRequest makes a request of tgId after its captcha.
 func mustRequest(t *testing.T, tgId int64, comment string) *model.SubRequest {
 	t.Helper()
-	requests := &SubRequestService{}
-	requests.CaptchaPassed(tgId)
-	r, err := requests.Create(tgId, comment)
+	if err := (&TgCaptchaService{}).Pass(tgId); err != nil {
+		t.Fatal(err)
+	}
+	r, err := (&SubRequestService{}).Create(tgId, comment)
 	if err != nil {
 		t.Fatalf("Create(%d): %v", tgId, err)
 	}
 	return r
 }
 
-// TestRequestNeedsTheCaptchaWithinItsWindow: without a captcha there is no
-// request; a passed one opens 30 minutes for one request, which uses it.
-func TestRequestNeedsTheCaptchaWithinItsWindow(t *testing.T) {
+// TestRequestNeedsTheCaptchaPassedOnce: without the captcha there is no
+// request; a pass is remembered — days later, and for the next request
+// too — until an admin resets it or blocks the account.
+func TestRequestNeedsTheCaptchaPassedOnce(t *testing.T) {
 	opsFixture(t)
 	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	requestClock(t, &now)
 	requests := &SubRequestService{}
+	captchas := &TgCaptchaService{}
 
 	if _, err := requests.Create(501, ""); requestRefusal(err) != SubRequestNeedsCaptcha {
 		t.Fatalf("no captcha: %v", err)
 	}
-	requests.CaptchaPassed(501)
-	now = now.Add(31 * time.Minute)
-	if _, err := requests.Create(501, ""); requestRefusal(err) != SubRequestNeedsCaptcha {
-		t.Fatalf("31 minutes after the captcha: %v", err)
+	if err := captchas.Pass(501); err != nil {
+		t.Fatal(err)
 	}
-	requests.CaptchaPassed(501)
-	now = now.Add(29 * time.Minute)
+	now = now.Add(3 * 24 * time.Hour)
 	r, err := requests.Create(501, "  please  ")
 	if err != nil {
-		t.Fatalf("29 minutes after the captcha: %v", err)
+		t.Fatalf("three days after the captcha: %v", err)
 	}
 	if r.TgId != 501 || r.Status != model.SubRequestPending || r.Comment != "please" || r.CreatedAt != now.UnixMilli() {
 		t.Errorf("the request: %+v", r)
@@ -72,8 +74,37 @@ func TestRequestNeedsTheCaptchaWithinItsWindow(t *testing.T) {
 	if _, err := requests.Cancel(501); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := requests.Create(501, ""); err != nil {
+		t.Fatalf("a second request on the same pass: %v", err)
+	}
+	if _, err := requests.Cancel(501); err != nil {
+		t.Fatal(err)
+	}
+
+	// «Reset the captcha»: the next request asks for it again.
+	if err := captchas.Reset(501); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := requests.Create(501, ""); requestRefusal(err) != SubRequestNeedsCaptcha {
-		t.Errorf("a second request on the same captcha: %v", err)
+		t.Fatalf("after the reset: %v", err)
+	}
+	st, err := captchas.State(501)
+	if err != nil || st.PassedAt != 0 || st.Attempts != 1 {
+		t.Errorf("the account's captcha after the reset: %+v, %v", st, err)
+	}
+
+	// A block forgets the pass too: let back in, the account passes again.
+	if err := captchas.Pass(501); err != nil {
+		t.Fatal(err)
+	}
+	if err := requests.SetBlocked(501, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := requests.SetBlocked(501, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := requests.Create(501, ""); requestRefusal(err) != SubRequestNeedsCaptcha {
+		t.Errorf("after a block and an unblock: %v", err)
 	}
 }
 
@@ -87,7 +118,7 @@ func TestRequestOnePendingPerAccount(t *testing.T) {
 	requests := &SubRequestService{}
 
 	first := mustRequest(t, 501, "")
-	requests.CaptchaPassed(501)
+	(&TgCaptchaService{}).Pass(501)
 	if _, err := requests.Create(501, "again"); requestRefusal(err) != SubRequestAlreadyPending {
 		t.Fatalf("a second pending request: %v", err)
 	}
@@ -164,7 +195,7 @@ func TestRequestSevenDaysAfterARejection(t *testing.T) {
 		st.NextAt != next || st.CanApply() {
 		t.Fatalf("after the rejection: %+v, %v", st, err)
 	}
-	requests.CaptchaPassed(501)
+	(&TgCaptchaService{}).Pass(501)
 	_, err = requests.Create(501, "")
 	var refusal *SubRequestRefusal
 	if !errors.As(err, &refusal) || refusal.Code != SubRequestCoolingDown || refusal.Until != next {
@@ -187,7 +218,7 @@ func TestRequestRefusedToAUserOrABlockedAccount(t *testing.T) {
 	requests := &SubRequestService{}
 	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: 501, InboundIds: []int{1}})
 
-	requests.CaptchaPassed(501)
+	(&TgCaptchaService{}).Pass(501)
 	if _, err := requests.Create(501, ""); requestRefusal(err) != SubRequestHasUser {
 		t.Errorf("an account with a user: %v", err)
 	}
@@ -201,7 +232,7 @@ func TestRequestRefusedToAUserOrABlockedAccount(t *testing.T) {
 	if _, err := writeTgAccount(model.TgAccount{TgId: 502, Username: "spammer", LastSeen: now.UnixMilli()}); err != nil {
 		t.Fatal(err)
 	}
-	requests.CaptchaPassed(502)
+	(&TgCaptchaService{}).Pass(502)
 	if _, err := requests.Create(502, ""); requestRefusal(err) != SubRequestBlocked {
 		t.Errorf("a blocked account: %v", err)
 	}
@@ -221,7 +252,7 @@ func TestRequestCommentUpTo200Characters(t *testing.T) {
 	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	requestClock(t, &now)
 	requests := &SubRequestService{}
-	requests.CaptchaPassed(501)
+	(&TgCaptchaService{}).Pass(501)
 	if _, err := requests.Create(501, strings.Repeat("я", 201)); requestRefusal(err) != SubRequestCommentTooLong {
 		t.Fatalf("201 characters: %v", err)
 	}

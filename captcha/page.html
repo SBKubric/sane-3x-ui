@@ -26,7 +26,7 @@
 <main data-base="{{.Base}}">
   <h1>Проверка перед заявкой</h1>
   <p>Отметьте «Я не робот»: телефон решит небольшую задачу, это займёт несколько секунд.</p>
-  <altcha-widget id="altcha" data-testid="captcha-widget" challengeurl="{{.Base}}challenge" hidefooter
+  <altcha-widget id="altcha" data-testid="captcha-widget" challengeurl="{{.Base}}challenge" customfetch="captchaFetch" hidefooter
     strings='{"label":"Я не робот","verified":"Проверено","verifying":"Проверяем…","waitAlert":"Проверяем… подождите.","error":"Не получилось, попробуйте ещё раз.","expired":"Время вышло, попробуйте ещё раз.","verificationRequired":"Нужна проверка.","ariaLinkLabel":"ALTCHA","footer":"ALTCHA","loading":"Загрузка…","reload":"Обновить"}'></altcha-widget>
   <div id="status" data-testid="captcha-status" role="status"></div>
 </main>
@@ -56,6 +56,19 @@
     status.textContent = text;
     status.dataset.kind = kind;
   }
+  var stale = '⚠️ Страница открыта не из Telegram или устарела. Откройте её снова кнопкой в боте.';
+  // The challenge is made for the person's account: the widget fetches it
+  // through here, with the initData that names them.
+  window.captchaFetch = function (url) {
+    return fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: initData })
+    }).then(function (r) {
+      if (r.status === 403) say(stale, 'error');
+      return r;
+    });
+  };
 
   tg('web_app_ready');
   tg('web_app_expand');
@@ -76,7 +89,7 @@
         say('✅ Проверка пройдена. Вернитесь в чат с ботом: он попросит комментарий к заявке.', 'ok');
         setTimeout(function () { tg('web_app_close'); }, 2500);
       } else if (r.status === 403) {
-        say('⚠️ Страница открыта не из Telegram или устарела. Откройте её снова кнопкой в боте.', 'error');
+        say(stale, 'error');
       } else {
         say('⚠️ Проверка не прошла, попробуйте ещё раз.', 'error');
         if (widget.reset) widget.reset();

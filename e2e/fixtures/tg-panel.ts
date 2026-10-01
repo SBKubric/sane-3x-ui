@@ -20,7 +20,7 @@ const FAKEBOT_IN_COMPOSE = 'http://fakebot:8081';
 /** The notification channel the bot posts the admins' news to. */
 export const TG_NOTIFY_CHANNEL = '@e2e_notify';
 
-/** panel-tg's sub server as the spec reaches it from the host (#220). */
+/** panel-tg's sub server as the spec reaches it from the host: requests-captcha.spec.ts checks the captcha is not there (#220). */
 export const TG_SUB_URL = process.env.E2E_TG_SUB_URL || 'http://127.0.0.1:2097';
 
 /** The bot's token startTelegramBot sets: it signs the Mini App's initData. */

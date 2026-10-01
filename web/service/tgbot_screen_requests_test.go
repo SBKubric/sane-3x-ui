@@ -122,8 +122,11 @@ func TestIncomingRequestsInTheMainMenu(t *testing.T) {
 			t.Errorf("the card lacks %q:\n%s", want, text)
 		}
 	}
-	if labels != "✅ Approve|⚙️ Approve with changes|❌ Reject|🚫 Block|⬅️ Back|🏠 Menu" {
+	if labels != "✅ Approve|⚙️ Approve with changes|❌ Reject|🧩 Reset the captcha|🚫 Block|⬅️ Back|🏠 Menu" {
 		t.Errorf("the card's buttons: %q", labels)
+	}
+	if !strings.Contains(text, "Captcha passed 08.10.2026 12:00") {
+		t.Errorf("the card does not say when the captcha was passed:\n%s", text)
 	}
 
 	// With nothing pending the list says so.
@@ -341,6 +344,60 @@ func TestBlockAndUnblockFromTheBot(t *testing.T) {
 	}
 }
 
+// TestResetTheCaptchaFromTheBot (#220): the request's card says when the
+// account passed the captcha and offers «🧩 Reset the captcha»; the reset
+// makes its next request ask for the captcha again, and the button goes. A
+// block resets it too, and the account's card from the blocked list offers
+// the reset once the account has passed again.
+func TestResetTheCaptchaFromTheBot(t *testing.T) {
+	tg, fake, _, r := requestsAdminFixture(t)
+	captchas := &TgCaptchaService{}
+
+	adminPress(tg, fmt.Sprintf("%s %d", requestCardRoute, r.Id))
+	adminTap(t, tg, fake, "🧩 Reset the captcha")
+	if passed, _ := captchas.Passed(testApplicant); passed {
+		t.Fatal("the pass survived the reset")
+	}
+	text, labels := adminScreen(t, fake)
+	if strings.Contains(text, "Captcha passed") || strings.Contains(labels, "Reset the captcha") || !strings.Contains(text, "#") {
+		t.Errorf("the card after the reset: %q %q", text, labels)
+	}
+	toast := false
+	for _, c := range fake.calls {
+		if c.method == "answerCallbackQuery" && strings.Contains(fmt.Sprint(c.params["text"]), "Captcha reset") {
+			toast = true
+		}
+	}
+	if !toast {
+		t.Errorf("no toast for the reset:\n%s", fake.texts())
+	}
+
+	// A block forgets a pass; passed again, the account's card resets it.
+	if err := captchas.Pass(testApplicant); err != nil {
+		t.Fatal(err)
+	}
+	adminPress(tg, fmt.Sprintf("%s %d", requestCardRoute, r.Id))
+	adminTap(t, tg, fake, "🚫 Block")
+	if passed, _ := captchas.Passed(testApplicant); passed {
+		t.Fatal("the pass survived the block")
+	}
+	if err := captchas.Pass(testApplicant); err != nil {
+		t.Fatal(err)
+	}
+	adminPress(tg, requestBlockedRoute+" 0")
+	adminTap(t, tg, fake, "@petrov")
+	if text, labels := adminScreen(t, fake); !strings.Contains(text, "Captcha passed") || !strings.Contains(labels, "🧩 Reset the captcha") {
+		t.Fatalf("the account's card: %q %q", text, labels)
+	}
+	adminTap(t, tg, fake, "🧩 Reset the captcha")
+	if passed, _ := captchas.Passed(testApplicant); passed {
+		t.Error("the account's card did not reset the pass")
+	}
+	if text, labels := adminScreen(t, fake); !strings.Contains(text, "<code>555</code>") || strings.Contains(labels, "Reset the captcha") {
+		t.Errorf("the account's card after the reset: %q %q", text, labels)
+	}
+}
+
 // TestRequestAdminRoutesAreAdminsOnly: the applicant pressing the admin's
 // request routes — on their own request, their own account — gets «No
 // result», and nothing changes: no approval, no rejection, no unblock.
@@ -359,7 +416,8 @@ func TestRequestAdminRoutesAreAdminsOnly(t *testing.T) {
 	for _, data := range []string{requestsListRoute + " 0", requestCardRoute + " " + id, requestApproveAction + " " + id,
 		requestEditAction + " " + id, requestRejectRoute + " " + id, requestRejectAction + " " + id + " 0",
 		requestReasonAction + " " + id, requestBlockAction + " 0 777", requestBlockAction + " 1 601 " + id,
-		requestBlockedRoute + " 0", requestAccountRoute + " 777"} {
+		requestBlockedRoute + " 0", requestAccountRoute + " 777", requestCaptchaAction + " 601",
+		requestCaptchaAction + " 601 " + id} {
 		if tg.clientMayPress(&telego.CallbackQuery{From: telego.User{ID: usersTestChat}, Data: data,
 			Message: &telego.Message{MessageID: 9, Chat: telego.Chat{ID: usersTestChat}}}) {
 			t.Errorf("%q let through", data)
@@ -397,7 +455,7 @@ func TestRequestAdminTextsInEveryLanguage(t *testing.T) {
 		}
 		settings = map[string]string{}
 		for k, v := range doc.Pages.Settings {
-			if s, ok := v.(string); ok && strings.HasPrefix(k, "subRequest") {
+			if s, ok := v.(string); ok && (strings.HasPrefix(k, "subRequest") || strings.HasPrefix(k, "botPath")) {
 				settings[k] = s
 			}
 		}
@@ -430,7 +488,8 @@ func TestRequestAdminTextsInEveryLanguage(t *testing.T) {
 	ru, _ := read("translate.ru_RU.toml")
 	for key, part := range map[string]string{"menu": "📥 Входящие заявки", "approve": "✅ Одобрить",
 		"approveEdit": "⚙️ Одобрить с изменениями", "reject": "❌ Отклонить", "block": "🚫 Заблокировать",
-		"reasonFull": "Нет мест", "reasonUnknown": "Неизвестный отправитель", "ready": "Подписка готова"} {
+		"reasonFull": "Нет мест", "reasonUnknown": "Неизвестный отправитель", "ready": "Подписка готова",
+		"captchaReset": "Сбросить капчу"} {
 		if !strings.Contains(ru[key], part) {
 			t.Errorf("ru %s = %q, want %q in it", key, ru[key], part)
 		}

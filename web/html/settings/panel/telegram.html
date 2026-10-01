@@ -78,6 +78,18 @@
     </a-collapse-panel>
     <!-- request defaults (#221): what «✅ Approve» in the bot gives a request's user -->
     <a-collapse-panel key="4" header='{{ i18n "pages.settings.subRequestTitle" }}'>
+        <!-- the bot's path (#220): where the captcha Mini App is served, read-only -->
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.botPath" }}</template>
+            <template #description>{{ i18n "pages.settings.botPathDesc" }}<br>
+                <span data-testid="bot-captcha-url" v-if="botPath.captchaUrl">[[ botPath.captchaUrl ]]</span>
+                <span data-testid="bot-captcha-url-none" v-else>{{ i18n "pages.settings.botPathNoHttps" }}</span>
+            </template>
+            <template #control>
+                <a-input data-testid="bot-path" read-only :value="botPath.path" :style="{ marginBottom: '6px' }"></a-input>
+                <a-button data-testid="bot-path-renew" icon="sync" @click="renewBotPath()">{{ i18n "pages.settings.botPathRenew" }}</a-button>
+            </template>
+        </a-setting-list-item>
         <a-setting-list-item paddings="small">
             <template #title>{{ i18n "pages.settings.subRequestInbounds" }}</template>
             <template #description>{{ i18n "pages.settings.subRequestInboundsDesc" }}</template>

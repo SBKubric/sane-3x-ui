@@ -286,11 +286,6 @@ func (s *Server) initRouter() (*gin.Engine, error) {
 		s.tun = NewTunnelSubController(g.Group(tunPath), s.sub)
 	}
 
-	// The captcha before a request for a subscription (#220,
-	// docs/spec/users.md §12): its page, challenge and verification under
-	// the subscription path, where the hops of the chain pass them on.
-	NewCaptchaController(g, LinksPath)
-
 	// The chain's wave and join share the sub port with the subscriptions
 	// (docs/spec/proxy-chain.md §3.3): one port is enough, and a second one
 	// would be another field in the registry, the document and the installer.

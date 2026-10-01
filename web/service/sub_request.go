@@ -21,14 +21,15 @@ import (
 //     a job that also tells the person);
 //   - after a rejection the account waits 7 days;
 //   - an account that has a user, or that an admin blocked, does not ask;
-//   - a request needs a captcha passed within the last 30 minutes, and uses
-//     it up.
+//   - a request needs the account to have passed the bot's captcha
+//     (TgCaptchaService). The pass is remembered: later requests of the
+//     account go without the captcha, until an admin resets it or blocks
+//     the account.
 
 // The requests' rules in numbers.
 const (
 	subRequestTTL        = 14 * 24 * time.Hour
 	subRequestCooldown   = 7 * 24 * time.Hour
-	subRequestWindow     = 30 * time.Minute
 	subRequestCommentMax = 200 // characters
 )
 
@@ -41,7 +42,7 @@ var subRequestMu sync.Mutex
 
 // The refusals of a request.
 const (
-	SubRequestNeedsCaptcha   = "captcha"     // no captcha passed in the last 30 minutes
+	SubRequestNeedsCaptcha   = "captcha"     // the account has not passed the captcha
 	SubRequestAlreadyPending = "pending"     // the account has a pending request
 	SubRequestCoolingDown    = "cooldown"    // rejected less than 7 days ago; Until says when that ends
 	SubRequestHasUser        = "has_user"    // the account has a user already
@@ -114,8 +115,8 @@ func (s *SubRequestService) Status(tgId int64) (*SubRequestStatus, error) {
 }
 
 // Create leaves the account's request with comment (trimmed; "" for none).
-// It needs the account's captcha window open and uses it up; the rules
-// refuse with a SubRequestRefusal.
+// It needs the account's captcha passed; the rules refuse with a
+// SubRequestRefusal.
 func (s *SubRequestService) Create(tgId int64, comment string) (*model.SubRequest, error) {
 	comment = strings.TrimSpace(comment)
 	if len([]rune(comment)) > subRequestCommentMax {
@@ -124,6 +125,10 @@ func (s *SubRequestService) Create(tgId int64, comment string) (*model.SubReques
 	subRequestMu.Lock()
 	defer subRequestMu.Unlock()
 	st, err := s.Status(tgId)
+	if err != nil {
+		return nil, err
+	}
+	passed, err := (&TgCaptchaService{}).Passed(tgId)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +141,7 @@ func (s *SubRequestService) Create(tgId int64, comment string) (*model.SubReques
 		return nil, &SubRequestRefusal{Code: SubRequestAlreadyPending}
 	case st.Rejected != nil:
 		return nil, &SubRequestRefusal{Code: SubRequestCoolingDown, Until: st.NextAt}
-	case !subRequestWindows.open(tgId):
+	case !passed:
 		return nil, &SubRequestRefusal{Code: SubRequestNeedsCaptcha}
 	}
 	r := &model.SubRequest{TgId: tgId, Comment: comment, Status: model.SubRequestPending,
@@ -144,7 +149,6 @@ func (s *SubRequestService) Create(tgId int64, comment string) (*model.SubReques
 	if err := database.GetDB().Create(r).Error; err != nil {
 		return nil, err
 	}
-	subRequestWindows.close(tgId)
 	return r, nil
 }
 
@@ -218,55 +222,15 @@ func (s *SubRequestService) ExpireDue() ([]model.SubRequest, error) {
 
 // SetBlocked blocks the account tgId from requests, or lets it ask again.
 // The admin's button is #221's; the account's row is made if the bot never
-// saw it.
+// saw it. A block also forgets the account's captcha pass: let back in, it
+// passes the captcha again.
 func (s *SubRequestService) SetBlocked(tgId int64, blocked bool) error {
-	return database.GetDB().Clauses(clause.OnConflict{
+	err := database.GetDB().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "tg_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"requests_blocked"}),
 	}).Create(&model.TgAccount{TgId: tgId, RequestsBlocked: blocked}).Error
-}
-
-// CaptchaPassed opens the account's 30 minutes to leave a request.
-func (s *SubRequestService) CaptchaPassed(tgId int64) {
-	subRequestWindows.pass(tgId)
-}
-
-// requestWindows are the accounts' open captcha windows, in memory: a
-// restart closes them, and the person passes the captcha again.
-type requestWindows struct {
-	mu    sync.Mutex
-	until map[int64]time.Time
-}
-
-var subRequestWindows = &requestWindows{until: map[int64]time.Time{}}
-
-func (w *requestWindows) pass(tgId int64) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	now := subRequestNow()
-	for id, until := range w.until {
-		if !now.Before(until) {
-			delete(w.until, id)
-		}
+	if err != nil || !blocked {
+		return err
 	}
-	w.until[tgId] = now.Add(subRequestWindow)
-}
-
-func (w *requestWindows) open(tgId int64) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	until, ok := w.until[tgId]
-	return ok && subRequestNow().Before(until)
-}
-
-func (w *requestWindows) close(tgId int64) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	delete(w.until, tgId)
-}
-
-func (w *requestWindows) reset() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.until = map[int64]time.Time{}
+	return (&TgCaptchaService{}).Reset(tgId)
 }

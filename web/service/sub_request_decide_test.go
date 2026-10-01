@@ -219,13 +219,19 @@ func TestRequestLists(t *testing.T) {
 // TestBlockAndUnblock: «🚫 Block» turns the account's pending request down
 // and takes no more from it; «Unblock» lets it ask again once the week after
 // that rejection is over. Blocking an account with nothing pending only
-// blocks it.
+// blocks it. A block forgets the account's captcha pass.
 func TestBlockAndUnblock(t *testing.T) {
 	now, r := decideFixture(t)
 	requests := &SubRequestService{}
 
+	if passed, err := (&TgCaptchaService{}).Passed(555); err != nil || !passed {
+		t.Fatalf("the applicant's captcha before the block: %v, %v", passed, err)
+	}
 	if err := requests.Block(555, "@admin"); err != nil {
 		t.Fatal(err)
+	}
+	if passed, err := (&TgCaptchaService{}).Passed(555); err != nil || passed {
+		t.Errorf("the applicant's captcha after the block: %v, %v", passed, err)
 	}
 	got, _ := requests.Get(r.Id)
 	if got.Status != model.SubRequestRejected || got.DecidedBy != "@admin" {
@@ -235,7 +241,7 @@ func TestBlockAndUnblock(t *testing.T) {
 	if !st.Blocked || st.CanApply() {
 		t.Errorf("status: %+v", st)
 	}
-	requests.CaptchaPassed(555)
+	(&TgCaptchaService{}).Pass(555)
 	if _, err := requests.Create(555, ""); requestRefusal(err) != SubRequestBlocked {
 		t.Errorf("a request from a blocked account: %v", err)
 	}

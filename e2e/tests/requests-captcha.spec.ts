@@ -7,6 +7,7 @@ import {
   startTelegramBot,
   TG_BOT_TOKEN,
   TG_NOTIFY_CHANNEL,
+  TG_PANEL_URL,
   TG_SUB_URL,
   type Sent,
 } from '../fixtures/tg-panel';
@@ -15,12 +16,15 @@ import type { APIRequestContext } from '@playwright/test';
 // A request for a subscription (#220, docs/spec/users.md §12), against
 // panel-tg, whose bot runs on fakebot (fixtures/tg-panel.ts): someone with
 // no subscription presses «Leave a request» and gets the captcha step; the
-// captcha page — here the panel's own sub server, which serves it as the
-// active edge does — runs as the Mini App with Telegram's initData, the
-// widget solves the challenge, the panel verifies it and the bot asks for
-// the comment in the person's chat; the comment sends the request, which
-// the notification channel hears of. The same solution again, and a forged
-// initData, are refused.
+// captcha page — the bot's own path /third-party/<secret>/captcha on the
+// panel's port, where the front of real and the hops of the chain bring the
+// active edge's requests — runs as the Mini App with Telegram's initData,
+// the widget solves a challenge made for that account, the panel verifies
+// it and the bot asks for the comment in the person's chat; the comment
+// sends the request, which the notification channel hears of. The same
+// solution again, and a forged initData, are refused. The subscription path
+// has no captcha, a wrong secret is a 404, and the Telegram tab shows the
+// path and renews its secret.
 
 const applicant = { id: 5550077, username: 'e2e_applicant' };
 
@@ -45,11 +49,17 @@ async function lastTo(request: APIRequestContext, id: number, part: string): Pro
   return (await botSent(request)).filter((s) => Number(s.chat_id) === id && s.text.includes(part)).pop();
 }
 
-/** The captcha page on panel-tg's sub server, under its subscription path (random on a fresh panel). */
+/** The bot's path on panel-tg, /third-party/<secret>/ (the secret random on a fresh panel). */
+async function botPath(request: APIRequestContext): Promise<string> {
+  const res = await (await request.post('/panel/setting/botPath')).json();
+  expect(res.success, res.msg).toBe(true);
+  expect(res.obj.path).toMatch(/^\/third-party\/[A-Za-z0-9]{24}\/$/);
+  return res.obj.path;
+}
+
+/** The captcha page at the bot's path on panel-tg's own port. */
 async function captchaBase(request: APIRequestContext): Promise<string> {
-  const all = await (await request.post('/panel/setting/all')).json();
-  expect(all.success, all.msg).toBe(true);
-  return `${TG_SUB_URL}${all.obj.subPath}captcha`;
+  return `${TG_PANEL_URL}${await botPath(request)}captcha`;
 }
 
 function buttonData(sent: Sent, label: string): string {
@@ -103,8 +113,48 @@ test.describe('requests: the captcha and the applicant', () => {
   });
 
   test('the page opened outside Telegram says so and shows no widget', async ({ page, authedRequest: request }) => {
+    await startTelegramBot(request); // the bot's path answers while the bot is on
     await page.goto(await captchaBase(request));
     await expect(page.getByTestId('captcha-status')).toContainText('«Пройти проверку»');
     await expect(page.getByTestId('captcha-widget')).toBeHidden();
+  });
+
+  test('the captcha is not on the subscription path, and a wrong secret is a 404', async ({ authedRequest: request }) => {
+    await startTelegramBot(request);
+    const all = await (await request.post('/panel/setting/all')).json();
+    const old = await request.get(`${TG_SUB_URL}${all.obj.subPath}captcha`);
+    expect(old.status()).not.toBe(200);
+    expect(await old.text()).not.toContain('altcha');
+
+    const right = await request.get(await captchaBase(request));
+    expect(right.status()).toBe(200);
+    expect(await right.text()).toContain('<altcha-widget');
+    for (const path of ['/third-party/wrong/captcha', '/third-party/wrong/captcha/altcha.js']) {
+      expect((await request.get(`${TG_PANEL_URL}${path}`)).status(), path).toBe(404);
+    }
+    const challenge = await request.post(`${TG_PANEL_URL}/third-party/wrong/captcha/challenge`, { data: { initData: '' } });
+    expect(challenge.status()).toBe(404);
+  });
+
+  test('the Telegram tab shows the bot path and renews its secret', async ({ authedPage: page, authedRequest: request }) => {
+    const before = await botPath(request);
+    await page.goto('/panel/settings');
+    await page.getByRole('tab', { name: 'Telegram Bot' }).click();
+    await page.getByRole('button', { name: /Subscription requests/ }).click();
+    const field = page.locator('input[data-testid="bot-path"], [data-testid="bot-path"] input').first();
+    await expect(field).toHaveValue(before);
+    await expect(field).toHaveAttribute('readonly', /.*/);
+    // No chain and no front on panel-tg: no https address for the Mini App.
+    await expect(page.getByTestId('bot-captcha-url-none')).toBeVisible();
+
+    await page.getByTestId('bot-path-renew').click();
+    await page.locator('.ant-modal-confirm').getByRole('button', { name: 'Renew' }).click();
+    await expect(field).not.toHaveValue(before);
+    const after = await botPath(request);
+    await expect(field).toHaveValue(after);
+
+    await startTelegramBot(request);
+    expect((await request.get(`${TG_PANEL_URL}${before}captcha`)).status()).toBe(404);
+    expect((await request.get(`${TG_PANEL_URL}${after}captcha`)).status()).toBe(200);
   });
 });
