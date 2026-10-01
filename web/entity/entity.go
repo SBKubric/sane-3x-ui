@@ -109,6 +109,11 @@ type AllSetting struct {
 	// link the panel hands out goes through, "" for none (sub_public.go).
 	SubPublicURL string `json:"subPublicURL" form:"subPublicURL"`
 
+	// The front's trusted addresses (#228, front_trusted.go): hosts such as
+	// the subscription showcase that the fronts' HTTP side — every hop's and
+	// the panel's — neither limits nor bans; comma-separated, "" for none.
+	FrontTrustedAddrs string `json:"frontTrustedAddrs" form:"frontTrustedAddrs"`
+
 	// The VPN name (#225, vpn_name.go): the DNSExit API key (shown masked),
 	// the name the VLESS links name instead of the active edge's address,
 	// its record's TTL in minutes, and the domain's registration expiry
@@ -246,6 +251,9 @@ func (s *AllSetting) CheckValid() error {
 	}
 
 	if err := checkSubPublicURL(s); err != nil {
+		return err
+	}
+	if err := checkFrontTrustedAddrs(s); err != nil {
 		return err
 	}
 	if err := checkVPNName(s); err != nil {

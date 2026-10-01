@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -385,6 +386,7 @@ func documentDiffers(a, b *chain.Document) bool {
 		a.Self != b.Self ||
 		a.ActiveEdge != b.ActiveEdge ||
 		a.PublicSubURL != b.PublicSubURL ||
+		!slices.Equal(a.FrontTrustedAddrs, b.FrontTrustedAddrs) ||
 		secretsDiffer(a, b)
 }
 

@@ -189,7 +189,10 @@ func TruncateDocument(doc *chain.Document, hop chain.Hop, cfg *Config) chain.Doc
 		// The public subscription address (#224) is the panel's, the same
 		// on every box.
 		PublicSubURL: doc.PublicSubURL,
-		Ports:        doc.Ports,
+		// So are the front's trusted addresses (#228): the showcase calls
+		// every edge, behind an inner or not.
+		FrontTrustedAddrs: doc.FrontTrustedAddrs,
+		Ports:             doc.Ports,
 	}
 	if doc.Self.Draining() {
 		out.NextHop = doc.NextHop

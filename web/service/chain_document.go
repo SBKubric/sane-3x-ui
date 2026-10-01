@@ -102,6 +102,10 @@ func (s *ChainDocumentService) BuildAllWithPanelHost(fallbackHost string) (map[s
 	if err != nil {
 		return nil, err
 	}
+	trusted, err := s.settingService.GetFrontTrustedAddrs()
+	if err != nil {
+		return nil, err
+	}
 
 	hops, err := orderedHops(database.GetDB())
 	if err != nil {
@@ -161,9 +165,10 @@ func (s *ChainDocumentService) BuildAllWithPanelHost(fallbackHost string) (map[s
 			GeneratedAt: generatedAt,
 			Self: chain.Self{Name: hop.Name, Role: hop.Role, Host: hop.Host, State: hop.State,
 				RealityTarget: hop.RealityTarget, RealityServerName: hop.NeighbourServerName()},
-			NextHop:      s.nextHopOf(hop, byId, panelHop),
-			PublicSubURL: publicSubURL,
-			Ports:        ports,
+			NextHop:           s.nextHopOf(hop, byId, panelHop),
+			PublicSubURL:      publicSubURL,
+			FrontTrustedAddrs: trusted,
+			Ports:             ports,
 		}
 		if hop.Role == chain.RoleEdge {
 			// Outward of an edge there are only clients, and the edge beside

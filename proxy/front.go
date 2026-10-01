@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -162,13 +163,29 @@ func BuildFront(doc *chain.Document, layout FrontLayout, ipCert, ipKey string) (
 			Paths:  []string{joinPathPrefix},
 			Target: layout.SubListen,
 		},
-		Guard: &nginx.Guard{Exempt: frontNeighbours(doc), MissLog: nginx.MissLogPath},
+		Guard: &nginx.Guard{Exempt: frontExemptions(doc), MissLog: nginx.MissLogPath},
 	}
 	return cfg, warnings, nil
 }
 
 // joinPathPrefix is where the sub server serves the join page.
 const joinPathPrefix = "/join/"
+
+// frontExemptions are everything this box's HTTP side neither limits nor
+// bans: its chain neighbours, and the panel's front trusted addresses (#228)
+// — the subscription showcase, which calls an edge for all its clients from
+// one address. A trusted entry the guard could not render is left out: one
+// bad entry must not take the front down.
+func frontExemptions(doc *chain.Document) []string {
+	out := frontNeighbours(doc)
+	for _, value := range doc.FrontTrustedAddrs {
+		if entry, ok := nginx.ExemptEntry(value); ok && !slices.Contains(out, entry) {
+			out = append(out, entry)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
 
 // frontNeighbours are the addresses this box's HTTP side neither limits nor
 // bans (#141): its neighbours in the chain, as far as its document knows them

@@ -47,7 +47,7 @@ export default defineConfig({
     {
       name: 'panel',
       testIgnore:
-        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|request-defaults-settings|sub-public-url|vpn-name-settings|users-telegram-invite|requests-captcha|users-link-broadcast)\.spec\.ts/,
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|request-defaults-settings|sub-public-url|vpn-name-settings|front-trusted-addrs|users-telegram-invite|requests-captcha|users-link-broadcast)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The chain registry (its hops and the active edge) is one per panel, and
@@ -63,8 +63,9 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
     // tg-notify-settings.spec.ts (#195), request-defaults-settings.spec.ts
-    // (#221), sub-public-url.spec.ts (#224) and vpn-name-settings.spec.ts
-    // (#225) save the whole settings form,
+    // (#221), sub-public-url.spec.ts (#224), vpn-name-settings.spec.ts
+    // (#225) and front-trusted-addrs.spec.ts (#228, which also enters a hop
+    // into the chain registry) save the whole settings form,
     // one after the other. A save
     // posts back every setting as the page loaded it, among them the
     // proxy-front override the chain specs switch through the registry and
@@ -72,7 +73,7 @@ export default defineConfig({
     // former and before the latter, never beside either.
     {
       name: 'settings-form',
-      testMatch: /(tg-notify-settings|request-defaults-settings|sub-public-url|vpn-name-settings)\.spec\.ts/,
+      testMatch: /(tg-notify-settings|request-defaults-settings|sub-public-url|vpn-name-settings|front-trusted-addrs)\.spec\.ts/,
       dependencies: ['chain-registry'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },

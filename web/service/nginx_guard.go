@@ -61,7 +61,8 @@ func (s *NginxService) guard() *nginx.Guard {
 }
 
 // frontExemptions are the addresses the HTTP side neither limits nor bans:
-// every hop of the chain registry and mon-server. A hop fetches
+// every hop of the chain registry, mon-server and the front's trusted
+// addresses. A hop fetches
 // subscriptions and the wave on behalf of every client behind it, so to the
 // panel all of them are one address; mon-server calls in bursts.
 //
@@ -84,6 +85,14 @@ func (s *NginxService) frontExemptions() []string {
 		add(hop.ObservedAddr)
 	}
 	add((&MonitoringService{}).MonServerAddr())
+	// The front's trusted addresses (#228), networks included: the
+	// subscription showcase, should it ever call the panel's front too.
+	trusted, _ := s.settingService.GetFrontTrustedAddrs()
+	for _, value := range trusted {
+		if entry, ok := nginx.ExemptEntry(value); ok {
+			seen[entry] = true
+		}
+	}
 
 	out := make([]string, 0, len(seen))
 	for ip := range seen {

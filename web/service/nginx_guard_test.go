@@ -85,6 +85,39 @@ func TestBuildConfig_GuardExemptsTheChainAndMonServer(t *testing.T) {
 	}
 }
 
+// TestBuildConfig_GuardExemptsTheFrontTrustedAddrs (#228): the panel's own
+// front exempts the trusted addresses beside the chain and mon-server, a
+// network as a network; cleared, they are clients like any other.
+func TestBuildConfig_GuardExemptsTheFrontTrustedAddrs(t *testing.T) {
+	s := guardedPanel(t)
+	monHop(t, "bridge", "inner", "joined", 1, false, "198.51.100.4")
+	if err := s.settingService.SetFrontTrustedAddrs("203.0.113.5, 2001:db8:5::/48, 198.51.100.4"); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := s.buildConfig(only443Behind())
+	if err != nil {
+		t.Fatalf("buildConfig: %v", err)
+	}
+	want := []string{"198.51.100.4", "2001:db8:5::/48", "203.0.113.5"}
+	if got := cfg.Site.Guard.Exempt; !slices.Equal(got, want) {
+		t.Errorf("exempt = %v, want %v", got, want)
+	}
+	if err := cfg.Validate(); err != nil {
+		t.Errorf("the config does not validate: %v", err)
+	}
+
+	if err := s.settingService.SetFrontTrustedAddrs(""); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err = s.buildConfig(only443Behind())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := cfg.Site.Guard.Exempt; !slices.Equal(got, []string{"198.51.100.4"}) {
+		t.Errorf("exempt after clearing = %v", got)
+	}
+}
+
 // TestBuildConfig_SharedModeIsNotGuarded: the protection comes with only443
 // (#141); shared mode and a panel not behind 443 render as before.
 func TestBuildConfig_SharedModeIsNotGuarded(t *testing.T) {
