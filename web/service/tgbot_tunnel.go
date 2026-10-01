@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"strconv"
 	"strings"
 	"time"
 
@@ -44,6 +45,25 @@ func (t *Tgbot) tunnelCallback(data string) (reply screenReply, ok bool) {
 		return t.tunnelReset(args), true
 	case "tun_cf":
 		return t.tunnelConfig(args), true
+	case "tun_ex":
+		if _, ok := findTunnelPeer(args); !ok {
+			return t.tunnelNoResult(), true
+		}
+		return screenReply{usersReply: usersReply{keyboard: t.numberPresets(args, "tgbot.buttons.cancelReset", "tun_r "+args,
+			"tun_exc", "tun_exi", expiryPresetDays, t.expiryPresetLabel)}}, true
+	case "tun_exi":
+		fields := strings.Fields(data)
+		if len(fields) < 2 {
+			return t.tunnelNoResult(), true
+		}
+		return t.numberKeypad(fields, "tun_exi", "tgbot.buttons.confirmNumber", "tun_exc", "tun_r "+fields[1], t.tunnelNoResult()), true
+	case "tun_exc":
+		clientUUID, num, _ := strings.Cut(args, " ")
+		days, err := strconv.Atoi(num)
+		if err != nil || days < 0 {
+			return t.tunnelNoResult(), true
+		}
+		return t.tunnelSetExpiry(clientUUID, int64(days)), true
 	}
 	return screenReply{}, false
 }
@@ -66,6 +86,7 @@ type tunnelClients interface {
 	ToggleClientByUUID(clientUUID string, enable bool) error
 	ResetClientTrafficByUUID(clientUUID string) error
 	GetClientConfigByUUID(clientUUID string) (string, error)
+	UpdateClientByUUID(clientUUID string, client *model.TunnelClient) error
 }
 
 // tunnelKinds are the tunnel kinds in the order the bot looks a uuid up.
@@ -137,9 +158,9 @@ func tunnelOwner(clientUUID string) *SubUserView {
 
 // tunnelCard is a tunnel client's card: its state, its user and the user's
 // subscription, and the buttons a tunnel client has — enable/disable, traffic
-// reset, its config and the way to its user. The xray card's IP limit, IP log,
-// traffic limit, expiry and Telegram user are not offered: the tunnel model
-// has no bot flow for them.
+// reset, the expiry (as the xray card changes it), its config and the way to
+// its user. The xray card's IP limit, IP log, traffic limit and Telegram user
+// are not offered: the tunnel model has no bot flow for them.
 func (t *Tgbot) tunnelCard(clientUUID string) screenReply {
 	p, ok := findTunnelPeer(clientUUID)
 	if !ok {
@@ -188,6 +209,7 @@ func (t *Tgbot) tunnelCard(clientUUID string) screenReply {
 	rows := [][]telego.InlineKeyboardButton{
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.buttons.refresh"), "tun_r "+c.UUID)),
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.buttons.resetTraffic"), "tun_rt "+c.UUID), toggle),
+		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.buttons.resetExpire"), "tun_ex "+c.UUID)),
 		tu.InlineKeyboardRow(button(t.I18nBot("tgbot.tunnel.config"), "tun_cf "+c.UUID)),
 	}
 	if owner != nil {
@@ -241,6 +263,30 @@ func (t *Tgbot) tunnelReset(clientUUID string) screenReply {
 	InvalidateTunnelSubCache()
 	reply := t.tunnelCard(clientUUID)
 	reply.toast = t.I18nBot("tgbot.answers.resetTrafficSuccess", "Email=="+p.client.Email)
+	return reply
+}
+
+// tunnelSetExpiry changes the client's expiry by days (extendedExpiry, the
+// xray card's rule). A client switched off because its expiry passed, still
+// within its traffic, is switched back on.
+func (t *Tgbot) tunnelSetExpiry(clientUUID string, days int64) screenReply {
+	p, ok := findTunnelPeer(clientUUID)
+	if !ok {
+		return t.tunnelNoResult()
+	}
+	c := *p.client
+	now := time.Now().UnixMilli()
+	expiredOff := !c.Enable && c.ExpiryTime > 0 && c.ExpiryTime < now && (c.TotalGB == 0 || c.Upload+c.Download < c.TotalGB)
+	c.ExpiryTime = extendedExpiry(c.ExpiryTime, days, now)
+	if expiredOff {
+		c.Enable = true
+	}
+	if err := tunnelClientsOf(p.kind).UpdateClientByUUID(clientUUID, &c); err != nil {
+		return screenReply{usersReply: t.usersError(err)}
+	}
+	InvalidateTunnelSubCache()
+	reply := t.tunnelCard(clientUUID)
+	reply.toast = t.I18nBot("tgbot.answers.expireResetSuccess", "Email=="+c.Email)
 	return reply
 }
 

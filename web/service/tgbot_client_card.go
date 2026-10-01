@@ -218,17 +218,24 @@ func (t *Tgbot) clientConfirm(cancelKey, cancelData, confirmKey, confirmData str
 // clientPresets is a preset keyboard: cancel, unlimited and custom, then the
 // rows of values, each labelled by label and set with "<set> <email> <n>".
 func (t *Tgbot) clientPresets(email, cancelKey, set, pad string, rows [][]int, label func(int) string) *telego.InlineKeyboardMarkup {
+	return t.numberPresets(email, cancelKey, "client_cancel "+email, set, pad, rows, label)
+}
+
+// numberPresets is a preset keyboard for the client named id (an xray email or
+// a tunnel uuid): cancel (cancelData), unlimited and custom, then the presets.
+// A preset sends "<set> <id> <n>", custom opens the keypad "<pad> <id> 0".
+func (t *Tgbot) numberPresets(id, cancelKey, cancelData, set, pad string, rows [][]int, label func(int) string) *telego.InlineKeyboardMarkup {
 	at := func(text string, data string) telego.InlineKeyboardButton {
 		return tu.InlineKeyboardButton(text).WithCallbackData(t.encodeQuery(data))
 	}
 	out := [][]telego.InlineKeyboardButton{
-		tu.InlineKeyboardRow(at(t.I18nBot(cancelKey), "client_cancel "+email)),
-		tu.InlineKeyboardRow(at(t.I18nBot("tgbot.unlimited"), set+" "+email+" 0"), at(t.I18nBot("tgbot.buttons.custom"), pad+" "+email+" 0")),
+		tu.InlineKeyboardRow(at(t.I18nBot(cancelKey), cancelData)),
+		tu.InlineKeyboardRow(at(t.I18nBot("tgbot.unlimited"), set+" "+id+" 0"), at(t.I18nBot("tgbot.buttons.custom"), pad+" "+id+" 0")),
 	}
 	for _, row := range rows {
 		var buttons []telego.InlineKeyboardButton
 		for _, n := range row {
-			buttons = append(buttons, at(label(n), fmt.Sprintf("%s %s %d", set, email, n)))
+			buttons = append(buttons, at(label(n), fmt.Sprintf("%s %s %d", set, id, n)))
 		}
 		out = append(out, buttons)
 	}
@@ -242,17 +249,21 @@ func (t *Tgbot) clientLimitTrafficKeyboard(email string) *telego.InlineKeyboardM
 }
 
 func (t *Tgbot) clientExpiryKeyboard(email string) *telego.InlineKeyboardMarkup {
-	return t.clientPresets(email, "tgbot.buttons.cancelReset", "reset_exp_c", "reset_exp_in",
-		[][]int{{7, 10}, {14, 20}, {30, 90}, {180, 365}},
-		func(n int) string {
-			switch {
-			case n == 30:
-				return t.I18nBot("tgbot.add") + " 1 " + t.I18nBot("tgbot.month")
-			case n >= 90:
-				return t.I18nBot("tgbot.add") + " " + strconv.Itoa(n/30) + " " + t.I18nBot("tgbot.months")
-			}
-			return t.I18nBot("tgbot.add") + " " + strconv.Itoa(n) + " " + t.I18nBot("tgbot.days")
-		})
+	return t.clientPresets(email, "tgbot.buttons.cancelReset", "reset_exp_c", "reset_exp_in", expiryPresetDays, t.expiryPresetLabel)
+}
+
+// expiryPresetDays are the day presets of the expiry keyboards.
+var expiryPresetDays = [][]int{{7, 10}, {14, 20}, {30, 90}, {180, 365}}
+
+// expiryPresetLabel names an expiry preset: "Add 1 Month", "Add 3 Months", "Add 7 Days".
+func (t *Tgbot) expiryPresetLabel(n int) string {
+	switch {
+	case n == 30:
+		return t.I18nBot("tgbot.add") + " 1 " + t.I18nBot("tgbot.month")
+	case n >= 90:
+		return t.I18nBot("tgbot.add") + " " + strconv.Itoa(n/30) + " " + t.I18nBot("tgbot.months")
+	}
+	return t.I18nBot("tgbot.add") + " " + strconv.Itoa(n) + " " + t.I18nBot("tgbot.days")
 }
 
 func (t *Tgbot) clientIPLimitKeyboard(email string) *telego.InlineKeyboardMarkup {
@@ -265,12 +276,21 @@ func (t *Tgbot) clientIPLimitKeyboard(email string) *telego.InlineKeyboardMarkup
 // confirm button sets the number with "<set> <email> <n>".
 func (t *Tgbot) clientKeypad(fields []string, pad, confirmKey, set string) screenReply {
 	email := fields[1]
+	return t.numberKeypad(fields, pad, confirmKey, set, "client_cancel "+email, t.clientFailed(email))
+}
+
+// numberKeypad is a key of a number keypad for the client named fields[1]
+// (an xray email or a tunnel uuid): fields are "<pad> <id> <n> [key]", the key
+// a digit, -1 to delete one, -2 to clear; confirm sends "<set> <id> <n>",
+// cancel sends cancelData, and malformed fields answer failed.
+func (t *Tgbot) numberKeypad(fields []string, pad, confirmKey, set, cancelData string, failed screenReply) screenReply {
+	email := fields[1]
 	if len(fields) < 3 {
-		return t.clientFailed(email)
+		return failed
 	}
 	n, err := strconv.Atoi(fields[2])
 	if err != nil {
-		return t.clientFailed(email)
+		return failed
 	}
 	if len(fields) == 4 {
 		next := n
@@ -297,7 +317,7 @@ func (t *Tgbot) clientKeypad(fields []string, pad, confirmKey, set string) scree
 		return tu.InlineKeyboardButton(label).WithCallbackData(t.encodeQuery(fmt.Sprintf("%s %s %d %d", pad, email, n, k)))
 	}
 	kb := tu.InlineKeyboard(
-		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData(t.encodeQuery("client_cancel "+email))),
+		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.cancel")).WithCallbackData(t.encodeQuery(cancelData))),
 		tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot(confirmKey, "Num=="+num)).WithCallbackData(t.encodeQuery(set+" "+email+" "+num))),
 		tu.InlineKeyboardRow(key("1", 1), key("2", 2), key("3", 3)),
 		tu.InlineKeyboardRow(key("4", 4), key("5", 5), key("6", 6)),
@@ -305,6 +325,24 @@ func (t *Tgbot) clientKeypad(fields []string, pad, confirmKey, set string) scree
 		tu.InlineKeyboardRow(key("🔄", -2), key("0", 0), key("⬅️", -1)),
 	)
 	return screenReply{usersReply: usersReply{keyboard: kb}}
+}
+
+// extendedExpiry is an expiry (ms; 0 unlimited, negative N days from first
+// use) after adding days, as the client cards set it: from the expiry date
+// while that is ahead, N days from first use once it has passed or when it
+// already counts from first use; 0 days makes it unlimited.
+func extendedExpiry(expiry, days, nowMs int64) int64 {
+	if days <= 0 {
+		return 0
+	}
+	span := days * 24 * 60 * 60000
+	switch {
+	case expiry > 0 && expiry < nowMs:
+		return -span
+	case expiry > 0:
+		return expiry + span
+	}
+	return expiry - span
 }
 
 // clientResetExpiry adds days to the client's expiry: from its expiry date
@@ -321,15 +359,7 @@ func (t *Tgbot) clientResetExpiry(email string, days int64) screenReply {
 		if traffic == nil {
 			return screenReply{usersReply: usersReply{text: t.I18nBot("tgbot.noResult")}}
 		}
-		if traffic.ExpiryTime > 0 {
-			if traffic.ExpiryTime-time.Now().Unix()*1000 < 0 {
-				date = -int64(days * 24 * 60 * 60000)
-			} else {
-				date = traffic.ExpiryTime + int64(days*24*60*60000)
-			}
-		} else {
-			date = traffic.ExpiryTime - int64(days*24*60*60000)
-		}
+		date = extendedExpiry(traffic.ExpiryTime, days, time.Now().UnixMilli())
 	}
 	needRestart, err := t.inboundService.ResetClientExpiryTimeByEmail(email, date)
 	if needRestart {
