@@ -175,10 +175,7 @@ func (a *SUBController) subs(c *gin.Context) {
 
 		// Add headers
 		header := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d", traffic.Up, traffic.Down, traffic.Total, traffic.ExpiryTime/1000)
-		profileUrl := a.subProfileUrl
-		if profileUrl == "" {
-			profileUrl = fmt.Sprintf("%s://%s%s", scheme, hostWithPort, c.Request.RequestURI)
-		}
+		profileUrl := a.profileURL(c, scheme, hostWithPort)
 		a.ApplyCommonHeaders(c, header, a.updateInterval, a.subTitle, a.subSupportUrl, profileUrl, a.subAnnounce, a.subEnableRouting, a.subRoutingRules)
 
 		if a.subEncrypt {
@@ -197,10 +194,7 @@ func (a *SUBController) subJsons(c *gin.Context) {
 	if err != nil || len(jsonSub) == 0 {
 		c.String(400, "Error!")
 	} else {
-		profileUrl := a.subProfileUrl
-		if profileUrl == "" {
-			profileUrl = fmt.Sprintf("%s://%s%s", scheme, hostWithPort, c.Request.RequestURI)
-		}
+		profileUrl := a.profileURL(c, scheme, hostWithPort)
 		a.ApplyCommonHeaders(c, header, a.updateInterval, a.subTitle, a.subSupportUrl, profileUrl, a.subAnnounce, a.subEnableRouting, a.subRoutingRules)
 
 		c.String(200, jsonSub)
@@ -214,13 +208,23 @@ func (a *SUBController) subClashs(c *gin.Context) {
 	if err != nil || len(clashSub) == 0 {
 		c.String(400, "Error!")
 	} else {
-		profileUrl := a.subProfileUrl
-		if profileUrl == "" {
-			profileUrl = fmt.Sprintf("%s://%s%s", scheme, hostWithPort, c.Request.RequestURI)
-		}
+		profileUrl := a.profileURL(c, scheme, hostWithPort)
 		a.ApplyCommonHeaders(c, header, a.updateInterval, a.subTitle, a.subSupportUrl, profileUrl, a.subAnnounce, a.subEnableRouting, a.subRoutingRules)
 		c.Data(200, "application/yaml; charset=utf-8", []byte(clashSub))
 	}
+}
+
+// profileURL is the Profile-Web-Page-Url of a subscription answer: the
+// owner's profile URL when set; else the address the request came by, on the
+// public subscription address (#224) when one is set.
+func (a *SUBController) profileURL(c *gin.Context, scheme, hostWithPort string) string {
+	if a.subProfileUrl != "" {
+		return a.subProfileUrl
+	}
+	if public, _ := a.subService.settingService.GetSubPublicURL(); public != "" {
+		return public + c.Request.RequestURI
+	}
+	return fmt.Sprintf("%s://%s%s", scheme, hostWithPort, c.Request.RequestURI)
 }
 
 // ApplyCommonHeaders sets common HTTP headers for subscription responses including user info, update interval, and profile title.

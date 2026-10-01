@@ -825,6 +825,17 @@ func (t *Tgbot) subscriptionURLs(subId string) (string, string) {
 	var subURL string
 	var subJsonURL string
 
+	// The public subscription address (#224) is the origin of every link
+	// when set: it wins over the configured URIs, the host override and the
+	// front alike, and keeps the panel's own paths.
+	if public, _ := t.settingService.GetSubPublicURL(); public != "" {
+		subURL = SubPublicLink(public, subPath, subId)
+		if subJsonEnable {
+			subJsonURL = SubPublicLink(public, subJsonPath, subId)
+		}
+		return subURL, subJsonURL
+	}
+
 	// If pre-configured URIs are available, use them directly
 	if subURI != "" {
 		if !strings.HasSuffix(subURI, "/") {

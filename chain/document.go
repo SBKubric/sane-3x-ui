@@ -69,6 +69,14 @@ type Document struct {
 	// learn the name of its active neighbour.
 	ActiveEdge string `json:"activeEdge,omitempty"`
 
+	// PublicSubURL is the panel's public subscription address (#224), such
+	// as https://sub.example.com: the origin of the subscription links a hop
+	// hands out — its page, its QR, its Profile-Web-Page-Url — in place of
+	// its own address, since clients reach it through the subscription
+	// showcase. The same in every document; absent while none is set, and
+	// from a panel older than the field, and then a hop names itself.
+	PublicSubURL string `json:"publicSubUrl,omitempty"`
+
 	Hops  []Hop  `json:"hops"`
 	Ports []Port `json:"ports"`
 }

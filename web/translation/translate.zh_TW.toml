@@ -776,6 +776,17 @@
 "subShowInfoDesc" = "客戶端應用中將顯示剩餘流量和日期資訊"
 "subURI" = "反向代理 URI"
 "subURIDesc" = "用於代理後面的訂閱 URL 的 URI 路徑"
+"subPublicURL" = "Public subscription address"
+"subPublicURLDesc" = "The domain the panel hands out subscription links through, such as https://sub.example.com: a scheme and host[:port] only, no path. When set, the bot, the subscription page, Profile-Web-Page-Url and the link broadcast give links through it, on the same subscription paths. Empty: the links are as without it."
+"vpnNameTitle" = "VPN name (DNSExit)"
+"dnsExitApiKey" = "DNSExit API key"
+"dnsExitApiKeyDesc" = "The key of the DNSExit account that serves the domain. Stored as a secret: once saved it shows as ********. Empty: the panel never calls DNSExit."
+"vpnName" = "VPN name"
+"vpnNameDesc" = "A DNS name such as vpn.example.com whose A record follows the active edge: on a switch the panel points it at the new edge's IPv4 through DNSExit (at most once every 4 minutes), and the VLESS links name it instead of the edge's address. Subscription links and AWG Endpoint stay by address. Empty: off."
+"vpnNameTtl" = "Record TTL (minutes)"
+"vpnNameTtlDesc" = "The TTL of the VPN name's A record, in minutes as DNSExit takes it."
+"domainExpiry" = "Domain registration expires"
+"domainExpiryDesc" = "The date the domain's registration runs out, YYYY-MM-DD. DNSExit renews nothing through its API: the notification channel is reminded 30 and 7 days before and on the day. Empty: no reminder."
 "proxyOverride" = "前置代理（防封鎖）"
 "proxyOverrideEnable" = "在設定中替換主機"
 "proxyOverrideEnableDesc" = "在用戶端設定和訂閱連結中下發代理主機，而不是本伺服器的位址。"
@@ -1846,6 +1857,17 @@
 "subPath" = "the subscriptions' path"
 "front" = "the front's address or port"
 "subId" = "a user's subId"
+"public" = "the public subscription address"
+"vpnName" = "the VPN name"
+
+[tgbot.vpnname]
+"failed" = "⚠️ VPN name {{ .Name }}: DNSExit refused {{ .Count }} updates in a row ({{ .Error }}). It may still point away from the active edge {{ .IP }}; the panel keeps retrying."
+"recovered" = "✅ VPN name {{ .Name }} points at the active edge {{ .IP }} again."
+
+[tgbot.domainexpiry]
+"soon" = "📅 The registration of {{ .Domain }} expires on {{ .Date }}: {{ .Days }} days left. Renew it at DNSExit by hand."
+"today" = "📅 The registration of {{ .Domain }} expires today, {{ .Date }}. Renew it at DNSExit by hand."
+"expired" = "📅 The registration of {{ .Domain }} expired on {{ .Date }}, {{ .Days }} days ago. Renew it at DNSExit by hand."
 
 [tgbot.sublink.trigger]
 "auto" = "links changed"

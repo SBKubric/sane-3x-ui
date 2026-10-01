@@ -105,6 +105,20 @@ var defaultValueMap = map[string]string{
 	"subTunPath":   "/tun/",
 	"subTunURI":    "",
 
+	// The public subscription address (#224, setting_sub_public.go): when
+	// set, the origin of every subscription link the panel hands out.
+	"subPublicURL": "",
+
+	// The VPN name (#225, setting_vpn_name.go): the DNSExit API key, the
+	// name the VLESS links name instead of the active edge, its TTL in
+	// minutes and the domain's expiry date. domainExpiryReminded is state —
+	// the reminders already posted — and is absent from entity.AllSetting.
+	"dnsExitApiKey":        "",
+	"vpnName":              "",
+	"vpnNameTtl":           "5",
+	"domainExpiry":         "",
+	"domainExpiryReminded": "",
+
 	// Chain registry (docs/spec/proxy-chain.md §2.2). The host override above
 	// becomes derived from this registry: the address the panel publishes is
 	// the host of the active edge. chainRevision is state, not a preference —
@@ -266,6 +280,11 @@ func (s *SettingService) GetAllSetting() (*entity.AllSetting, error) {
 		}
 	}
 
+	// The DNSExit API key is a secret: the form and the API see that one is
+	// set, never the key (#225).
+	if allSetting.DnsExitApiKey != "" {
+		allSetting.DnsExitApiKey = entity.DnsExitApiKeyMask
+	}
 	return allSetting, nil
 }
 
@@ -871,6 +890,16 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 	if err := allSetting.CheckValid(); err != nil {
 		return err
 	}
+	previousPublic, _ := s.GetSubPublicURL()
+	// The masked DNSExit API key the form loaded comes back as the mask:
+	// the stored key stays (#225).
+	if allSetting.DnsExitApiKey == entity.DnsExitApiKeyMask {
+		key, err := s.GetDnsExitApiKey()
+		if err != nil {
+			return err
+		}
+		allSetting.DnsExitApiKey = key
+	}
 
 	v := reflect.ValueOf(allSetting).Elem()
 	t := reflect.TypeFor[entity.AllSetting]()
@@ -882,6 +911,14 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 		value := fmt.Sprint(fieldV.Interface())
 		err := s.saveSetting(key, value)
 		if err != nil {
+			errs = append(errs, err)
+		}
+	}
+	// The public subscription address travels in every chain document
+	// (#224): a new one is a new revision, or the hops, polling by ETag,
+	// would keep naming the old one.
+	if allSetting.SubPublicURL != previousPublic {
+		if err := subPublicURLChanged(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -969,6 +1006,25 @@ func (s *SettingService) GetDefaultSettings(host string) (any, error) {
 		}
 	}
 	subTunEnable, _ := result["subTunEnable"].(bool)
+	// The public subscription address (#224) is the origin of every link the
+	// pages show, configured URIs included; the paths stay the panel's.
+	if public, _ := s.GetSubPublicURL(); public != "" {
+		subPath, _ := s.GetSubPath()
+		subJsonPath, _ := s.GetSubJsonPath()
+		subClashPath, _ := s.GetSubClashPath()
+		subTunPath, _ := s.GetSubTunPath()
+		for _, link := range []struct {
+			on   bool
+			key  string
+			path string
+		}{{subEnable, "subURI", subPath}, {subJsonEnable, "subJsonURI", subJsonPath},
+			{subClashEnable, "subClashURI", subClashPath}, {subTunEnable, "subTunURI", subTunPath}} {
+			if link.on {
+				result[link.key] = SubPublicLink(public, link.path, "")
+			}
+		}
+		return result, nil
+	}
 	if (subEnable && result["subURI"].(string) == "") || (subJsonEnable && result["subJsonURI"].(string) == "") || (subClashEnable && result["subClashURI"].(string) == "") || (subTunEnable && result["subTunURI"].(string) == "") {
 		subURI := ""
 		subTitle, _ := s.GetSubTitle()

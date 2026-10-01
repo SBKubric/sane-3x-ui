@@ -186,7 +186,10 @@ func TruncateDocument(doc *chain.Document, hop chain.Hop, cfg *Config) chain.Doc
 			// neighbour passes it on to this hop, which passes it inward.
 			ThirdPartyPath: doc.NextHop.ThirdPartyPath,
 		},
-		Ports: doc.Ports,
+		// The public subscription address (#224) is the panel's, the same
+		// on every box.
+		PublicSubURL: doc.PublicSubURL,
+		Ports:        doc.Ports,
 	}
 	if doc.Self.Draining() {
 		out.NextHop = doc.NextHop

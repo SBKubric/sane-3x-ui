@@ -206,3 +206,27 @@ func TestSubLinkPromptIsTheAdminsOnly(t *testing.T) {
 		t.Errorf("the change was settled: %+v", changes)
 	}
 }
+
+// TestSubLinkPromptOnThePublicAddress (#224): setting the public
+// subscription address moves every link at once, and that is one question
+// naming it — not one per user, and not again on the next looks.
+func TestSubLinkPromptOnThePublicAddress(t *testing.T) {
+	tg, fake, _, now, _ := linkPromptFixture(t)
+	mustCreateUser(t, SubUserCreate{Name: "maria", TgId: linkPerson2, InboundIds: []int{2}})
+	tg.CheckSubLinks() // maria is remembered with the link she has
+
+	setSetting(t, "subPublicURL", "https://sub.example.com")
+	settle(tg, now)
+	p := promptOf(t, fake, linkAdmin)
+	for _, want := range []string{"the public subscription address", "Send the new link to 2 users?"} {
+		if !strings.Contains(p.text, want) {
+			t.Errorf("the question %q lacks %q", p.text, want)
+		}
+	}
+	*now = now.Add(10 * time.Minute)
+	tg.CheckSubLinks()
+	tg.CheckSubLinks()
+	if n := countAsked(fake, linkAdmin); n != 1 {
+		t.Errorf("asked %d times", n)
+	}
+}

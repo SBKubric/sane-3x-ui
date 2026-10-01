@@ -60,6 +60,11 @@ class AllSetting {
         this.subTunEnable = true;
         this.subTunPath = "/tun/";
         this.subTunURI = "";
+        this.subPublicURL = "";
+        this.dnsExitApiKey = "";
+        this.vpnName = "";
+        this.vpnNameTtl = 5;
+        this.domainExpiry = "";
         this.subJsonFragment = "";
         this.subJsonNoises = "";
         this.subJsonMux = "";

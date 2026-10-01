@@ -105,6 +105,19 @@ type AllSetting struct {
 	SubTunPath   string `json:"subTunPath" form:"subTunPath"`
 	SubTunURI    string `json:"subTunURI" form:"subTunURI"`
 
+	// The public subscription address (#224): the origin every subscription
+	// link the panel hands out goes through, "" for none (sub_public.go).
+	SubPublicURL string `json:"subPublicURL" form:"subPublicURL"`
+
+	// The VPN name (#225, vpn_name.go): the DNSExit API key (shown masked),
+	// the name the VLESS links name instead of the active edge's address,
+	// its record's TTL in minutes, and the domain's registration expiry
+	// date for the renewal reminder.
+	DnsExitApiKey string `json:"dnsExitApiKey" form:"dnsExitApiKey"`
+	VpnName       string `json:"vpnName" form:"vpnName"`
+	VpnNameTtl    int    `json:"vpnNameTtl" form:"vpnNameTtl"`
+	DomainExpiry  string `json:"domainExpiry" form:"domainExpiry"`
+
 	// Chain registry preferences (docs/spec/proxy-chain.md §2.2).
 	// chainRevision is not here on purpose: it is registry state written in
 	// the same transaction as the registry itself, and a form save must not
@@ -232,6 +245,12 @@ func (s *AllSetting) CheckValid() error {
 		s.SubTunPath += "/"
 	}
 
+	if err := checkSubPublicURL(s); err != nil {
+		return err
+	}
+	if err := checkVPNName(s); err != nil {
+		return err
+	}
 	if err := checkTgNotifyChatId(s); err != nil {
 		return err
 	}

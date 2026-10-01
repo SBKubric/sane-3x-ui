@@ -64,11 +64,15 @@ func (a *TunnelSubController) tun(c *gin.Context) {
 }
 
 // pageURL is the subscription page, the Profile-Web-Page-Url of /tun: the
-// owner's profile URL when set, as on /sub, else /sub/<subId> on the address
-// the request came in by.
+// owner's profile URL when set, as on /sub, else /sub/<subId> on the public
+// subscription address (#224) or, without one, on the address the request
+// came in by.
 func (a *TunnelSubController) pageURL(c *gin.Context, subId string) string {
 	if a.sub.subProfileUrl != "" {
 		return a.sub.subProfileUrl
+	}
+	if public, _ := a.sub.subService.settingService.GetSubPublicURL(); public != "" {
+		return service.SubPublicLink(public, a.sub.subPath, subId)
 	}
 	scheme, _, hostWithPort, _ := a.sub.subService.ResolveRequest(c)
 	return fmt.Sprintf("%s://%s%s%s", scheme, hostWithPort, a.sub.subPath, subId)

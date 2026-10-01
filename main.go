@@ -11,7 +11,9 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
+	"strings"
 	"syscall"
 	_ "unsafe"
 
@@ -333,6 +335,67 @@ func runMonSetting(w io.Writer, monEnableRaw string, reset bool, show bool) erro
 	}
 	if show {
 		return showMonSetting(w)
+	}
+	return nil
+}
+
+// vpnNameFlags are the `x-ui setting` flags of the VPN name (#225), in the
+// order they are applied.
+var vpnNameFlags = []string{"dnsExitApiKey", "vpnName", "vpnNameTtl", "domainExpiry"}
+
+// runVPNNameSetting applies the VPN name flags given on the command line —
+// set maps a flag to its value, "" clearing it — checking each as the
+// settings form does, and prints what it stored; the API key only as set or
+// not. The first refused value stops it, with the ones before it stored.
+func runVPNNameSetting(w io.Writer, set map[string]string) error {
+	settingService := service.SettingService{}
+	for _, name := range vpnNameFlags {
+		value, ok := set[name]
+		if !ok {
+			continue
+		}
+		var err error
+		switch name {
+		case "dnsExitApiKey":
+			err = settingService.SetDnsExitApiKey(value)
+		case "vpnName":
+			err = settingService.SetVPNName(value)
+		case "vpnNameTtl":
+			ttl, convErr := strconv.Atoi(strings.TrimSpace(value))
+			if convErr != nil {
+				err = fmt.Errorf("invalid -vpnNameTtl value %q: expected minutes, 1-1440", value)
+				break
+			}
+			err = settingService.SetVPNNameTTL(ttl)
+		case "domainExpiry":
+			err = settingService.SetDomainExpiry(value)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to set %s: %w", name, err)
+		}
+	}
+	for _, name := range vpnNameFlags {
+		if _, ok := set[name]; !ok {
+			continue
+		}
+		switch name {
+		case "dnsExitApiKey":
+			key, _ := settingService.GetDnsExitApiKey()
+			state := "(not set)"
+			if key != "" {
+				state = "(set)"
+			}
+			fmt.Fprintf(w, "dnsExitApiKey: %s\n", state)
+		case "vpnName":
+			v, _ := settingService.GetVPNName()
+			fmt.Fprintf(w, "vpnName: %s\n", v)
+		case "vpnNameTtl":
+			v, _ := settingService.GetVPNNameTTL()
+			fmt.Fprintf(w, "vpnNameTtl: %d\n", v)
+		case "domainExpiry":
+			v, _ := settingService.GetDomainExpiry()
+			fmt.Fprintf(w, "domainExpiry: %s\n", v)
+		}
 	}
 	return nil
 }
@@ -740,6 +803,10 @@ func main() {
 	settingCmd.BoolVar(&showMonToken, "showMonToken", false, "Display the monitoring state and the mon-server bearer token")
 	settingCmd.BoolVar(&resetMonTokenFlag, "resetMonToken", false, "Issue a new mon-server bearer token (the old one stops working)")
 	settingCmd.StringVar(&monEnableRaw, "monEnable", "", "Open or close the /mon/v1 endpoints (true|false)")
+	settingCmd.String("dnsExitApiKey", "", "Set the DNSExit API key of the VPN name (\"\" removes it)")
+	settingCmd.String("vpnName", "", "Set the VPN name, such as vpn.example.com, kept on the active edge (\"\" turns it off)")
+	settingCmd.String("vpnNameTtl", "", "Set the TTL of the VPN name's A record in minutes (1-1440)")
+	settingCmd.String("domainExpiry", "", "Set the domain's registration expiry date, YYYY-MM-DD, for the renewal reminder (\"\" for none)")
 
 	oldUsage := flag.Usage
 	flag.Usage = func() {
@@ -812,6 +879,18 @@ func main() {
 			// or to any other script driving the CLI.
 			fmt.Println(err)
 			os.Exit(1)
+		}
+		vpnName := map[string]string{}
+		settingCmd.Visit(func(f *flag.Flag) {
+			if slices.Contains(vpnNameFlags, f.Name) {
+				vpnName[f.Name] = f.Value.String()
+			}
+		})
+		if len(vpnName) > 0 {
+			if err = runVPNNameSetting(os.Stdout, vpnName); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
 		}
 	case "cert":
 		err := settingCmd.Parse(os.Args[2:])

@@ -44,6 +44,7 @@ func (s *SubService) ProbeLink(inbound *model.Inbound, email, address, via strin
 	local.address = address
 	local.hiddifyCompat, _ = local.settingService.GetXrayHiddifyCompat()
 	local.overrideHost, local.overrideOn = via, via != ""
+	local.linkHost = "" // a probe goes to its hop, never through the VPN name
 	if local.datepicker == "" {
 		local.datepicker = "gregorian"
 	}

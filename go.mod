@@ -3,6 +3,7 @@ module github.com/coinman-dev/3ax-ui/v2
 go 1.26.2
 
 require (
+	github.com/altcha-org/altcha-lib-go v1.0.0
 	github.com/gin-contrib/gzip v1.2.6
 	github.com/gin-contrib/sessions v1.1.0
 	github.com/gin-gonic/gin v1.12.0
@@ -24,6 +25,7 @@ require (
 	github.com/xtls/xray-core v1.260327.0
 	go.uber.org/atomic v1.11.0
 	golang.org/x/crypto v0.50.0
+	golang.org/x/net v0.53.0
 	golang.org/x/sys v0.43.0
 	golang.org/x/text v0.36.0
 	google.golang.org/grpc v1.81.0
@@ -33,7 +35,6 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.1.1 // indirect
-	github.com/altcha-org/altcha-lib-go v1.0.0 // indirect
 	github.com/andybalholm/brotli v1.2.1 // indirect
 	github.com/apernet/quic-go v0.59.1-0.20260217092621-db4786c77a22 // indirect
 	github.com/bytedance/gopkg v0.1.4 // indirect
@@ -90,7 +91,6 @@ require (
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
 	golang.org/x/mod v0.35.0 // indirect
-	golang.org/x/net v0.53.0 // indirect
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	golang.org/x/tools v0.44.0 // indirect
