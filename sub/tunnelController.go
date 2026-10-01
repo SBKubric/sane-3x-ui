@@ -1,7 +1,6 @@
 package sub
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -78,34 +77,29 @@ func (a *TunnelSubController) pageURL(c *gin.Context, subId string) string {
 	return fmt.Sprintf("%s://%s%s%s", scheme, hostWithPort, a.sub.subPath, subId)
 }
 
-// pageTunnels is the subscription's tunnels for its page, as the JSON /tun
-// would answer. A lookup that fails is logged and shown as no tunnels: the
-// page still has the xray part to show.
-func (a *TunnelSubController) pageTunnels(subId string) ([]service.TunnelSubEntry, string) {
+// pageTunnels is the subscription's tunnels for its page. A lookup that
+// fails is logged and shown as no tunnels: the page still has the xray part
+// to show.
+func (a *TunnelSubController) pageTunnels(subId string) []service.TunnelSubEntry {
 	entries, err := a.svc.ClientsBySubId(subId)
 	if err != nil {
 		logger.Warning("tunnel subscription page:", err)
-		entries = nil
+		return nil
 	}
-	raw, err := json.Marshal(tunnelSubItems(entries))
-	if err != nil {
-		return entries, "[]"
-	}
-	return entries, string(raw)
+	return entries
 }
 
 // tunnelsOfPage is what the subscription page needs of the tunnels, looked up
-// only for a browser: the entries and their /tun JSON ("" with the tunnel
-// subscription off, which leaves the page without its Tunnels section), and
-// whether this is a page of tunnels alone — noXray, and tunnels to show. Such
-// a subscription still has a page, since the bot answers every user with
-// /sub/<subId> (#167 Q7).
-func (a *SUBController) tunnelsOfPage(c *gin.Context, subId string, noXray bool) ([]service.TunnelSubEntry, string, bool) {
+// only for a browser: the entries (none with the tunnel subscription off),
+// and whether this is a page of tunnels alone — noXray, and tunnels to show.
+// Such a subscription still has a page, since the bot answers every user
+// with /sub/<subId> (#167 Q7).
+func (a *SUBController) tunnelsOfPage(c *gin.Context, subId string, noXray bool) ([]service.TunnelSubEntry, bool) {
 	if a.tunnels == nil || !wantsPage(c) {
-		return nil, "", false
+		return nil, false
 	}
-	entries, raw := a.tunnels.pageTunnels(subId)
-	return entries, raw, noXray && len(entries) > 0
+	entries := a.tunnels.pageTunnels(subId)
+	return entries, noXray && len(entries) > 0
 }
 
 // wantsPage is the test subs uses to answer a browser with the page.

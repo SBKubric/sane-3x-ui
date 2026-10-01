@@ -114,6 +114,10 @@ type AllSetting struct {
 	// the panel's — neither limits nor bans; comma-separated, "" for none.
 	FrontTrustedAddrs string `json:"frontTrustedAddrs" form:"frontTrustedAddrs"`
 
+	// The subscription page's app list (#235, sub_page.go): a JSON list of
+	// {name, platform, url, protocols}; the form shows the built-in list.
+	SubPageApps string `json:"subPageApps" form:"subPageApps"`
+
 	// The VPN name (#225, vpn_name.go): the DNSExit API key (shown masked),
 	// the name the VLESS links name instead of the active edge's address,
 	// its record's TTL in minutes, and the domain's registration expiry
@@ -254,6 +258,9 @@ func (s *AllSetting) CheckValid() error {
 		return err
 	}
 	if err := checkFrontTrustedAddrs(s); err != nil {
+		return err
+	}
+	if err := checkSubPageApps(s); err != nil {
 		return err
 	}
 	if err := checkVPNName(s); err != nil {

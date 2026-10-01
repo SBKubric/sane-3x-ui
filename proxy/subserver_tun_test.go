@@ -129,8 +129,8 @@ func TestTun_NextHopFailures(t *testing.T) {
 	}
 }
 
-// TestTun_OnThePage: the hop's subscription page shows the tunnels under the
-// configs, and a subscription of tunnels alone still has a page there.
+// TestTun_OnThePage: the hop's subscription page shows the tunnels beside
+// the links, and a subscription of tunnels alone still has a page there.
 func TestTun_OnThePage(t *testing.T) {
 	upstream := newTunUpstream(t, "/t/")
 	s := tunSubServer(t, upstream, "/t/")
@@ -141,20 +141,23 @@ func TestTun_OnThePage(t *testing.T) {
 			t.Fatalf("%s page: %d %q", subId, w.Code, w.Body.String())
 		}
 		page := w.Body.String()
-		for _, want := range []string{"Tunnels", "ivan-phone", "AmneziaWG", "[Interface]", "Endpoint = edge.example.com:51820",
-			`download="ivan-phone.conf"`, `alt="ivan-phone QR"`} {
+		for _, want := range []string{`data-testid="sub-tunnel"`, "ivan-phone", `data-testid="sub-label">AWG 1<`, "[Interface]",
+			"Endpoint = edge.example.com:51820", `data-download="ivan-phone.conf"`, `src="data:image/png;base64,`} {
 			if !strings.Contains(page, want) {
 				t.Errorf("%s page lacks %q", subId, want)
 			}
 		}
-		if subId == "solo" && strings.Contains(page, "Copy subscription") {
+		if subId == "solo" && strings.Contains(page, `data-testid="sub-subscription"`) {
 			t.Errorf("a page of tunnels alone offers the xray subscription")
+		}
+		if subId == "solo" && !strings.Contains(page, "10.00B") {
+			t.Errorf("a page of tunnels alone lacks the usage of its tunnels")
 		}
 	}
 
-	// No tunnels: the section says so.
-	if page := serveTun(s, "/s/bob", "text/html").Body.String(); !strings.Contains(page, "No tunnel configs in this subscription") {
-		t.Errorf("page of xray links alone does not say it has no tunnels")
+	// No tunnels: no tunnel card.
+	if page := serveTun(s, "/s/bob", "text/html").Body.String(); strings.Contains(page, `data-testid="sub-tunnel"`) {
+		t.Errorf("page of xray links alone shows a tunnel")
 	}
 	// A browser asking for an unknown subscription still gets the refusal.
 	if w := serveTun(s, "/s/nobody", "text/html"); w.Code != http.StatusBadRequest {

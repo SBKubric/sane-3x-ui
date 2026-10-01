@@ -77,7 +77,7 @@ func hopGet(s *SubServer, path, accept string) *httptest.ResponseRecorder {
 // pageConfigJSONs are the configs embedded in the hop's page, in page order.
 func pageConfigJSONs(t *testing.T, page string) []string {
 	t.Helper()
-	const open = `data-testid="sub-config-json">`
+	const open = `data-role="json">`
 	var out []string
 	for rest := page; ; {
 		i := strings.Index(rest, open)
@@ -85,7 +85,7 @@ func pageConfigJSONs(t *testing.T, page string) []string {
 			return out
 		}
 		rest = rest[i+len(open):]
-		out = append(out, html.UnescapeString(rest[:strings.Index(rest, "</textarea>")]))
+		out = append(out, html.UnescapeString(rest[:strings.Index(rest, "</code>")]))
 	}
 }
 
@@ -120,7 +120,7 @@ func TestTheHopPageCarriesTheJSONOfEveryLink(t *testing.T) {
 			t.Errorf("config %d = %s, want the next hop's %s", i, got[i], want[i])
 		}
 	}
-	if n := strings.Count(page, "Copy JSON"); n != 2 {
+	if n := strings.Count(page, `data-testid="sub-copy-json"`); n != 2 {
 		t.Errorf("page has %d Copy JSON buttons, want one per link", n)
 	}
 }
@@ -149,7 +149,7 @@ func TestTheHopPageOfAnOlderPanel(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Fatalf("page: %d %s", w.Code, w.Body.String())
 	}
-	if strings.Contains(w.Body.String(), "Copy JSON") {
+	if strings.Contains(w.Body.String(), `data-testid="sub-copy-json"`) {
 		t.Error("the page offers JSON its next hop never gave")
 	}
 	if !strings.Contains(w.Body.String(), "vless://b@edge.example.com:8443") {

@@ -113,6 +113,10 @@ var defaultValueMap = map[string]string{
 	// such as the subscription showcase that no front limits or bans.
 	"frontTrustedAddrs": "",
 
+	// The subscription page's app list (#235, setting_sub_page.go): "" for
+	// the built-in one.
+	"subPageApps": "",
+
 	// The VPN name (#225, setting_vpn_name.go): the DNSExit API key, the
 	// name the VLESS links name instead of the active edge, its TTL in
 	// minutes and the domain's expiry date. domainExpiryReminded is state —
@@ -289,6 +293,7 @@ func (s *SettingService) GetAllSetting() (*entity.AllSetting, error) {
 	if allSetting.DnsExitApiKey != "" {
 		allSetting.DnsExitApiKey = entity.DnsExitApiKeyMask
 	}
+	subPageAppsForForm(allSetting)
 	return allSetting, nil
 }
 

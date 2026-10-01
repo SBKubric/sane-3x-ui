@@ -3,11 +3,9 @@ package proxy
 import (
 	"bytes"
 	"crypto/tls"
-	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"io"
 	"net"
 	"net/http"
@@ -17,14 +15,10 @@ import (
 	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/logger"
-	"github.com/coinman-dev/3ax-ui/v2/util/common"
+	"github.com/coinman-dev/3ax-ui/v2/subpage"
 
 	"github.com/gin-gonic/gin"
-	qrcode "github.com/skip2/go-qrcode"
 )
-
-//go:embed subpage.html
-var subpageHTML string
 
 // Fallback subscription paths, used only to tell "the client asked for a
 // subscription while this hop has no document" (503) from "this is not a
@@ -36,39 +30,6 @@ const (
 	// not name tunPath yet: the panel's default.
 	fallbackTunPath = "/tun/"
 )
-
-// app is one recommended client app shown on the proxy subscription page.
-type app struct {
-	Name     string
-	Platform string
-	URL      string
-}
-
-// recommendedApps is the curated client list shown on the proxy page.
-var recommendedApps = []app{
-	{Name: "Amnezia", Platform: "Android", URL: "https://github.com/amnezia-vpn/amnezia-client/releases"},
-	// For the tunnels: AmneziaVPN and AmneziaWG import a .conf (spec §8).
-	{Name: "AmneziaVPN", Platform: "all platforms", URL: "https://amnezia.org/downloads"},
-	{Name: "AmneziaWG", Platform: "Android", URL: "https://github.com/amnezia-vpn/amneziawg-android/releases"},
-	{Name: "DefaultVPN", Platform: "iOS", URL: "https://apps.apple.com/ru/app/defaultvpn/id6744725017"},
-	{Name: "SongBird", Platform: "Windows", URL: "https://github.com/o3ku/SongBird/releases/"},
-}
-
-// storeLink is one of the large install buttons at the top of the proxy
-// subscription page.
-type storeLink struct {
-	Platform string
-	Store    string
-	URL      string
-}
-
-// installLinks are the store pages of v2RayTun, the app the page points
-// clients to first: it reads the subscription headers, including
-// Profile-Update-Interval (#217).
-var installLinks = []storeLink{
-	{Platform: "Android", Store: "Google Play", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android"},
-	{Platform: "iPhone / iPad", Store: "App Store", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543"},
-}
 
 // headers copied through from the next hop to subscription clients.
 var passthroughHeaders = []string{
@@ -91,7 +52,6 @@ type SubServer struct {
 	chain *ChainHandler
 	join  *JoinPage
 
-	tmpl   *template.Template
 	client *http.Client
 
 	// public is the sub port as proxy.json names it; loopback is the same
@@ -107,16 +67,11 @@ type SubServer struct {
 // NewSubServer builds the hop's sub server (does not start it). join may be
 // nil for a box that has already joined.
 func NewSubServer(cfg *Config, state *State, chainHandler *ChainHandler, join *JoinPage) (*SubServer, error) {
-	tmpl, err := template.New("subpage").Parse(subpageHTML)
-	if err != nil {
-		return nil, fmt.Errorf("parse proxy subpage template: %w", err)
-	}
 	return &SubServer{
 		cfg:   cfg,
 		state: state,
 		chain: chainHandler,
 		join:  join,
-		tmpl:  tmpl,
 		client: &http.Client{
 			Timeout: 15 * time.Second,
 			// A hop reaches its next hop by a hidden address (often a bare
@@ -352,8 +307,8 @@ func subscriptionID(path, documentPath, fallback string) (string, bool) {
 // handleSub serves the raw subscription to apps and the custom page to browsers.
 func (s *SubServer) handleSub(c *gin.Context, subid string) {
 	base, subPath, _ := s.nextHop()
-	if c.Query("format") == jsonListFormat && !wantsHTML(c) {
-		s.handleJSONList(c, base, subPath, subid)
+	if format := c.Query("format"); (format == jsonListFormat || format == appsListFormat) && !wantsHTML(c) {
+		s.handleJSONList(c, base, subPath, subid, format)
 		return
 	}
 	body, header, status, err := s.fetchUpstream(base, subPath, subid)
@@ -382,13 +337,18 @@ func (s *SubServer) handleSub(c *gin.Context, subid string) {
 
 // jsonListFormat is the query of the subscription path that asks for the
 // client JSON config of every link instead of the links (#231): the panel
-// answers it with or without its JSON subscription on.
-const jsonListFormat = "json"
+// answers it with or without its JSON subscription on. appsListFormat asks
+// for the page's app list (#235).
+const (
+	jsonListFormat = "json"
+	appsListFormat = "apps"
+)
 
-// handleJSONList passes the next hop's JSON config list on, so a hop nearer
+// handleJSONList passes the next hop's answer to a JSON format of the
+// subscription path on — the config list or the app list — so a hop nearer
 // the clients can fetch it for its page through this one.
-func (s *SubServer) handleJSONList(c *gin.Context, base, subPath, subid string) {
-	body, header, status, err := s.fetchUpstream(base, subPath, subid+"?format="+jsonListFormat)
+func (s *SubServer) handleJSONList(c *gin.Context, base, subPath, subid, format string) {
+	body, header, status, err := s.fetchUpstream(base, subPath, subid+"?format="+format)
 	if err == nil && isRefusal(status) {
 		passRefusal(c, status, header, body)
 		return
@@ -523,72 +483,57 @@ func wantsHTML(c *gin.Context) bool {
 	return strings.Contains(strings.ToLower(c.GetHeader("Accept")), "text/html")
 }
 
-// pageConfig is one link of the subscription on the page, with its client
-// JSON config when the next hop gave one (#231).
-type pageConfig struct {
-	Link string
-	JSON string
-}
-
-// pageData is the view model for subpage.html.
-type pageData struct {
-	Title   string
-	SubURL  string
-	QR      template.URL
-	Configs []pageConfig
-	// Tunnels are the subscription's AmneziaWG/WireGuard configs, shown when
-	// TunnelSection is set: the next hop answered /tun (spec §7).
-	Tunnels       []pageTunnel
-	TunnelSection bool
-	// TunnelsOnly is a page of a subscription with no xray links.
-	TunnelsOnly bool
-	Used        string
-	Total       string
-	Expire      string
-	// Install are the store buttons at the top: set only on a page with a
-	// subscription an app can import.
-	Install []storeLink
-	Apps    []app
-}
-
 func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header http.Header) {
-	subURL := s.publicURL(c, s.publicSubPath(), subid)
 	links := decodeConfigs(body)
-	configs := make([]pageConfig, len(links))
+	pageLinks := make([]subpage.Link, len(links))
 	jsons := s.pageJSONConfigs(subid, len(links))
 	for i, link := range links {
-		configs[i].Link = link
+		pageLinks[i].URL = link
 		if jsons != nil {
-			configs[i].JSON = jsons[i]
+			pageLinks[i].JSON = jsons[i]
 		}
 	}
-
-	used, total, expire := parseUserinfo(header.Get("Subscription-Userinfo"))
-
-	var qr template.URL
-	if png, err := qrcode.Encode(subURL, qrcode.Medium, 256); err == nil {
-		qr = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(png))
-	}
-
-	tunnels, _, tunnelSection := s.pageTunnels(subid)
-	c.Header("Content-Type", "text/html; charset=utf-8")
+	tunnels, _, _ := s.pageTunnels(subid)
 	// NoRoute leaves 404 on the writer; the page is a success.
 	c.Status(http.StatusOK)
-	if err := s.tmpl.Execute(c.Writer, pageData{
-		Title:         "Subscription",
-		SubURL:        subURL,
-		QR:            qr,
-		Configs:       configs,
-		Tunnels:       tunnels,
-		TunnelSection: tunnelSection,
-		Used:          used,
-		Total:         total,
-		Expire:        expire,
-		Install:       installLinks,
-		Apps:          recommendedApps,
-	}); err != nil {
-		logger.Warning("proxy-front: render page:", err)
+	subpage.Render(c.Writer, c.Request, subpage.Page{
+		Title:   profileTitle(header),
+		SubURL:  s.publicURL(c, s.publicSubPath(), subid),
+		Usage:   subpage.ParseUserinfo(header.Get("Subscription-Userinfo")),
+		Links:   pageLinks,
+		Tunnels: tunnels,
+		Apps:    s.pageApps(subid),
+	})
+}
+
+// pageApps is the owner's app list for the page, from the next hop's
+// subscription path (#235); the built-in list when the next hop has none to
+// give — a panel older than the list answers the links again.
+func (s *SubServer) pageApps(subid string) []subpage.App {
+	base, subPath, _ := s.nextHop()
+	body, _, status, err := s.fetchUpstream(base, subPath, subid+"?format="+appsListFormat)
+	if err != nil || status != http.StatusOK {
+		return subpage.DefaultApps()
 	}
+	apps, err := subpage.ParseApps(string(body))
+	if err != nil {
+		return subpage.DefaultApps()
+	}
+	return apps
+}
+
+// profileTitle is the subscription title the panel sends in Profile-Title,
+// "base64:" and all; "" when it sends none.
+func profileTitle(header http.Header) string {
+	title := header.Get("Profile-Title")
+	if encoded, ok := strings.CutPrefix(title, "base64:"); ok {
+		raw, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			return ""
+		}
+		return string(raw)
+	}
+	return title
 }
 
 // decodeConfigs turns the raw subscription body (base64 or a plain newline list)
@@ -607,39 +552,4 @@ func decodeConfigs(body []byte) []string {
 		}
 	}
 	return out
-}
-
-// parseUserinfo extracts human-readable used/total/expiry from a
-// Subscription-Userinfo header ("upload=..; download=..; total=..; expire=..").
-func parseUserinfo(h string) (used, total, expire string) {
-	if h == "" {
-		return "", "", ""
-	}
-	var up, down, tot, exp int64
-	for _, part := range strings.Split(h, ";") {
-		kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
-		if len(kv) != 2 {
-			continue
-		}
-		n, _ := strconv.ParseInt(strings.TrimSpace(kv[1]), 10, 64)
-		switch strings.TrimSpace(kv[0]) {
-		case "upload":
-			up = n
-		case "download":
-			down = n
-		case "total":
-			tot = n
-		case "expire":
-			exp = n
-		}
-	}
-	used = common.FormatTraffic(up + down)
-	total = "∞"
-	if tot > 0 {
-		total = common.FormatTraffic(tot)
-	}
-	if exp > 0 {
-		expire = time.Unix(exp, 0).Format("2006-01-02")
-	}
-	return used, total, expire
 }

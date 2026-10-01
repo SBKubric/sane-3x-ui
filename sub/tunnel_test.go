@@ -2,7 +2,6 @@ package sub
 
 import (
 	"encoding/json"
-	"html"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -235,28 +234,21 @@ func storeVlessClient(t *testing.T, id int, email, subId string) {
 	}
 }
 
-// pageTunnels pulls the tunnels the subscription page was rendered with out
-// of its bootstrap element; ok is false when the page has no Tunnels section.
+// pageTunnels are the tunnel cards of a rendered page: name and config;
+// ok is false when it has none.
 func pageTunnels(t *testing.T, body string) (items []tunItem, ok bool) {
 	t.Helper()
-	const attr = `data-tunnels="`
-	i := strings.Index(body, attr)
-	if i < 0 {
-		return nil, false
+	for _, card := range pageCards(body, "sub-tunnel") {
+		items = append(items, tunItem{Name: card.Name, Conf: card.Conf})
 	}
-	rest := body[i+len(attr):]
-	raw := html.UnescapeString(rest[:strings.Index(rest, `"`)])
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		t.Fatalf("data-tunnels is not the /tun JSON: %v\n%s", err, raw)
-	}
-	return items, true
+	return items, len(items) > 0
 }
 
 var browser = map[string]string{"Accept": "text/html,application/xhtml+xml"}
 
 // TestSubPageShowsTheTunnels: the subscription page of a user with an xray
-// client and an AWG peer carries the peer's config for its Tunnels section,
-// and a page of xray clients only says it has none.
+// client and an AWG peer carries the peer's config, and a page of xray
+// clients only has no tunnel card.
 func TestSubPageShowsTheTunnels(t *testing.T) {
 	engine := newTunTestServer(t, nil)
 	storeVlessClient(t, 1, "ivan-nl", "page-ivan")
@@ -273,7 +265,7 @@ func TestSubPageShowsTheTunnels(t *testing.T) {
 	}
 
 	rec = getTun(t, engine, "/sub/page-petr", browser)
-	if items, ok := pageTunnels(t, rec.Body.String()); rec.Code != http.StatusOK || !ok || len(items) != 0 {
+	if items, ok := pageTunnels(t, rec.Body.String()); rec.Code != http.StatusOK || ok {
 		t.Errorf("page without tunnels: %d %v %+v", rec.Code, ok, items)
 	}
 
@@ -306,8 +298,8 @@ func TestSubPageOfTunnelsOnly(t *testing.T) {
 	}
 }
 
-// TestSubPageWithTheTunnelsOff: with the route off the page has no Tunnels
-// section and a subscription of tunnels alone has no page.
+// TestSubPageWithTheTunnelsOff: with the route off the page has no tunnel
+// cards and a subscription of tunnels alone has no page.
 func TestSubPageWithTheTunnelsOff(t *testing.T) {
 	engine := newTunTestServer(t, map[string]string{"subTunEnable": "false"})
 	storeVlessClient(t, 1, "ivan-nl", "off-ivan")

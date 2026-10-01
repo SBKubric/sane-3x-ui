@@ -3,7 +3,6 @@ package sub
 import (
 	"encoding/json"
 	"fmt"
-	"html"
 	"net/http"
 	"reflect"
 	"strings"
@@ -15,37 +14,27 @@ import (
 // the link itself (#231): the same JSON the JSON subscription answers with,
 // embedded in the page, so the copy works with the JSON subscription off.
 
-// pageJSONConfigs pulls the JSON configs the page was rendered with out of
-// its bootstrap element; ok is false when the page carries none.
+// pageJSONConfigs are the JSON configs the page carries, one per link card
+// in page order; ok is false when it carries none.
 func pageJSONConfigs(t *testing.T, body string) (configs []string, ok bool) {
 	t.Helper()
-	const attr = `data-json-configs="`
-	i := strings.Index(body, attr)
-	if i < 0 {
-		return nil, false
+	for _, card := range pageCards(body, "sub-link") {
+		if card.JSON != "" {
+			configs = append(configs, card.JSON)
+		}
 	}
-	rest := body[i+len(attr):]
-	raw := html.UnescapeString(rest[:strings.Index(rest, `"`)])
-	if err := json.Unmarshal([]byte(raw), &configs); err != nil {
-		t.Fatalf("data-json-configs is not a JSON list of configs: %v\n%s", err, raw)
-	}
-	return configs, true
+	return configs, len(configs) > 0
 }
 
 // pageLinkList is the subscription's links as the page lists them.
 func pageLinkList(t *testing.T, body string) []string {
 	t.Helper()
-	const open = `<textarea id="subscription-links" style="display:none">`
-	i := strings.Index(body, open)
-	if i < 0 {
-		t.Fatalf("the page has no link list:\n%s", body)
-	}
-	rest := body[i+len(open):]
 	var links []string
-	for _, line := range strings.Split(html.UnescapeString(rest[:strings.Index(rest, "</textarea>")]), "\n") {
-		if line = strings.TrimSpace(line); line != "" {
-			links = append(links, line)
-		}
+	for _, card := range pageCards(body, "sub-link") {
+		links = append(links, card.Link)
+	}
+	if len(links) == 0 {
+		t.Fatalf("the page has no links:\n%s", body)
 	}
 	return links
 }
