@@ -1555,13 +1555,13 @@ Links already handed out keep using the previous edge until clients refresh the 
 
 Топология стенда — `real ← bridge (inner) ← proxy (edge)`:
 
-- **`bridge`** — новая машина, ssh-хост `bridge`, `194.87.80.122`, Debian 13, 1 vCPU, 380 МБ RAM. Ставится **с нуля** как inner front, next hop = `real`. До установки: на ней сейчас слушает `socat` на 443 — его надо **остановить и удалить** (`systemctl disable --now` юнита или `kill` + `apt purge socat`), иначе relay не сможет занять 443. Память маленькая, поэтому проверяем заодно, что xray-relay в 380 МБ укладывается (`systemd-cgtop`, `journalctl -u x-ui` без OOM).
+- **`bridge`** — новая машина, ssh-хост `bridge` (адрес — в vault orchestrator), Debian 13, 1 vCPU, 380 МБ RAM. Ставится **с нуля** как inner front, next hop = `real`. До установки: на ней сейчас слушает `socat` на 443 — его надо **остановить и удалить** (`systemctl disable --now` юнита или `kill` + `apt purge socat`), иначе relay не сможет занять 443. Память маленькая, поэтому проверяем заодно, что xray-relay в 380 МБ укладывается (`systemd-cgtop`, `journalctl -u x-ui` без OOM).
 - **`proxy`** — остаётся **edge**: тот же адрес, что и сегодня в host override, поэтому клиентам ничего менять не нужно. Переустанавливается как звено и после входа становится активным edge.
 
 Порядок — снизу вверх, изнутри наружу: сначала панель, потом inner, потом edge.
 
 1. **Панель.** Обновить панель на `real` до релиза. В реестре появилось `legacy`-звено `edge` с хостом = адрес `proxy` — host override работает как раньше (§2.3), клиенты ходят через `proxy` мимо цепочки. Проверить, что Settings → Subscription → *Proxy front* стал read-only и указывает на редактор цепочки.
-2. **Inner `bridge` с нуля.** На `bridge`: остановить и удалить `socat`, проверить, что 443 свободен (`ss -ltnup | grep :443` пуст). В панели завести звено `name=bridge`, `role=inner`, `host=194.87.80.122`, next hop = панель (`real`) — получить join-токен. Поставить бокс:
+2. **Inner `bridge` с нуля.** На `bridge`: остановить и удалить `socat`, проверить, что 443 свободен (`ss -ltnup | grep :443` пуст). В панели завести звено `name=bridge`, `role=inner`, `host=<адрес bridge>`, next hop = панель (`real`) — получить join-токен. Поставить бокс:
    ```bash
    XUI_PROXY_MODE=1 \
    PROXY_NEXT_HOP=<ip real> PROXY_NEXT_HOP_SUB_PORT=2096 \
