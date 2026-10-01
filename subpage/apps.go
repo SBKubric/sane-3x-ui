@@ -28,13 +28,14 @@ type App struct {
 // with the AmneziaWG 3.x keys is. An app whose support could not be
 // confirmed keeps its card without the label.
 //
-// v2RayTun leads (#217), its labels unconfirmed: its Android and iOS release
-// notes are not public. V2rayNG is left out, it does not read
+// v2RayTun leads (#217); its VLESS + XHTTP label rests on the owner's own
+// check of our links on Android and iOS (2026-10-01), its release notes not
+// being public. V2rayNG is left out, it does not read
 // Profile-Update-Interval (#217). AmneziaVPN reads AWG 3 but not the xhttp
 // parameters of a VLESS link — the example the page's warning gives.
 var defaultApps = []App{
-	{Name: "v2RayTun", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android", Protocols: []string{}},
-	{Name: "v2RayTun", Platform: "iPhone / iPad", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543", Protocols: []string{}},
+	{Name: "v2RayTun", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android", Protocols: []string{"VLESS + XHTTP"}},
+	{Name: "v2RayTun", Platform: "iPhone / iPad", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "Happ", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.happproxy", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "Happ", Platform: "Windows / macOS / Linux", URL: "https://github.com/Happ-proxy/happ-desktop/releases", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "Shadowrocket", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id932747118", Protocols: []string{"VLESS + XHTTP"}},

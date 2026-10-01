@@ -205,7 +205,7 @@ ansible-playbook -i inventories/stand-full wipe.yml -e wipe_confirm=yes --ask-va
 
 | Приложение | Лейбл | Источник |
 |---|---|---|
-| v2RayTun (Android, iOS) | нет | первое на странице (#217). Release notes для Android и iOS не публичны, поэтому лейбл не ставится |
+| v2RayTun (Android, iOS) | VLESS + XHTTP | первое на странице (#217). Проверено владельцем на наших ссылках на Android и iOS (2026-10-01); release notes не публичны |
 | Happ (Android; Windows / macOS / Linux) | VLESS + XHTTP | release notes: Android 2.0.2 «fix extra parsing for xhttp», desktop 1.4.0 «Added support for … xHTTP» |
 | Shadowrocket (iOS) | VLESS + XHTTP | release notes 2.2.66 «Added XHTTP transport support», 2.2.86 |
 | V2Box (iOS) | VLESS + XHTTP | release notes 9.0 «Implement xhttp … Add xhttp mode, extra fields» |

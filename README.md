@@ -205,7 +205,7 @@ The built-in list labels an app only where its source code or its own release no
 
 | App | Label | Source |
 |---|---|---|
-| v2RayTun (Android, iOS) | none | first on the page (#217). Its Android and iOS release notes are not public, so no label is claimed |
+| v2RayTun (Android, iOS) | VLESS + XHTTP | first on the page (#217). Confirmed by the owner with our links on Android and iOS (2026-10-01); its release notes are not public |
 | Happ (Android; Windows / macOS / Linux) | VLESS + XHTTP | release notes: Android 2.0.2 «fix extra parsing for xhttp», desktop 1.4.0 «Added support for … xHTTP» |
 | Shadowrocket (iOS) | VLESS + XHTTP | release notes 2.2.66 «Added XHTTP transport support», 2.2.86 |
 | V2Box (iOS) | VLESS + XHTTP | release notes 9.0 «Implement xhttp … Add xhttp mode, extra fields» |

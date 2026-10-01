@@ -2,6 +2,7 @@ package subpage
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -71,6 +72,12 @@ func TestDefaultAppsAreShowable(t *testing.T) {
 	// v2RayTun leads, as the owner chose (#217); V2rayNG is not recommended.
 	if !strings.HasPrefix(apps[0].Name, "v2RayTun") {
 		t.Errorf("first default app = %q, want v2RayTun", apps[0].Name)
+	}
+	// The owner checked v2RayTun with our VLESS + XHTTP links on Android and iOS.
+	for _, app := range apps[:2] {
+		if app.Name != "v2RayTun" || !slices.Contains(app.Protocols, "VLESS + XHTTP") {
+			t.Errorf("default %s (%s) labels = %v, want VLESS + XHTTP", app.Name, app.Platform, app.Protocols)
+		}
 	}
 	for _, app := range apps {
 		if strings.Contains(strings.ToLower(app.Name+app.URL), "v2rayng") {
