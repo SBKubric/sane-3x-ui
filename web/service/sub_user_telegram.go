@@ -213,16 +213,22 @@ func (s *SubUserService) SetTelegram(key string, tgId int64) (*SubUserView, erro
 		return nil, err
 	}
 	if owner := idx.tgIdOwner(tgId, u.SubId); tgId != 0 && owner != nil {
-		return nil, common.NewErrorf("Telegram id %d belongs to user %s", tgId, owner.Name)
+		return nil, tgOwnedConflict(tgId, owner)
 	}
-	if err := database.GetDB().Model(&model.SubUser{}).Where("sub_id = ?", u.SubId).Update("tg_id", tgId).Error; err != nil {
-		return nil, err
-	}
-	u.TgId = tgId
-	if err := s.writeClientsTgId(idx, u.SubId, tgId); err != nil {
+	if err := s.setTelegramLocked(idx, u, tgId); err != nil {
 		return nil, err
 	}
 	return s.viewOf(u.SubId)
+}
+
+// setTelegramLocked writes tgId onto the user and all of its clients; the
+// caller holds subUserMu and has checked the id is free.
+func (s *SubUserService) setTelegramLocked(idx *subUserIndex, u *model.SubUser, tgId int64) error {
+	if err := database.GetDB().Model(&model.SubUser{}).Where("sub_id = ?", u.SubId).Update("tg_id", tgId).Error; err != nil {
+		return err
+	}
+	u.TgId = tgId
+	return s.writeClientsTgId(idx, u.SubId, tgId)
 }
 
 // UnlinkTelegram — «Отвязать Telegram» — leaves the user and every one of its

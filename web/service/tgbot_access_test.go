@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
@@ -117,7 +118,14 @@ func botCallbackData(t *testing.T) []string {
 		screenOnlineRoute, screenServerRoute, screenBackupData, screenBanLogsData, screenChainRoute, screenSoonData,
 		screenClientAction, usersListAction, usersFoundAction, usersSubAction, usersSubQRAction,
 		// The client's screens (#194).
-		mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction, mysubTunnelAction} {
+		mysubUserRoute, mysubSubRoute, mysubConfigsRoute, mysubLinksAction, mysubTunnelAction,
+		// The user's invite link, typed Telegram and move (#219).
+		tgInviteAction, tgReissueAction, tgInviteQRAction, tgEntryAction, tgMoveAction, tgMoveDoAction,
+		// The applicant's request (#220).
+		requestNewRoute, requestSkipAction, requestCancelAction,
+		// The admin's side of requests (#221).
+		requestsListRoute, requestCardRoute, requestApproveAction, requestEditAction, requestRejectRoute,
+		requestRejectAction, requestReasonAction, requestBlockAction, requestBlockedRoute, requestAccountRoute} {
 		seen[action] = true
 	}
 	fset := token.NewFileSet()
@@ -380,5 +388,48 @@ func TestOnlyAnAdminAnswersAChatState(t *testing.T) {
 		if got := fromAdmin(&telego.Message{From: c.from, Chat: telego.Chat{ID: usersTestChat}}); got != c.want {
 			t.Errorf("from %+v: %v, want %v", c.from, got, c.want)
 		}
+	}
+}
+
+// TestNonAdminRequestRoutesOnlyInThePrivateChat (#220): the applicant's
+// routes — leave, skip, cancel — are for someone who is no admin, in their
+// private chat with the bot, where the comment is asked for; in a group
+// chat, without a message, or with an argument they get «No result». They
+// act on the sender's own request only: a cancel leaves another account's
+// request as it was.
+func TestNonAdminRequestRoutesOnlyInThePrivateChat(t *testing.T) {
+	tg := usersBotFixture(t)
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.Local)
+	requestClock(t, &now)
+	prevAdmins := adminIds
+	adminIds = []int64{accessAdmin}
+	t.Cleanup(func() { adminIds = prevAdmins })
+	query := func(data string, chat int64) *telego.CallbackQuery {
+		q := &telego.CallbackQuery{From: telego.User{ID: usersTestChat}, Data: data}
+		if chat != 0 {
+			q.Message = &telego.Message{MessageID: 9, Chat: telego.Chat{ID: chat}}
+		}
+		return q
+	}
+	for _, data := range requestCallbacks {
+		if !tg.clientMayPress(query(data, usersTestChat)) {
+			t.Errorf("%q refused in the private chat", data)
+		}
+		for name, q := range map[string]*telego.CallbackQuery{"a group": query(data, -100123), "no message": query(data, 0),
+			"an argument": query(data+" 555", usersTestChat)} {
+			if tg.clientMayPress(q) {
+				t.Errorf("%q let through with %s", data, name)
+			}
+		}
+	}
+
+	other := mustRequest(t, 555, "")
+	fake := withFakeTelegram(t)
+	nonAdminPress(tg, requestCancelAction)
+	if st, _ := (&SubRequestService{}).Status(555); st.Pending == nil || st.Pending.Id != other.Id {
+		t.Errorf("the sender's cancel took another account's request: %+v", st)
+	}
+	if got := fake.texts(); !strings.Contains(got, "no subscription") || strings.Contains(got, "Request sent") {
+		t.Errorf("the sender sees another account's request:\n%s", got)
 	}
 }

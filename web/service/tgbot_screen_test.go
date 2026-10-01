@@ -31,6 +31,7 @@ type screenMessage struct {
 	text    string
 	labels  []string
 	data    []string // callback data, by label order
+	urls    []string // a URL button's link, "web_app:<link>" for a Mini App's, by label order
 	deleted bool
 }
 
@@ -43,12 +44,16 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 			InlineKeyboard [][]struct {
 				Text         string `json:"text"`
 				CallbackData string `json:"callback_data"`
+				URL          string `json:"url"`
+				WebApp       *struct {
+					URL string `json:"url"`
+				} `json:"web_app"`
 			} `json:"inline_keyboard"`
 		} `json:"reply_markup"`
 	}
 	_ = json.Unmarshal(req.BodyRaw, &p)
 	keyboard := func(m *screenMessage) {
-		m.labels, m.data = nil, nil
+		m.labels, m.data, m.urls = nil, nil, nil
 		if p.ReplyMarkup == nil {
 			return
 		}
@@ -56,6 +61,11 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 			for _, b := range row {
 				m.labels = append(m.labels, b.Text)
 				m.data = append(m.data, b.CallbackData)
+				url := b.URL
+				if b.WebApp != nil {
+					url = "web_app:" + b.WebApp.URL
+				}
+				m.urls = append(m.urls, url)
 			}
 		}
 	}
@@ -84,6 +94,9 @@ func (f *screenTelegram) Call(_ context.Context, url string, req *ta.RequestData
 		}
 		keyboard(m)
 		return ok(fmt.Sprintf(`{"message_id":%d,"date":0,"chat":{"id":%d,"type":"private"}}`, p.MessageID, usersTestChat))
+	case "getMe": // the bot's own account: its @username makes invite links (#219)
+		f.calls = append(f.calls, method)
+		return ok(`{"id":4242,"is_bot":true,"first_name":"Bot","username":"test_bot"}`)
 	case "sendDocument":
 		// A file stays in the chat but is no screen: it is not numbered.
 		f.calls = append(f.calls, method)
@@ -356,13 +369,13 @@ func TestScreenLostMessage(t *testing.T) {
 }
 
 // TestScreenMainMenu: the admin's main menu as the prototype lays it out,
-// incoming requests hidden.
+// with the incoming requests counted (#221).
 func TestScreenMainMenu(t *testing.T) {
 	tg := usersBotFixture(t)
 	fake := withScreenTelegram(t)
 
 	adminCommand(tg, "/help")
-	want := []string{"👥 Users", "➕ New user", "📋 Inbounds and clients", "🟢 Online", "📊 Reports", "📡 Monitoring",
+	want := []string{"👥 Users", "➕ New user", "📥 Incoming requests (0)", "📋 Inbounds and clients", "🟢 Online", "📊 Reports", "📡 Monitoring",
 		"⚙️ Server", "🔧 Admin panel"}
 	if got := fake.messages[1].labels; strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("main menu:\n got %q\nwant %q", got, want)
@@ -379,7 +392,7 @@ func TestScreenMainMenu(t *testing.T) {
 
 	initTestBotLocale(t, "ru-RU")
 	adminCommand(tg, "/start")
-	wantRu := []string{"👥 Пользователи", "➕ Новый пользователь", "📋 Inbounds и клиенты", "🟢 Онлайн", "📊 Отчёты", "📡 Мониторинг",
+	wantRu := []string{"👥 Пользователи", "➕ Новый пользователь", "📥 Входящие заявки (0)", "📋 Inbounds и клиенты", "🟢 Онлайн", "📊 Отчёты", "📡 Мониторинг",
 		"⚙️ Сервер", "🔧 Админка"}
 	if got := fake.messages[2].labels; strings.Join(got, "|") != strings.Join(wantRu, "|") {
 		t.Errorf("main menu in Russian:\n got %q\nwant %q", got, wantRu)

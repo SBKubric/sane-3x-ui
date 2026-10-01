@@ -39,6 +39,10 @@ type SubUserCreate struct {
 	// ContactEmail is the user's mail address for contact, optional: not an
 	// xray email (CheckContactEmail).
 	ContactEmail string `json:"contactEmail"`
+
+	// TgNick is the @nick of a Telegram account the bot has seen, instead of
+	// TgId (#219); "" for none.
+	TgNick string `json:"tgNick"`
 }
 
 // SubUserInbound is an inbound a user can have a client in.
@@ -58,7 +62,12 @@ const SubUserConflictAwgLinkable = "awg_linkable"
 type SubUserConflict struct {
 	Code   string `json:"code"`
 	Client string `json:"client"`
-	msg    string
+	// The Telegram refusals (#219, sub_user_telegram_bind.go): the id, and
+	// the user it belongs to for SubUserConflictTgOwned.
+	TgId       int64  `json:"tgId,omitempty"`
+	Owner      string `json:"owner,omitempty"`
+	OwnerSubId string `json:"ownerSubId,omitempty"`
+	msg        string
 }
 
 func (e *SubUserConflict) Error() string { return e.msg }
@@ -177,6 +186,9 @@ func (s *SubUserService) Create(req SubUserCreate) (*SubUserView, error) {
 	}
 	contactEmail, err := CheckContactEmail(req.ContactEmail)
 	if err != nil {
+		return nil, err
+	}
+	if req.TgId, err = telegramOf(req.TgId, req.TgNick); err != nil {
 		return nil, err
 	}
 	if err := idx.checkNewTgId(req.TgId); err != nil {

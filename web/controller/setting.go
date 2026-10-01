@@ -44,6 +44,46 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 	g.POST("/updateUser", a.updateUser)
 	g.POST("/restartPanel", a.restartPanel)
 	g.GET("/getDefaultJsonConfig", a.getDefaultXrayConfig)
+	// The bot's path /third-party/<secret>/ (#220): read-only in the form,
+	// renewed by its own button, never through /update.
+	g.POST("/botPath", a.getBotPath)
+	g.POST("/botPath/renew", a.renewBotPath)
+}
+
+// botPath is the bot's path as the Telegram tab shows it: the path with its
+// secret, and the captcha's address Telegram opens ("" while there is no
+// https address for it).
+type botPath struct {
+	Path       string `json:"path"`
+	CaptchaURL string `json:"captchaUrl"`
+}
+
+func (a *SettingController) botPathOf(path string) botPath {
+	out := botPath{Path: path}
+	if base, ok := service.BotPublicBase(); ok {
+		out.CaptchaURL = base + path + "captcha"
+	}
+	return out
+}
+
+// getBotPath answers the bot's path.
+func (a *SettingController) getBotPath(c *gin.Context) {
+	path, err := a.settingService.ThirdPartyPath()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.settings.toasts.getSettings"), err)
+		return
+	}
+	jsonObj(c, a.botPathOf(path), nil)
+}
+
+// renewBotPath is «Перевыпустить»: a new secret, the old path gone.
+func (a *SettingController) renewBotPath(c *gin.Context) {
+	secret, err := a.settingService.RenewTgThirdPartySecret()
+	if err != nil {
+		jsonMsg(c, I18nWeb(c, "pages.settings.toasts.modifySettings"), err)
+		return
+	}
+	jsonObj(c, a.botPathOf(service.ThirdPartyRoot+secret+"/"), nil)
 }
 
 // getAllSetting retrieves all current settings.

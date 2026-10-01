@@ -535,6 +535,11 @@ func (t *Tgbot) answerCommand(message *telego.Message, chatId int64, isAdmin boo
 		msg += t.I18nBot("tgbot.commands.unknown")
 	}
 
+	// /start <token> of an invite link binds the sender's Telegram, whoever
+	// sends it (#219).
+	if t.answerStartInvite(message, isAdmin) {
+		return
+	}
 	// An admin's /start and /help open the screen (#191); /usage, /inbound
 	// and /proxy open theirs.
 	if isAdmin && t.answerScreenCommand(chatId, command, commandArgs) {
@@ -617,6 +622,11 @@ func (t *Tgbot) sendResponse(chatId int64, msg string, onlyMessage, isAdmin bool
 // answerCallback processes callback queries from inline keyboards.
 func (t *Tgbot) answerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool) {
 	if isAdmin {
+		// The link broadcast's question and report are messages of their
+		// own, not the screen (#222).
+		if t.subLinkPress(callbackQuery) {
+			return
+		}
 		// An admin's chat is one screen (#191): every button goes there.
 		t.screenPress(callbackQuery)
 		return

@@ -29,6 +29,8 @@
                     <h2 data-testid="users-title" :style="{ margin: 0 }">{{ i18n "pages.subUsers.title" }}</h2>
                     <a-button type="primary" icon="user-add" data-testid="users-create" @click="openCreate">{{ i18n
                       "pages.subUsers.create" }}</a-button>
+                    <a-button icon="notification" data-testid="users-broadcast" @click="confirmBroadcast">{{ i18n
+                      "pages.subUsers.sublink.button" }}</a-button>
                     <span class="users-head-spacer"></span>
                     <a-input-search v-model.trim="search" allow-clear data-testid="users-search" @search="runSearch"
                       :style="{ maxWidth: '320px' }" placeholder='{{ i18n "pages.subUsers.search" }}'></a-input-search>
@@ -48,6 +50,10 @@
                         <a-tag color="red" data-testid="user-tg-conflict" class="users-tag-link"
                           @click="openTelegram(user)">{{ i18n "pages.subUsers.telegram.conflict" }}</a-tag>
                       </a-tooltip>
+                      <!-- #219: no Telegram yet; the modal makes an invite link or takes a tg_id or @nick -->
+                      <a-tag v-if="!user.technical && !user.tgId && !user.tgConflict" data-testid="user-tg-unlinked"
+                        class="users-tag-link users-muted" @click="openTelegram(user)">{{ i18n
+                        "pages.subUsers.tginvite.notLinked" }}</a-tag>
                       <div class="users-muted" v-if="user.comment">[[ user.comment ]]</div>
                     </template>
 
@@ -163,9 +169,11 @@
         <a-input-number v-model="createModal.limitIp" :min="0" :step="1" data-testid="users-create-limitip"
           :style="{ width: '100%' }"></a-input-number>
       </a-form-item>
-      <a-form-item label="Telegram ChatID">
-        <a-input-number v-model="createModal.tgId" :min="0" :step="1" data-testid="users-create-tgid"
-          :style="{ width: '100%' }"></a-input-number>
+      <a-form-item label='{{ i18n "pages.subUsers.tginvite.tgEntry" }}'>
+        <a-input v-model.trim="createModal.tg" data-testid="users-create-tg"
+          placeholder='{{ i18n "pages.subUsers.tginvite.entryPlaceholder" }}'></a-input>
+        <a-checkbox v-model="createModal.invite" :disabled="!!createModal.tg" data-testid="users-create-invite">{{ i18n
+          "pages.subUsers.tginvite.createInvite" }}</a-checkbox>
       </a-form-item>
       <a-form-item label='{{ i18n "pages.subUsers.comment" }}'>
         <a-input v-model="createModal.comment" data-testid="users-create-comment"></a-input>
@@ -259,6 +267,49 @@
         <a-tag v-if="telegramModal.tg.conflict" color="red" :style="{ marginInlineStart: '8px' }">{{ i18n
           "pages.subUsers.telegram.conflict" }}</a-tag>
       </p>
+      <!-- #219: bind by an invite link, or by a typed tg_id or @nick -->
+      <p v-if="!telegramModal.tg.tgId" data-testid="users-tg-unlinked" class="users-muted">{{ i18n
+        "pages.subUsers.tginvite.notLinked" }}</p>
+      <a-space wrap :style="{ marginBottom: '12px' }">
+        <a-button v-if="!telegramModal.tg.tgId" icon="link" data-testid="users-tg-invite"
+          :loading="telegramModal.inviteLoading" @click="makeInvite(false)">{{ i18n "pages.subUsers.tginvite.invite"
+          }}</a-button>
+        <a-button icon="edit" data-testid="users-tg-enter" @click="telegramModal.entering = true">{{ i18n
+          "pages.subUsers.tginvite.enter" }}</a-button>
+      </a-space>
+      <div v-if="telegramModal.entering" class="users-tg-entry">
+        <a-input v-model.trim="telegramModal.entry" data-testid="users-tg-entry" @press-enter="submitEntry"
+          placeholder='{{ i18n "pages.subUsers.tginvite.entryPlaceholder" }}' :style="{ maxWidth: '260px' }"></a-input>
+        <a-button type="primary" data-testid="users-tg-entry-ok" :disabled="!telegramModal.entry"
+          :loading="telegramModal.entryLoading" @click="submitEntry">{{ i18n "pages.subUsers.tginvite.link" }}</a-button>
+      </div>
+      <a-alert v-if="telegramModal.nickUnknown" type="warning" show-icon data-testid="users-tg-nick-unknown"
+        :style="{ marginBottom: '12px' }">
+        <template slot="message">[[ telegramModal.nickUnknown ]]: {{ i18n "pages.subUsers.tginvite.nickUnknown" }}
+          <a v-if="!telegramModal.tg.tgId" @click="makeInvite(false)">{{ i18n "pages.subUsers.tginvite.invite" }}</a>
+        </template>
+      </a-alert>
+      <div v-if="telegramModal.invite && !telegramModal.tg.tgId" class="users-invite" data-testid="users-tg-invite-box">
+        <template v-if="telegramModal.invite.link">
+          <div class="users-sub">
+            <a :href="telegramModal.invite.link" target="_blank" rel="noopener" data-testid="users-tg-invite-link"
+              class="users-mono">[[ telegramModal.invite.link ]]</a>
+            <a-tooltip title='{{ i18n "copy" }}'>
+              <a-button size="small" icon="snippets" data-testid="users-tg-invite-copy"
+                @click="copy(telegramModal.invite.link)"></a-button>
+            </a-tooltip>
+          </div>
+          <canvas ref="inviteQr" data-testid="users-tg-invite-qr" class="users-invite-qr"
+            @click="copy(telegramModal.invite.link)"></canvas>
+        </template>
+        <a-alert v-else type="warning" show-icon data-testid="users-tg-invite-nobot"
+          message='{{ i18n "pages.subUsers.tginvite.noBot" }}'></a-alert>
+        <div class="users-muted">{{ i18n "pages.subUsers.tginvite.until" }} [[
+          IntlUtil.formatDate(telegramModal.invite.expiresAt) ]]. {{ i18n "pages.subUsers.tginvite.once" }}</div>
+        <a-button size="small" icon="reload" data-testid="users-tg-invite-reissue"
+          :loading="telegramModal.inviteLoading" @click="makeInvite(true)">{{ i18n "pages.subUsers.tginvite.reissue"
+          }}</a-button>
+      </div>
       <template v-if="telegramModal.tg.candidates.length">
         <h4>{{ i18n "pages.subUsers.telegram.onClients" }}</h4>
         <a-table :columns="telegramColumns" :data-source="telegramModal.tg.candidates" :row-key="c => String(c.tgId)"
@@ -362,6 +413,28 @@
     white-space: nowrap;
   }
 
+  .users-tg-entry {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .users-invite {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .users-invite-qr {
+    cursor: pointer;
+    background: #fff;
+    padding: 8px;
+    border-radius: 8px;
+  }
+
   .users-qr {
     display: flex;
     flex-direction: column;
@@ -407,7 +480,22 @@
     unlinkTitle: '{{ i18n "pages.subUsers.telegram.unlinkTitle" }}',
     unlinkContent: '{{ i18n "pages.subUsers.telegram.unlinkContent" }}',
     unlink: '{{ i18n "pages.subUsers.telegram.unlink" }}',
+    move: '{{ i18n "pages.subUsers.tginvite.move" }}',
+    moveContent: '{{ i18n "pages.subUsers.tginvite.moveContent" }}',
+    broadcast: '{{ i18n "pages.subUsers.sublink.button" }}',
+    broadcastConfirm: '{{ i18n "pages.subUsers.sublink.confirm" }}',
+    broadcastHint: '{{ i18n "pages.subUsers.sublink.confirmHint" }}',
+    broadcastStarted: '{{ i18n "pages.subUsers.sublink.started" }}',
   };
+
+  // telegramEntry is the request's Telegram for a typed tg_id or @nick
+  // (#219): the digits as tgId, anything else as tgNick for the service to
+  // look up among the accounts the bot has seen.
+  function telegramEntry(text) {
+    text = (text || '').trim();
+    if (!text) return { tgId: 0 };
+    return /^\d+$/.test(text) ? { tgId: Number(text) } : { tgNick: text };
+  }
 
   // usersApi calls /panel/api/users/<path> and answers the panel envelope
   // {success, msg, obj}. It does not go through HttpUtil, which toasts every
@@ -444,13 +532,17 @@
       searchTimer: null,
       createModal: {
         visible: false, loading: false,
-        name: '', inboundIds: [], totalGB: 0, expiry: null, limitIp: 0, tgId: 0, comment: '',
+        name: '', inboundIds: [], totalGB: 0, expiry: null, limitIp: 0, tg: '', invite: false, comment: '',
       },
       addModal: { visible: false, loading: null, user: null },
       clientsModal: { visible: false, user: null },
       assignModal: { visible: false, loading: false, client: null, target: undefined },
       qrModal: { visible: false, user: null, link: '' },
-      telegramModal: { visible: false, loading: null, tg: null },
+      telegramModal: {
+        visible: false, loading: null, tg: null,
+        // #219: the open invite link, and the typed tg_id or @nick.
+        invite: null, inviteLoading: false, entering: false, entry: '', entryLoading: false, nickUnknown: '',
+      },
       telegramColumns: [
         { title: 'Telegram ID', scopedSlots: { customRender: 'tgId' } },
         { title: '{{ i18n "pages.subUsers.telegram.clients" }}', scopedSlots: { customRender: 'clients' } },
@@ -482,6 +574,7 @@
       TEXT() { return USERS_TEXT; },
       ROBOT_KEY() { return ROBOT_KEY; },
       SizeFormatter() { return SizeFormatter; },
+      IntlUtil() { return IntlUtil; },
       // The users the search found, in the service's order (exact, start,
       // inside, typo — docs/spec/users.md §9), as fresh copies from the list;
       // every user while there is no search or its answer is on the way.
@@ -640,7 +733,7 @@
           name: '',
           // The enabled inbounds start ticked (#167).
           inboundIds: this.inbounds.filter(inbound => inbound.enable).map(inbound => inbound.id),
-          totalGB: 0, expiry: null, limitIp: 0, tgId: 0, comment: '',
+          totalGB: 0, expiry: null, limitIp: 0, tg: '', invite: false, comment: '',
         };
       },
       toggleCreateInbound(id, checked) {
@@ -653,7 +746,7 @@
         m.loading = true;
         const msg = await usersApi('create', {
           name: m.name,
-          tgId: Number(m.tgId) || 0,
+          ...telegramEntry(m.tg),
           comment: m.comment || '',
           // In the order the inbounds are listed, whatever order they were ticked in.
           inboundIds: this.inbounds.map(inbound => inbound.id).filter(id => m.inboundIds.includes(id)),
@@ -665,7 +758,13 @@
         });
         m.loading = false;
         if (this.askToLink(msg, () => this.submitCreate(true))) return;
-        if (await this.after(msg)) m.visible = false;
+        if (!await this.after(msg)) return;
+        m.visible = false;
+        // «Create an invite link» (#219): the new user's Telegram modal, with it.
+        if (m.invite && !m.tg && msg.obj) {
+          await this.openTelegram(msg.obj);
+          await this.makeInvite(false);
+        }
       },
       // askToLink handles the awg_linkable refusal: an AmneziaWG client of the
       // generated name exists without a subscription, and the operator says
@@ -729,6 +828,30 @@
         });
       },
 
+      // --- the link broadcast (#222) --------------------------------------------
+
+      // confirmBroadcast asks, then has the bot send every enabled user with
+      // Telegram their subscription link; the report comes to the admins in
+      // Telegram.
+      confirmBroadcast() {
+        this.$confirm({
+          title: USERS_TEXT.broadcastConfirm,
+          content: USERS_TEXT.broadcastHint,
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.broadcast,
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            const msg = await usersApi('broadcastLinks', {});
+            if (!msg.success) {
+              this.$message.error(msg.msg);
+              return;
+            }
+            this.$message.success(USERS_TEXT.broadcastStarted.replace('{id}', msg.obj.id)
+              .replace('{recipients}', msg.obj.recipients).replace('{noTelegram}', msg.obj.noTelegram), 8);
+          },
+        });
+      },
+
       // --- clients, assign from robot -----------------------------------------
 
       openClients(user) {
@@ -764,8 +887,91 @@
         return true;
       },
       async openTelegram(user) {
-        this.telegramModal = { visible: false, loading: null, tg: null };
-        if (await this.loadTelegram(user.subId)) this.telegramModal.visible = true;
+        this.telegramModal = {
+          visible: false, loading: null, tg: null,
+          invite: null, inviteLoading: false, entering: false, entry: '', entryLoading: false, nickUnknown: '',
+        };
+        if (!await this.loadTelegram(user.subId)) return;
+        this.telegramModal.visible = true;
+        if (!this.telegramModal.tg.tgId) {
+          const msg = await usersApi('telegramInvite/' + encodeURIComponent(user.subId));
+          if (msg.success && msg.obj) await this.showInvite(msg.obj);
+        }
+      },
+      // makeInvite shows the user's open invite link, a new one when it has
+      // none; reissue voids the old one (#219).
+      async makeInvite(reissue) {
+        const m = this.telegramModal;
+        m.inviteLoading = true;
+        const path = (reissue ? 'reissueTelegramInvite/' : 'telegramInvite/') + encodeURIComponent(m.tg.subId);
+        const msg = await usersApi(path, {});
+        m.inviteLoading = false;
+        if (!msg.success) {
+          this.$message.error(msg.msg);
+          return;
+        }
+        m.nickUnknown = '';
+        await this.showInvite(msg.obj);
+      },
+      // showInvite puts the invite in the modal and draws its QR.
+      async showInvite(invite) {
+        this.telegramModal.invite = invite;
+        if (!invite.link) return;
+        for (let i = 0; i < 20 && !this.$refs.inviteQr; i++) {
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        if (!this.$refs.inviteQr) return;
+        new QRious({
+          element: this.$refs.inviteQr,
+          size: Math.min(this.qrCodeSize, 240),
+          value: invite.link,
+          background: 'white',
+          foreground: 'black',
+          padding: 2,
+          level: 'L',
+        });
+      },
+      // submitEntry links the typed tg_id or @nick. A nick the bot has not
+      // seen asks for the invite link; an id another user has asks to move it.
+      async submitEntry() {
+        const m = this.telegramModal;
+        if (!m.entry) return;
+        m.entryLoading = true;
+        const msg = await usersApi('setTelegram/' + encodeURIComponent(m.tg.subId), telegramEntry(m.entry));
+        m.entryLoading = false;
+        m.nickUnknown = '';
+        if (!msg.success && msg.obj && msg.obj.code === 'tg_nick_unknown') {
+          m.nickUnknown = m.entry.startsWith('@') ? m.entry : '@' + m.entry;
+          return;
+        }
+        if (!msg.success && msg.obj && msg.obj.code === 'tg_owned') {
+          this.confirmMove(msg.obj);
+          return;
+        }
+        if (await this.after(msg)) {
+          m.entering = false;
+          m.entry = '';
+          await this.loadTelegram(m.tg.subId);
+        }
+      },
+      // confirmMove asks before the id is taken from the user who has it.
+      confirmMove(conflict) {
+        const m = this.telegramModal;
+        this.$confirm({
+          title: USERS_TEXT.move + ': ' + m.tg.name,
+          content: USERS_TEXT.moveContent.split('{id}').join(conflict.tgId).split('{owner}').join(conflict.owner),
+          class: themeSwitcher.currentTheme,
+          okText: USERS_TEXT.move,
+          cancelText: USERS_TEXT.cancel,
+          onOk: async () => {
+            const msg = await usersApi('moveTelegram/' + encodeURIComponent(m.tg.subId), { tgId: conflict.tgId });
+            if (await this.after(msg)) {
+              m.entering = false;
+              m.entry = '';
+              await this.loadTelegram(m.tg.subId);
+            }
+          },
+        });
       },
       async assignTelegram(tgId) {
         const m = this.telegramModal;

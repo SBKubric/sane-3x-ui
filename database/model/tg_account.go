@@ -8,10 +8,16 @@ package model
 // Username is the @nick without the '@', "" for none. A nick belongs to one
 // account at a time: when it shows up on another account, the last seen one
 // keeps it and the old one's is cleared. No history is kept.
+//
+// RequestsBlocked is «🚫 Заблокировать» (#188 point 2, #220): the bot takes
+// no request for a subscription from the account. The bot's own writes of
+// the row never touch it.
 type TgAccount struct {
 	TgId      int64  `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
 	Username  string `json:"username" gorm:"not null;default:'';index"`
 	FirstName string `json:"firstName" gorm:"not null;default:''"`
 	LastName  string `json:"lastName" gorm:"not null;default:''"`
 	LastSeen  int64  `json:"lastSeen" gorm:"not null;default:0"` // ms
+
+	RequestsBlocked bool `json:"requestsBlocked" gorm:"not null;default:false"`
 }

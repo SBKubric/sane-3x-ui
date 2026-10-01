@@ -182,6 +182,9 @@ func TruncateDocument(doc *chain.Document, hop chain.Hop, cfg *Config) chain.Doc
 			SubPath:   doc.NextHop.SubPath,
 			JsonPath:  doc.NextHop.JsonPath,
 			TunPath:   doc.NextHop.TunPath,
+			// The bot's path (#220) is the same on every box: the
+			// neighbour passes it on to this hop, which passes it inward.
+			ThirdPartyPath: doc.NextHop.ThirdPartyPath,
 		},
 		Ports: doc.Ports,
 	}

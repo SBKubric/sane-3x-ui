@@ -64,12 +64,17 @@ func (t *Tgbot) usersTelegramRow(v *SubUserView) []telego.InlineKeyboardButton {
 	return tu.InlineKeyboardRow(tu.InlineKeyboardButton(label).WithCallbackData(t.encodeQuery("usr_tg " + v.SubId)))
 }
 
-// usersTelegramLine is the card's conflict line, "" without a conflict.
+// usersTelegramLine is the card's line for a user without Telegram (#219)
+// and its conflict line, "" for neither.
 func (t *Tgbot) usersTelegramLine(v *SubUserView) string {
-	if !v.TgConflict {
-		return ""
+	line := ""
+	if !v.Technical && v.TgId == 0 {
+		line = t.I18nBot("tgbot.tginvite.notLinked")
 	}
-	return t.I18nBot("tgbot.tgaccount.conflict")
+	if v.TgConflict {
+		line += t.I18nBot("tgbot.tgaccount.conflict")
+	}
+	return line
 }
 
 // tgAccountLabel is how an account is named after its id: " (@nick)", else
@@ -126,6 +131,7 @@ func (t *Tgbot) usersTelegramScreen(key string) usersReply {
 				WithCallbackData(t.encodeQuery("usr_tga "+tg.SubId+" "+id))))
 		}
 	}
+	rows = append(rows, t.usersEntryRow(tg.SubId)) // #219
 	if tg.TgId != 0 || len(tg.Candidates) > 0 {
 		rows = append(rows, tu.InlineKeyboardRow(tu.InlineKeyboardButton(t.I18nBot("tgbot.tgaccount.unlink")).
 			WithCallbackData(t.encodeQuery("usr_tgu "+tg.SubId))))

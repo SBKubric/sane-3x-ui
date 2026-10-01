@@ -117,6 +117,12 @@ type Site struct {
 	// box whose panel port only443 has closed, whether or not the panel
 	// itself is published here (ADR 0005).
 	Mon *Proxy
+	// Bot is the Telegram bot's own path, /third-party/<secret>/ (#220): its
+	// Mini App, the captcha, which the active edge's front brings here
+	// along the chain. It lives on the panel's port, beside the panel and
+	// the monitoring contract, never on the sub server; a person opens it
+	// a few times, so it is under the subscriptions' limit.
+	Bot *Proxy
 	// Login is where a secret is typed by hand — the panel's login, a box's
 	// join page — published under the tightest limit (#141).
 	Login *Proxy
@@ -150,7 +156,8 @@ type zonedProxy struct {
 // service is in says what kind of secret its paths guard.
 func (s *Site) zoned() []zonedProxy {
 	var out []zonedProxy
-	for _, p := range []zonedProxy{{s.Panel, zoneAPI}, {s.Login, zoneLogin}, {s.Sub, zoneSub}, {s.Mon, zoneAPI}} {
+	for _, p := range []zonedProxy{{s.Panel, zoneAPI}, {s.Login, zoneLogin}, {s.Sub, zoneSub}, {s.Mon, zoneAPI},
+		{s.Bot, zoneSub}} {
 		if p.proxy != nil {
 			out = append(out, p)
 		}

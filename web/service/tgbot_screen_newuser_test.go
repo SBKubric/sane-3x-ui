@@ -178,15 +178,18 @@ func newUserAtTelegram(t *testing.T, name string) (*Tgbot, *screenTelegram) {
 	return tg, fake
 }
 
-// TestNewUserTelegram: the Telegram id is typed digits, and one user's
-// only: a text or another user's id is refused on the step.
+// TestNewUserTelegram: the Telegram id is typed digits or an @nick (#219),
+// and one user's only: a text that is neither, a nick the bot has not seen
+// or another user's id is refused on the step.
 func TestNewUserTelegram(t *testing.T) {
 	tg, fake := newUserAtTelegram(t, "petr")
 	mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: 4242, InboundIds: []int{2}})
-	for i, bad := range []string{"@petr", "12ab", "-5", "0"} {
+	for i, bad := range []string{"12ab", "-5", "0"} {
 		adminText(t, tg, 300+i, bad)
 		wantScreen(t, fake, "step 5/5", "⚠️", "not a Telegram id")
 	}
+	adminText(t, tg, 305, "@petr")
+	wantScreen(t, fake, "step 5/5", "⚠️", "@petr is unknown: the person has not written to the bot yet")
 	adminText(t, tg, 310, "4242")
 	wantScreen(t, fake, "step 5/5", "⚠️", "belongs to user ivan")
 	adminText(t, tg, 311, "5151")

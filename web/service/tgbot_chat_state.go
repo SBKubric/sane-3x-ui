@@ -50,7 +50,10 @@ func (t *Tgbot) answerChatState(message *telego.Message) bool {
 	if !waiting {
 		return false
 	}
-	if !t.answerNotifyText(message, state) { // the notification channel (#202)
+	switch {
+	case t.answerNotifyText(message, state): // the notification channel (#202)
+	case t.answerRequestText(message, state): // the applicant's comment (#220)
+	default:
 		t.answerUsersText(message, state)
 	}
 	return true

@@ -191,12 +191,13 @@ func (s *ChainDocumentService) nextHopOf(hop model.ChainHop, byId map[int]model.
 		}
 		if chainHopVisible(next) && next.State != chain.StateDraining {
 			return chain.NextHop{
-				Host:      next.Host,
-				SubPort:   next.SubPort,
-				SubScheme: next.SubScheme,
-				SubPath:   panelHop.SubPath,
-				JsonPath:  panelHop.JsonPath,
-				TunPath:   panelHop.TunPath,
+				Host:           next.Host,
+				SubPort:        next.SubPort,
+				SubScheme:      next.SubScheme,
+				SubPath:        panelHop.SubPath,
+				JsonPath:       panelHop.JsonPath,
+				TunPath:        panelHop.TunPath,
+				ThirdPartyPath: panelHop.ThirdPartyPath,
 			}
 		}
 		id = next.NextHopId
@@ -215,8 +216,8 @@ func chainHopVisible(hop model.ChainHop) bool {
 
 // panelAsNextHop is what the innermost hop dials: the panel itself. The host
 // is chainPanelHost when the owner stated one and the caller's own view of the
-// panel otherwise; the paths are the panel's real subscription paths, which
-// travel in the document so no box has to store them.
+// panel otherwise; the paths are the panel's real subscription paths and the
+// bot's path, which travel in the document so no box has to store them.
 func (s *ChainDocumentService) panelAsNextHop(fallbackHost string) (chain.NextHop, error) {
 	host, err := s.settingService.GetChainPanelHost()
 	if err != nil {
@@ -258,12 +259,17 @@ func (s *ChainDocumentService) panelAsNextHop(fallbackHost string) (chain.NextHo
 		scheme = publicScheme
 		subPort = PublicPort
 	}
+	thirdPartyPath, err := s.settingService.ThirdPartyPath()
+	if err != nil {
+		return chain.NextHop{}, err
+	}
 	return chain.NextHop{
-		Host:      host,
-		SubPort:   subPort,
-		SubScheme: scheme,
-		SubPath:   subPath,
-		JsonPath:  jsonPath,
-		TunPath:   s.settingService.publishedTunPath(),
+		Host:           host,
+		SubPort:        subPort,
+		SubScheme:      scheme,
+		SubPath:        subPath,
+		JsonPath:       jsonPath,
+		TunPath:        s.settingService.publishedTunPath(),
+		ThirdPartyPath: thirdPartyPath,
 	}, nil
 }

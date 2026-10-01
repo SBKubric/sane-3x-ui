@@ -466,3 +466,18 @@ func TestAPollTellsTheFront(t *testing.T) {
 		t.Error("a refused poll reached the front")
 	}
 }
+
+// TestTruncateDocumentKeepsTheBotPath (#220): the bot's path is the same on
+// every box, and an edge behind an inner learns it from the inner's
+// truncation, not from the panel. Dropping it there left the active edge
+// without the captcha.
+func TestTruncateDocumentKeepsTheBotPath(t *testing.T) {
+	cfg := &Config{Domain: "10.0.0.7", SubPort: 2096}
+	doc := innerDocument()
+	doc.NextHop.ThirdPartyPath = "/third-party/s3cr3t/"
+	for _, hop := range doc.Hops[1:] {
+		if out := TruncateDocument(doc, hop, cfg); out.NextHop.ThirdPartyPath != "/third-party/s3cr3t/" {
+			t.Errorf("%s: thirdPartyPath %q", hop.Name, out.NextHop.ThirdPartyPath)
+		}
+	}
+}

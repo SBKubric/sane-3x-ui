@@ -24,6 +24,10 @@ class AllSetting {
         this.tgBotLoginNotify = true;
         this.tgCpu = 80;
         this.tgLang = "en-US";
+        // request defaults (#221): "" = every enabled inbound
+        this.subRequestInbounds = "";
+        this.subRequestTrafficGB = 50;
+        this.subRequestExpiryDays = 30;
         this.twoFactorEnable = false;
         this.twoFactorToken = "";
         this.xrayTemplateConfig = "";

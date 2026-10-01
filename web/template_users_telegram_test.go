@@ -56,3 +56,21 @@ func TestUsersPageShowsTheTelegramConflict(t *testing.T) {
 		}
 	}
 }
+
+// TestUsersPageBindsTelegram (#219): the users page marks a user without
+// Telegram, and its Telegram modal makes and reissues the invite link with
+// its copy button and QR, takes a tg_id or @nick, and moves an id another
+// user has after a confirmation; create takes a tg_id or @nick too.
+func TestUsersPageBindsTelegram(t *testing.T) {
+	out := renderPage(t, "users.html")
+	for _, want := range []string{`data-testid="user-tg-unlinked"`, "pages.subUsers.tginvite.notLinked",
+		`data-testid="users-tg-invite"`, `data-testid="users-tg-invite-link"`, `data-testid="users-tg-invite-copy"`,
+		`data-testid="users-tg-invite-qr"`, `data-testid="users-tg-invite-reissue"`, `data-testid="users-tg-invite-nobot"`,
+		`data-testid="users-tg-enter"`, `data-testid="users-tg-entry"`, `data-testid="users-tg-entry-ok"`,
+		`data-testid="users-tg-nick-unknown"`, "'telegramInvite/'", "'reissueTelegramInvite/'", "'moveTelegram/'",
+		`data-testid="users-create-tg"`, `data-testid="users-create-invite"`, "tgNick"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("users.html lacks %s", want)
+		}
+	}
+}

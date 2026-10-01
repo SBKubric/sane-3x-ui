@@ -241,8 +241,7 @@ func TestMySubscriptionSeveralUsers(t *testing.T) {
 }
 
 // TestMySubscriptionNone: someone whose Telegram ID no client carries gets
-// «No subscription» with their ID; the request button stays hidden until
-// requests exist.
+// «No subscription» with their ID and the request button (#220).
 func TestMySubscriptionNone(t *testing.T) {
 	tg := usersBotFixture(t)
 	fake := withScreenTelegram(t)
@@ -252,7 +251,7 @@ func TestMySubscriptionNone(t *testing.T) {
 	if !strings.Contains(m.text, "no subscription") || !strings.Contains(m.text, "<code>777</code>") {
 		t.Errorf("no subscription: %q", m.text)
 	}
-	if got := strings.Join(m.labels, "|"); got != "🔄 Refresh" {
+	if got := strings.Join(m.labels, "|"); got != "📝 Leave a request|🔄 Refresh" {
 		t.Errorf("buttons: %q", got)
 	}
 

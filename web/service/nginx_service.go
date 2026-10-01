@@ -548,6 +548,11 @@ func (s *NginxService) buildConfig(set NginxSettings) (nginx.Config, error) {
 		return cfg, err
 	}
 	site.Mon = mon
+	bot, err := s.botProxy()
+	if err != nil {
+		return cfg, err
+	}
+	site.Bot = bot
 	cfg.Site = site
 	return cfg, nil
 }
@@ -760,6 +765,29 @@ func (s *NginxService) monProxy() (*nginx.Proxy, error) {
 	return &nginx.Proxy{
 		Name:   "monitoring",
 		Paths:  []string{basePath + "mon/v1/"},
+		Target: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
+		TLS:    certFile != "",
+	}, nil
+}
+
+// botProxy publishes the bot's own path, /third-party/<secret>/ (#220), which
+// the panel serves on its own port outside its base path. The active edge's
+// front brings the bot's Mini App here along the chain; without a chain the
+// panel's own front is where Telegram opens it. Every path under it answers
+// a bare 404 without the secret or while the bot is off.
+func (s *NginxService) botProxy() (*nginx.Proxy, error) {
+	port, err := s.settingService.GetPort()
+	if err != nil {
+		return nil, err
+	}
+	path, err := s.settingService.ThirdPartyPath()
+	if err != nil {
+		return nil, err
+	}
+	certFile, _ := s.settingService.GetCertFile()
+	return &nginx.Proxy{
+		Name:   "telegram bot",
+		Paths:  []string{path},
 		Target: net.JoinHostPort("127.0.0.1", strconv.Itoa(port)),
 		TLS:    certFile != "",
 	}, nil

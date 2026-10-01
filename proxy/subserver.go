@@ -301,6 +301,11 @@ func (s *SubServer) route(c *gin.Context) {
 	_, subPath, jsonPath := s.nextHop()
 	doc := s.state.Document()
 
+	// The bot's own path (#220): its Mini App, passed on to the next hop.
+	if prefix := s.thirdPartyPath(); prefix != "" && strings.HasPrefix(path, prefix) {
+		s.handleThirdParty(c)
+		return
+	}
 	if id, ok := subscriptionID(path, subPath, fallbackSubPath); ok {
 		if doc == nil {
 			c.String(http.StatusServiceUnavailable, "this box has not joined the chain yet")

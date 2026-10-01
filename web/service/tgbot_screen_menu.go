@@ -63,6 +63,8 @@ func (t *Tgbot) screenMenuCallback(chatId int64, data string) (screenReply, bool
 		return screenReply{usersReply: usersReply{toast: t.I18nBot("tgbot.screen.soon")}}, true
 	case usersSubQRAction:
 		return t.usersSubscriptionQR(args), true
+	case tgInviteQRAction: // the QR of an invite link (#219)
+		return t.usersInviteQR(args), true
 	}
 	return t.screenOpsCallback(action, args)
 }
@@ -118,14 +120,15 @@ func (t *Tgbot) screenInboundSearch(remark string) screenReply {
 	return t.screenInbounds()
 }
 
-// screenMainMenu is the admin's main menu. «📥 Incoming requests» stays
-// hidden until requests exist.
+// screenMainMenu is the admin's main menu, «📥 Incoming requests (N)»
+// (#221) under the users.
 func (t *Tgbot) screenMainMenu() screenReply {
 	button := func(key, data string) telego.InlineKeyboardButton {
 		return tu.InlineKeyboardButton(t.I18nBot(key)).WithCallbackData(data)
 	}
 	kb := tu.InlineKeyboard(
 		tu.InlineKeyboardRow(button("tgbot.users.menu", usersListAction+" 0"), button("tgbot.users.newUser", "add_client")),
+		tu.InlineKeyboardRow(t.requestsMenuButton()),
 		tu.InlineKeyboardRow(button("tgbot.screen.inbounds", screenInboundsRoute), button("tgbot.screen.online", screenOnlineRoute)),
 		tu.InlineKeyboardRow(button("tgbot.screen.reports", screenReportsRoute), button("tgbot.screen.monitoring", screenMonitoringRoute)),
 		tu.InlineKeyboardRow(button("tgbot.screen.server", screenServerRoute), button("tgbot.screen.admin", screenAdminLinkData)),

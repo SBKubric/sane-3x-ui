@@ -23,11 +23,13 @@ services:
         set -e
         /app/x-ui setting -username "$$E2E_USERNAME" -password "$$E2E_PASSWORD"
         exec /app/DockerEntrypoint.sh
+    # The host ports can be moved (E2E_PANEL_PORT, E2E_SUB_PORT) to run a
+    # second harness beside this one under another compose project name.
     ports:
-      - "2053:2053"
+      - "${E2E_PANEL_PORT:-2053}:2053"
       # The panel's sub server: chain-editor.spec.ts enters hops into the
       # chain through its POST /chain/v1/join, as a real box does.
-      - "2096:2096"
+      - "${E2E_SUB_PORT:-2096}:2096"
     # Anonymous volume: a fresh /etc/x-ui (and fresh x-ui.db) every time this
     # compose project is brought up, never a host bind-mount. `make e2e` runs
     # `docker compose down -v` on teardown so the volume never survives a run.
@@ -39,3 +41,58 @@ services:
       timeout: 3s
       retries: 30
       start_period: 10s
+
+  # A panel whose Telegram bot runs, against fakebot instead of Telegram
+  # (#219): users-telegram-invite.spec.ts turns the bot on through the
+  # settings API (fixtures/tg-panel.ts) and restarts it, then checks the
+  # invite link, its QR, and a person pressing Start with it;
+  # requests-captcha.spec.ts walks a request for a subscription (#220);
+  # users-link-broadcast.spec.ts sends the subscription links (#222). A
+  # panel of its own, so no other spec ever sees a running bot or its
+  # settings.
+  panel-tg:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      TZ: UTC
+      XUI_ENABLE_FAIL2BAN: "false"
+      E2E_USERNAME: ${E2E_USERNAME:-e2e}
+      E2E_PASSWORD: ${E2E_PASSWORD:-e2e-password}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -e
+        /app/x-ui setting -username "$$E2E_USERNAME" -password "$$E2E_PASSWORD"
+        exec /app/DockerEntrypoint.sh
+    ports:
+      - "${E2E_TG_PANEL_PORT:-2054}:2053"
+      # Its sub server: requests-captcha.spec.ts checks that the captcha is
+      # not under the subscription path any more (#220); the captcha itself is
+      # on the panel's port, at /third-party/<secret>/captcha.
+      - "${E2E_TG_SUB_PORT:-2097}:2096"
+    volumes:
+      - /etc/x-ui
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:2053/"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  # The Telegram Bot API stand-in panel-tg's bot talks to (fixtures/
+  # fake-telegram.mjs); the spec queues updates and reads what the bot sent
+  # through its /control routes.
+  fakebot:
+    image: node:20-alpine
+    command: ["node", "/fake/fake-telegram.mjs"]
+    volumes:
+      - ./fixtures/fake-telegram.mjs:/fake/fake-telegram.mjs:ro
+    ports:
+      - "${E2E_FAKEBOT_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8081/health"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

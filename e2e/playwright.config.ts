@@ -47,7 +47,7 @@ export default defineConfig({
     {
       name: 'panel',
       testIgnore:
-        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings)\.spec\.ts/,
+        /(monitoring-(settings|cli|api|probe-configs|page)|inbounds-probe-guard|chain-editor|tg-notify-settings|request-defaults-settings|users-telegram-invite|requests-captcha|users-link-broadcast)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
     // The chain registry (its hops and the active edge) is one per panel, and
@@ -62,17 +62,30 @@ export default defineConfig({
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
     },
-    // tg-notify-settings.spec.ts saves the whole settings form (#195). A save
+    // tg-notify-settings.spec.ts (#195) and request-defaults-settings.spec.ts
+    // (#221) save the whole settings form, one after the other. A save
     // posts back every setting as the page loaded it, among them the
     // proxy-front override the chain specs switch through the registry and
     // the monitoring switch the contract specs flip, so it runs after the
     // former and before the latter, never beside either.
     {
       name: 'settings-form',
-      testMatch: /tg-notify-settings\.spec\.ts/,
+      testMatch: /(tg-notify-settings|request-defaults-settings)\.spec\.ts/,
       dependencies: ['chain-registry'],
       workers: 1,
       use: { ...devices['Desktop Chrome'] },
+    },
+    // users-telegram-invite.spec.ts (#219), requests-captcha.spec.ts (#220)
+    // and users-link-broadcast.spec.ts (#222) need a running Telegram bot,
+    // so they talk to a panel of their own — panel-tg, whose bot runs
+    // against fakebot (docker-compose.yml,
+    // fixtures/tg-panel.ts) — and never to the shared one: they run beside
+    // every other project, one after the other.
+    {
+      name: 'telegram-bot',
+      testMatch: /(users-telegram-invite|requests-captcha|users-link-broadcast)\.spec\.ts/,
+      workers: 1,
+      use: { ...devices['Desktop Chrome'], baseURL: process.env.E2E_TG_BASE_URL || 'http://127.0.0.1:2054' },
     },
     // monitoring-page.spec.ts asserts "no monitoring data yet", so the contract
     // specs wait for the chain-registry project as they wait for the panel one.

@@ -430,6 +430,13 @@ func (s *Server) startTask() {
 		// check for Telegram bot callback query hash storage reset
 		s.addJob("@every 2m", job.NewCheckHashStorageJob())
 
+		// Requests for a subscription nobody decided on in 14 days expire (#220).
+		s.addJob("@every 10m", job.NewSubRequestExpireJob())
+
+		// The subscription links changed: ask the admins whether to send the
+		// new ones (#222).
+		s.addJob("@every 30s", job.NewSubLinkWatchJob())
+
 		// Check CPU load and alarm to TgBot if threshold passes
 		cpuThreshold, err := s.settingService.GetTgCpu()
 		if (err == nil) && (cpuThreshold > 0) {
@@ -468,6 +475,13 @@ func (s *Server) Start() (err error) {
 	s.cron.Start()
 
 	s.customGeoService = service.NewCustomGeoService()
+
+	// The bot's path secret is made now rather than on the first request
+	// for it: making it moves the chain to a new revision, which is better
+	// done before the hops poll than in the middle of a document.
+	if err := s.settingService.EnsureTgThirdPartySecret(); err != nil {
+		logger.Warning("the bot's path secret:", err)
+	}
 
 	engine, err := s.initRouter()
 	if err != nil {
@@ -547,8 +561,11 @@ func (s *Server) Start() (err error) {
 		logger.Info("Web server running "+scheme+" on", l.Addr())
 	}
 
+	// The bot's own path, /third-party/<secret>/ (#220), sits beside the
+	// panel, outside its base path, sessions and domain check: the front's
+	// HTTP side and the chain bring it here from the active edge.
 	s.httpServer = &http.Server{
-		Handler: engine,
+		Handler: controller.WithThirdParty(engine),
 	}
 
 	go func() {
