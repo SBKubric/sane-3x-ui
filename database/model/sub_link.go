@@ -18,6 +18,7 @@ const (
 	SubLinkReasonFront   = "front"   // the address, port or scheme of the front changed
 	SubLinkReasonSubId   = "subId"   // the user's subId changed
 	SubLinkReasonPublic  = "public"  // the link goes through the public subscription address now (#224)
+	SubLinkReasonVPNName = "vpnName" // the VLESS links name another VPN name, or none any more (#225)
 )
 
 // The outcomes of one delivery.
@@ -35,12 +36,19 @@ const (
 // the link is sent to them. ConfHash is the hash of the user's tunnel
 // clients' configs as last sent (or first seen): a broadcast attaches the
 // .conf files when it differs.
+//
+// VpnName is the VPN name the person's VLESS links named then (#225), ""
+// for none (or the override off). EdgeHost is the host override their
+// configs were known with — the AWG Endpoint follows it — "" for none; NULL
+// on a row from before #225, which the detector fills in silently.
 type SubLinkKnown struct {
-	TgId      int64  `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
-	SubId     string `json:"subId" gorm:"not null;default:''"`
-	URL       string `json:"url" gorm:"not null;default:''"`
-	ConfHash  string `json:"confHash" gorm:"not null;default:''"`
-	UpdatedAt int64  `json:"updatedAt" gorm:"not null;default:0"` // ms
+	TgId      int64   `json:"tgId" gorm:"primaryKey;autoIncrement:false"`
+	SubId     string  `json:"subId" gorm:"not null;default:''"`
+	URL       string  `json:"url" gorm:"not null;default:''"`
+	ConfHash  string  `json:"confHash" gorm:"not null;default:''"`
+	VpnName   string  `json:"vpnName" gorm:"not null;default:''"`
+	EdgeHost  *string `json:"edgeHost"`
+	UpdatedAt int64   `json:"updatedAt" gorm:"not null;default:0"` // ms
 }
 
 // SubLinkBroadcast is one broadcast in the journal: who started it and why,

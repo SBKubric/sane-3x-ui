@@ -35,8 +35,12 @@ Relayed port, который real server обслуживает вне xray (Amn
 _Avoid_: host port, additional port
 
 **Host override**:
-Глобальная настройка панели, подменяющая адрес real server на адрес active edge во всех выдаваемых конфигах и ссылках подписки.
+Глобальная настройка панели, подменяющая адрес real server на адрес active edge во всех выдаваемых конфигах и ссылках подписки; в конфигах xray вместо адреса edge — VPN-имя, если оно задано.
 _Avoid_: proxy override, address substitution
+
+**VPN-имя** (VPN name):
+DNS-имя (`vpnName`, например `vpn.example.com`), A-запись которого панель через API DNSExit держит на IPv4 active edge; при включённом host override ссылки VLESS называют его вместо адреса edge. Ссылки подписки и `Endpoint` AWG остаются по адресу.
+_Avoid_: домен VPN, vpn domain, публичный адрес (это публичный адрес подписок)
 
 **Tunnel subscription**:
 Публичный маршрут подписки, отдающий по subId клиентские конфиги AmneziaWG и WireGuard той же подписки; дополняет xray-подписку, не меняя её.

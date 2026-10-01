@@ -109,6 +109,16 @@ var defaultValueMap = map[string]string{
 	// set, the origin of every subscription link the panel hands out.
 	"subPublicURL": "",
 
+	// The VPN name (#225, setting_vpn_name.go): the DNSExit API key, the
+	// name the VLESS links name instead of the active edge, its TTL in
+	// minutes and the domain's expiry date. domainExpiryReminded is state —
+	// the reminders already posted — and is absent from entity.AllSetting.
+	"dnsExitApiKey":        "",
+	"vpnName":              "",
+	"vpnNameTtl":           "5",
+	"domainExpiry":         "",
+	"domainExpiryReminded": "",
+
 	// Chain registry (docs/spec/proxy-chain.md §2.2). The host override above
 	// becomes derived from this registry: the address the panel publishes is
 	// the host of the active edge. chainRevision is state, not a preference —
@@ -270,6 +280,11 @@ func (s *SettingService) GetAllSetting() (*entity.AllSetting, error) {
 		}
 	}
 
+	// The DNSExit API key is a secret: the form and the API see that one is
+	// set, never the key (#225).
+	if allSetting.DnsExitApiKey != "" {
+		allSetting.DnsExitApiKey = entity.DnsExitApiKeyMask
+	}
 	return allSetting, nil
 }
 
@@ -876,6 +891,15 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 		return err
 	}
 	previousPublic, _ := s.GetSubPublicURL()
+	// The masked DNSExit API key the form loaded comes back as the mask:
+	// the stored key stays (#225).
+	if allSetting.DnsExitApiKey == entity.DnsExitApiKeyMask {
+		key, err := s.GetDnsExitApiKey()
+		if err != nil {
+			return err
+		}
+		allSetting.DnsExitApiKey = key
+	}
 
 	v := reflect.ValueOf(allSetting).Elem()
 	t := reflect.TypeFor[entity.AllSetting]()

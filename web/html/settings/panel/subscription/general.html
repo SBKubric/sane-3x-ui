@@ -88,6 +88,42 @@
                     v-model.trim="allSetting.subPublicURL"></a-input>
             </template>
         </a-setting-list-item>
+        <!-- The VPN name (#225): a DNS name whose A record the panel keeps on
+             the active edge through DNSExit; the VLESS links name it. The API
+             key comes back masked (********): saved as it is, the key stays. -->
+        <a-divider>{{ i18n "pages.settings.vpnNameTitle"}}</a-divider>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.vpnName"}}</template>
+            <template #description>{{ i18n "pages.settings.vpnNameDesc"}}</template>
+            <template #control>
+                <a-input type="text" placeholder="vpn.example.com" data-testid="vpn-name"
+                    v-model.trim="allSetting.vpnName"></a-input>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.dnsExitApiKey"}}</template>
+            <template #description>{{ i18n "pages.settings.dnsExitApiKeyDesc"}}</template>
+            <template #control>
+                <a-input type="password" autocomplete="new-password" data-testid="dnsexit-api-key"
+                    v-model.trim="allSetting.dnsExitApiKey"></a-input>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.vpnNameTtl"}}</template>
+            <template #description>{{ i18n "pages.settings.vpnNameTtlDesc"}}</template>
+            <template #control>
+                <a-input-number :min="1" :max="1440" data-testid="vpn-name-ttl"
+                    v-model="allSetting.vpnNameTtl" :style="{ width: '100%' }"></a-input-number>
+            </template>
+        </a-setting-list-item>
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.domainExpiry"}}</template>
+            <template #description>{{ i18n "pages.settings.domainExpiryDesc"}}</template>
+            <template #control>
+                <a-input type="text" placeholder="2027-03-01" data-testid="domain-expiry"
+                    v-model.trim="allSetting.domainExpiry"></a-input>
+            </template>
+        </a-setting-list-item>
         <a-divider>{{ i18n "pages.settings.proxyOverride"}}</a-divider>
         <!-- chain: the host handed out in links is the active edge of the chain
              registry, not a field of this form any more (§2.3). The two old

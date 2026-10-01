@@ -28,6 +28,7 @@ type SubService struct {
 	address        string
 	overrideHost   string
 	overrideOn     bool
+	linkHost       string // the xray configs' address under the override: the VPN name (#225), "" for overrideHost
 	showInfo       bool
 	remarkModel    string
 	datepicker     string
@@ -71,6 +72,7 @@ func (s *SubService) buildSubs(subId string, host string) ([]string, int64, xray
 	s.address = host
 	s.hiddifyCompat, _ = s.settingService.GetXrayHiddifyCompat()
 	s.overrideHost, s.overrideOn = s.settingService.GetProxyOverride()
+	s.linkHost, _ = s.settingService.GetLinkOverride()
 	var result []string
 	var traffic xray.ClientTraffic
 	var lastOnline int64
@@ -565,7 +567,7 @@ func (s *SubService) resolveInboundAddress(inbound *model.Inbound) string {
 	// Proxy-front: the override host replaces the connection address everywhere,
 	// leaving SNI / serverName / Host untouched for L4 passthrough.
 	if s.overrideOn {
-		return s.overrideHost
+		return s.configHost()
 	}
 	if isPublicListenAddress(inbound.Listen) {
 		return inbound.Listen
@@ -577,6 +579,17 @@ func (s *SubService) resolveInboundAddress(inbound *model.Inbound) string {
 		return pubHost
 	}
 	return s.address
+}
+
+// configHost is the address the xray configs name while the host override
+// is on: the VPN name, which follows the active edge in DNS, when one is set
+// (#225), the override host otherwise. Only the configs: the subscription
+// links keep the override host, which the edge's front serves by address.
+func (s *SubService) configHost() string {
+	if s.linkHost != "" {
+		return s.linkHost
+	}
+	return s.overrideHost
 }
 
 // isPublicListenAddress reports whether a listen address is one a client

@@ -29,6 +29,15 @@ import (
 // A change that the apps pick up on their own (keys, SNI, the XHTTP path)
 // leaves the link as it is and is no change here.
 //
+// Two changes do not show in the link (#225). The VPN name: set, changed or
+// cleared, it is another address in every VLESS link — reason vpnName, for
+// the whole panel. And the AWG Endpoint, which stays by the active edge's
+// address: with the VPN name set (or the public subscription address), a
+// switch of the active edge leaves the link and the VLESS links as they are,
+// so it is no change for a person with xray clients only, but a person with
+// tunnel clients needs the new .conf — reason edge for them. So a known row
+// also keeps the VPN name and the host override the person was known with.
+//
 // The known link moves only when an admin answers the question about the
 // change (either way) or the link is sent: until then a change stays a
 // change, across restarts too. A person seen for the first time is
@@ -47,9 +56,13 @@ type subLinkChange struct {
 	OldURL string
 	NewURL string
 	// Reasons are how the link changed (model.SubLinkReason*): its server,
-	// its path, its subId — one or more.
+	// its path, its subId, the VPN name — one or more.
 	Reasons []string
-	view    *SubUserView
+	// VPNName and EdgeHost are the VPN name and the host override now, which
+	// the known row takes once the change is settled.
+	VPNName  string
+	EdgeHost string
+	view     *SubUserView
 }
 
 // subLinkChanges is what one look found: the people whose link changed and,
@@ -75,7 +88,7 @@ func (c subLinkChanges) recipients() []subLinkChange {
 // reasons are the changes' reasons, each once, in a fixed order.
 func (c subLinkChanges) reasons() []string {
 	var out []string
-	for _, r := range []string{model.SubLinkReasonPublic, model.SubLinkReasonEdge, model.SubLinkReasonSubPath, model.SubLinkReasonFront, model.SubLinkReasonSubId} {
+	for _, r := range []string{model.SubLinkReasonPublic, model.SubLinkReasonVPNName, model.SubLinkReasonEdge, model.SubLinkReasonSubPath, model.SubLinkReasonFront, model.SubLinkReasonSubId} {
 		for _, u := range c.users {
 			if slices.Contains(u.Reasons, r) {
 				out = append(out, r)
@@ -91,7 +104,7 @@ func (c subLinkChanges) reasons() []string {
 func (c subLinkChanges) signature() string {
 	parts := []string{c.base}
 	for _, u := range c.users {
-		parts = append(parts, u.NewURL)
+		parts = append(parts, u.NewURL+" "+strings.Join(u.Reasons, ",")+" "+u.VPNName+" "+u.EdgeHost)
 	}
 	for _, v := range c.noTelegram {
 		parts = append(parts, "-"+v.SubId)
@@ -105,6 +118,20 @@ func (c subLinkChanges) signature() string {
 func (t *Tgbot) subLinkBase() string {
 	base, _ := t.subscriptionURLs("")
 	return base
+}
+
+// subLinkState is what the links name besides the link itself (#225): the
+// VPN name the VLESS links name ("" while the override is off: then they
+// name the real server, VPN name or not) and the host override, which the
+// AWG Endpoint names ("" for none).
+func subLinkState() (vpnName, edgeHost string) {
+	settings := &SettingService{}
+	edgeHost, on := settings.GetProxyOverride()
+	if !on {
+		return "", ""
+	}
+	vpnName, _ = settings.GetVPNName()
+	return vpnName, edgeHost
 }
 
 // subLinkUsers are the regular users, as the broadcast sees them.
@@ -149,6 +176,11 @@ func (t *Tgbot) subLinkScan() (subLinkChanges, error) {
 	}
 	edges := subLinkEdgeHosts()
 	public := subLinkPublicHost()
+	vpnName, edgeHost := subLinkState()
+	vpnMoved := false
+	for _, r := range rows {
+		vpnMoved = vpnMoved || r.VpnName != vpnName
+	}
 	seen := map[int64]bool{}
 	now := time.Now().UnixMilli()
 	for _, v := range users {
@@ -165,15 +197,36 @@ func (t *Tgbot) subLinkScan() (subLinkChanges, error) {
 		link := base + v.SubId
 		r, ok := known[v.TgId]
 		if !ok {
-			row := model.SubLinkKnown{TgId: v.TgId, SubId: v.SubId, URL: link, ConfHash: t.subLinkConfHash(v), UpdatedAt: now}
+			row := model.SubLinkKnown{TgId: v.TgId, SubId: v.SubId, URL: link, ConfHash: t.subLinkConfHash(v),
+				VpnName: vpnName, EdgeHost: &edgeHost, UpdatedAt: now}
 			if err := db.Create(&row).Error; err != nil {
 				return changes, err
 			}
 			continue
 		}
+		var reasons []string
 		if r.URL != link {
+			reasons = subLinkReasons(r.URL, link, edges, public)
+		}
+		if r.VpnName != vpnName {
+			reasons = append(reasons, model.SubLinkReasonVPNName)
+		}
+		if r.EdgeHost == nil || *r.EdgeHost != edgeHost {
+			// Another host override: the .conf of a person with tunnel
+			// clients names the old edge. A row from before #225 does not
+			// know its host and takes the current one silently, as does a
+			// person whose configs do not name it.
+			if r.EdgeHost != nil && !slices.Contains(reasons, model.SubLinkReasonEdge) && t.subLinkConfHash(v) != "" {
+				reasons = append(reasons, model.SubLinkReasonEdge)
+			} else if len(reasons) == 0 {
+				if err := db.Model(&model.SubLinkKnown{}).Where("tg_id = ?", v.TgId).Update("edge_host", edgeHost).Error; err != nil {
+					return changes, err
+				}
+			}
+		}
+		if len(reasons) > 0 {
 			changes.users = append(changes.users, subLinkChange{TgId: v.TgId, SubId: v.SubId, Name: v.Name, Enable: v.Enable,
-				OldURL: r.URL, NewURL: link, Reasons: subLinkReasons(r.URL, link, edges, public), view: v})
+				OldURL: r.URL, NewURL: link, Reasons: reasons, VPNName: vpnName, EdgeHost: edgeHost, view: v})
 		}
 	}
 	for tgId := range known {
@@ -183,7 +236,7 @@ func (t *Tgbot) subLinkScan() (subLinkChanges, error) {
 			}
 		}
 	}
-	if !baseMoved {
+	if !baseMoved && !vpnMoved {
 		changes.noTelegram = nil
 	}
 	return changes, nil
@@ -198,7 +251,8 @@ func subLinkAcknowledge(users []subLinkChange) error {
 	return database.GetDB().Transaction(func(tx *gorm.DB) error {
 		for _, u := range users {
 			if err := tx.Model(&model.SubLinkKnown{}).Where("tg_id = ?", u.TgId).
-				Updates(map[string]any{"sub_id": u.SubId, "url": u.NewURL, "updated_at": now}).Error; err != nil {
+				Updates(map[string]any{"sub_id": u.SubId, "url": u.NewURL, "vpn_name": u.VPNName, "edge_host": u.EdgeHost,
+					"updated_at": now}).Error; err != nil {
 				return err
 			}
 		}
@@ -207,12 +261,15 @@ func subLinkAcknowledge(users []subLinkChange) error {
 }
 
 // subLinkDelivered records that the person got link, and the configs whose
-// hash is confHash ("" leaves the known hash as it is).
+// hash is confHash ("" leaves the known hash as it is), as the links are now
+// (the VPN name, the host override).
 func subLinkDelivered(tgId int64, subId, link, confHash string) error {
+	vpnName, edgeHost := subLinkState()
 	subLinkMu.Lock()
 	defer subLinkMu.Unlock()
-	row := model.SubLinkKnown{TgId: tgId, SubId: subId, URL: link, ConfHash: confHash, UpdatedAt: time.Now().UnixMilli()}
-	columns := []string{"sub_id", "url", "updated_at"}
+	row := model.SubLinkKnown{TgId: tgId, SubId: subId, URL: link, ConfHash: confHash, VpnName: vpnName, EdgeHost: &edgeHost,
+		UpdatedAt: time.Now().UnixMilli()}
+	columns := []string{"sub_id", "url", "vpn_name", "edge_host", "updated_at"}
 	if confHash != "" {
 		columns = append(columns, "conf_hash")
 	}

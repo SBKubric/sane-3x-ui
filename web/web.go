@@ -387,6 +387,10 @@ func (s *Server) startTask() {
 	s.addJob("@every 1m", job.NewMonitoringJob(job.MonitoringEveryMinute))
 	s.addJob("@hourly", job.NewMonitoringJob(job.MonitoringHourly))
 
+	// The VPN name's A record follows the active edge through DNSExit
+	// (#225); without a key or a name the job does nothing.
+	s.addJob("@every 15s", job.NewVPNNameJob())
+
 	// Inbound traffic reset jobs
 	// Run every hour
 	s.addJob("@hourly", job.NewPeriodicTrafficResetJob("hourly"))
@@ -436,6 +440,9 @@ func (s *Server) startTask() {
 		// The subscription links changed: ask the admins whether to send the
 		// new ones (#222).
 		s.addJob("@every 30s", job.NewSubLinkWatchJob())
+
+		// The domain renewal reminder in the notification channel (#225).
+		s.addJob("@hourly", job.NewDomainExpiryJob())
 
 		// Check CPU load and alarm to TgBot if threshold passes
 		cpuThreshold, err := s.settingService.GetTgCpu()
