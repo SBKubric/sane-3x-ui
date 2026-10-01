@@ -1,8 +1,8 @@
 package service
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
+	"hash/fnv"
 	"net/url"
 	"path"
 	"slices"
@@ -280,7 +280,7 @@ func subLinkReasons(oldURL, newURL string, edges map[string]bool) []string {
 // and the hash of the configs; none for a user without enabled ones.
 func (t *Tgbot) subLinkConfFiles(v *SubUserView) ([]tunnelFile, string) {
 	var files []tunnelFile
-	h := sha256.New()
+	h := fnv.New128a()
 	for _, c := range v.Clients {
 		if c.Kind == SubUserClientXray || !c.Enable {
 			continue

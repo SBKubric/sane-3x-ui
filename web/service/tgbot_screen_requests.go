@@ -73,9 +73,17 @@ func (t *Tgbot) requestAdminCallback(chatId int64, data string) (screenReply, bo
 		n, _ := strconv.ParseInt(fields[i], 10, 64)
 		return n
 	}
+	// small is for list pages and reason indexes.
+	small := func(i int) int {
+		if i >= len(fields) {
+			return 0
+		}
+		n, _ := strconv.Atoi(fields[i])
+		return n
+	}
 	switch action {
 	case requestsListRoute:
-		return t.requestsList(int(num(0)), ""), true
+		return t.requestsList(small(0), ""), true
 	case requestCardRoute:
 		return t.requestCard(num(0), ""), true
 	case requestApproveAction:
@@ -85,7 +93,7 @@ func (t *Tgbot) requestAdminCallback(chatId int64, data string) (screenReply, bo
 	case requestRejectRoute:
 		return t.requestRejectMenu(num(0)), true
 	case requestRejectAction:
-		n := int(num(1))
+		n := small(1)
 		if n < 0 || n >= len(requestReasons) {
 			return t.requestCard(num(0), ""), true
 		}
@@ -95,7 +103,7 @@ func (t *Tgbot) requestAdminCallback(chatId int64, data string) (screenReply, bo
 	case requestBlockAction:
 		return t.requestBlock(chatId, num(0) == 1, num(1), num(2)), true
 	case requestBlockedRoute:
-		return t.requestsBlocked(int(num(0))), true
+		return t.requestsBlocked(small(0)), true
 	case requestAccountRoute:
 		return t.requestAccount(num(0)), true
 	case requestCaptchaAction:
