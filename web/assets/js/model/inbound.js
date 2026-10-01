@@ -833,7 +833,7 @@ TlsStreamSettings.Cert = class extends XrayCommonClass {
 
 TlsStreamSettings.Settings = class extends XrayCommonClass {
     constructor(
-        fingerprint = UTLS_FINGERPRINT.UTLS_CHROME,
+        fingerprint = UTLS_FINGERPRINT.UTLS_FIREFOX,
         echConfigList = '',
     ) {
         super();
@@ -937,7 +937,7 @@ class RealityStreamSettings extends XrayCommonClass {
 RealityStreamSettings.Settings = class extends XrayCommonClass {
     constructor(
         publicKey = '',
-        fingerprint = UTLS_FINGERPRINT.UTLS_CHROME,
+        fingerprint = UTLS_FINGERPRINT.UTLS_FIREFOX,
         serverName = '',
         spiderX = '/',
         mldsa65Verify = ''
@@ -2013,7 +2013,7 @@ class Inbound extends XrayCommonClass {
         else if (security === 'reality') {
             params.set("security", "reality");
             params.set("pbk", this.stream.reality.settings.publicKey);
-            params.set("fp", this.stream.reality.settings.fingerprint);
+            params.set("fp", this.stream.reality.settings.fingerprint || UTLS_FINGERPRINT.UTLS_FIREFOX);
             if (!ObjectUtil.isArrEmpty(this.stream.reality.serverNames)) {
                 params.set("sni", this.stream.reality.serverNames.split(",")[0]);
             }
@@ -2199,7 +2199,7 @@ class Inbound extends XrayCommonClass {
         else if (security === 'reality') {
             params.set("security", "reality");
             params.set("pbk", this.stream.reality.settings.publicKey);
-            params.set("fp", this.stream.reality.settings.fingerprint);
+            params.set("fp", this.stream.reality.settings.fingerprint || UTLS_FINGERPRINT.UTLS_FIREFOX);
             if (!ObjectUtil.isArrEmpty(this.stream.reality.serverNames)) {
                 params.set("sni", this.stream.reality.serverNames.split(",")[0]);
             }

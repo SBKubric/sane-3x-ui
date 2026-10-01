@@ -288,7 +288,7 @@ func (s *SubJsonService) realityData(rData map[string]any) map[string]any {
 
 	rltyData["show"] = false
 	rltyData["publicKey"] = rltyClientSettings["publicKey"]
-	rltyData["fingerprint"] = rltyClientSettings["fingerprint"]
+	rltyData["fingerprint"] = realityFingerprint(rltyClientSettings)
 	rltyData["mldsa65Verify"] = rltyClientSettings["mldsa65Verify"]
 
 	// Set random data

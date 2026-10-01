@@ -444,9 +444,7 @@ func (s *SubClashService) realityData(rData map[string]any) map[string]any {
 	if publicKey, ok := realityClientSettings["publicKey"].(string); ok {
 		rDataOut["publicKey"] = publicKey
 	}
-	if fingerprint, ok := realityClientSettings["fingerprint"].(string); ok {
-		rDataOut["fingerprint"] = fingerprint
-	}
+	rDataOut["fingerprint"] = realityFingerprint(realityClientSettings)
 	if serverNames, ok := rData["serverNames"].([]any); ok && len(serverNames) > 0 {
 		rDataOut["serverName"] = fmt.Sprint(serverNames[0])
 	}

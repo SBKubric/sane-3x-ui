@@ -775,6 +775,23 @@ func applyVmessTLSParams(stream map[string]any, obj map[string]any) {
 	}
 }
 
+// DefaultRealityFingerprint is the uTLS fingerprint a Reality client is told
+// to imitate when the inbound names none (#230). Reality cannot go without
+// one, and a client left to choose falls back to its own default — chrome in
+// xray — so the subscription says firefox, the panel's default for new
+// inbounds, instead. A fingerprint the inbound does name is handed out as is.
+const DefaultRealityFingerprint = "firefox"
+
+// realityFingerprint returns the fingerprint in a Reality inbound's client
+// half (realitySettings.settings), or DefaultRealityFingerprint when it names
+// none.
+func realityFingerprint(clientSettings map[string]any) string {
+	if fp, _ := clientSettings["fingerprint"].(string); fp != "" {
+		return fp
+	}
+	return DefaultRealityFingerprint
+}
+
 func applyShareRealityParams(stream map[string]any, params map[string]string) {
 	params["security"] = "reality"
 	realitySetting, _ := stream["realitySettings"].(map[string]any)
@@ -791,11 +808,8 @@ func applyShareRealityParams(stream map[string]any, params map[string]string) {
 			shortIds, _ := sidValue.([]any)
 			params["sid"] = shortIds[random.Num(len(shortIds))].(string)
 		}
-		if fpValue, ok := searchKey(realitySettings, "fingerprint"); ok {
-			if fp, ok := fpValue.(string); ok && len(fp) > 0 {
-				params["fp"] = fp
-			}
-		}
+		settings, _ := realitySettings.(map[string]any)
+		params["fp"] = realityFingerprint(settings)
 		if pqvValue, ok := searchKey(realitySettings, "mldsa65Verify"); ok {
 			if pqv, ok := pqvValue.(string); ok && len(pqv) > 0 {
 				params["pqv"] = pqv
