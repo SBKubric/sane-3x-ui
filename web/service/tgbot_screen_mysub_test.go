@@ -83,9 +83,9 @@ func legacyUserOf(t *testing.T, req SubUserCreate, tgId int64) *SubUserView {
 }
 
 // TestMySubscriptionScreen: /start from someone whose clients carry their
-// Telegram ID shows «My subscription»: on or paused, the expiry, the traffic
-// used of the sum of the limits, the protocols — and only the client's
-// buttons.
+// Telegram ID shows «My subscription»: on or paused, the expiry, the
+// protocols (the traffic is on «📄 My configs», #247) — and only the
+// client's buttons.
 func TestMySubscriptionScreen(t *testing.T) {
 	tg := usersBotFixture(t)
 	ivan := mustCreateUser(t, SubUserCreate{Name: "ivan", TgId: usersTestChat, InboundIds: []int{1, 5},
@@ -94,7 +94,7 @@ func TestMySubscriptionScreen(t *testing.T) {
 
 	clientCommand(tg, "/start")
 	m := fake.clientScreen(t)
-	for _, want := range []string{"My subscription", "ivan", "🟢 active", "until 01.11.2031", "0/100 GB", "VLESS+AWG"} {
+	for _, want := range []string{"My subscription", "ivan", "🟢 active", "until 01.11.2031", "VLESS+AWG"} {
 		if !strings.Contains(m.text, want) {
 			t.Errorf("the screen lacks %q:\n%s", want, m.text)
 		}
@@ -148,7 +148,7 @@ func TestMySubscriptionShowAndConfigs(t *testing.T) {
 	awg := clientByName(t, ivan, "ivan-awg")
 	fake.clientPress(t, tg, 1, "My configs")
 	m = fake.messages[1]
-	for _, want := range []string{"My configs", "VLESS · ivan-NL-Amsterdam-1", "AWG · ivan-awg"} {
+	for _, want := range []string{"My configs", "Total limit: unlimited", "VLESS · ivan-NL-Amsterdam-1", "AmneziaWG · ivan-awg"} {
 		if !strings.Contains(m.text, want) {
 			t.Errorf("configs lack %q:\n%s", want, m.text)
 		}
@@ -376,7 +376,7 @@ func TestMySubscriptionTextsInEveryLanguage(t *testing.T) {
 		SubUserParams: SubUserParams{TotalGB: 50 << 30, ExpiryTime: mysubExpiry}})
 	initTestBotLocale(t, "ru-RU")
 	home := tg.mysubHome(usersTestChat)
-	for _, want := range []string{"Моя подписка", "Подписка: 🟢 активна", "Срок: до 01.11.2031", "Трафик: 0/100 ГБ", "Протоколы: VLESS+AWG"} {
+	for _, want := range []string{"Моя подписка", "Подписка: 🟢 активна", "Срок: до 01.11.2031", "Протоколы: VLESS+AWG"} {
 		if !strings.Contains(home.text, want) {
 			t.Errorf("ru lacks %q:\n%s", want, home.text)
 		}

@@ -63,11 +63,45 @@ var newUserSteps = map[string]int{
 
 const newUserStepCount = 5
 
-// The presets of the limits step, as the prototype has them; 0 = unlimited.
+// The limits a new user starts with, and the first presets of the limits
+// step, are the request defaults of the settings (subRequestTrafficGB,
+// subRequestExpiryDays, #247); these are the rest of the presets, and the
+// defaults when the settings cannot be read. 0 = unlimited.
 var (
 	newUserTrafficPresets = []int{50, 100, 0}
 	newUserDaysPresets    = []int{30, 90, 0}
 )
+
+// newUserDefaults are the traffic (GB per protocol) and the expiry (days
+// after first use) a new user starts with: the request defaults of the
+// settings, each within what the dialogue takes.
+func newUserDefaults() (gb, days int) {
+	gb, days = newUserTrafficPresets[0], newUserDaysPresets[0]
+	defaults, err := (&SettingService{}).GetSubRequestDefaults()
+	if err != nil {
+		return gb, days
+	}
+	if defaults.TrafficGB >= 0 && defaults.TrafficGB <= newUserMaxNumber {
+		gb = defaults.TrafficGB
+	}
+	if defaults.ExpiryDays >= 0 && defaults.ExpiryDays <= newUserMaxNumber {
+		days = defaults.ExpiryDays
+	}
+	return gb, days
+}
+
+// newUserPresets are the presets of a limit: the settings' value first,
+// then the rest of usual, each once. A setting of 100 GB gives 100, ∞; a
+// setting of ∞ gives ∞, 100.
+func newUserPresets(setting int, usual []int) []int {
+	presets := []int{setting}
+	for _, n := range usual[1:] {
+		if !slices.Contains(presets, n) {
+			presets = append(presets, n)
+		}
+	}
+	return presets
+}
 
 // newUserMaxNumber bounds a typed limit: GB or days.
 const newUserMaxNumber = 999999
@@ -177,7 +211,7 @@ func (t *Tgbot) newUserCallback(chatId int64, data string) (usersReply, bool) {
 }
 
 // newUserStart opens a new draft on the name step, the enabled inbounds
-// ticked and the prototype's limits preset.
+// ticked and the limits of the request defaults.
 func (t *Tgbot) newUserStart(chatId int64) usersReply {
 	inbounds, err := (&SubUserService{}).Inbounds()
 	if err != nil {
@@ -186,8 +220,8 @@ func (t *Tgbot) newUserStart(chatId int64) usersReply {
 	if len(inbounds) == 0 {
 		return usersReply{text: t.I18nBot("tgbot.answers.getInboundsFailed")}
 	}
-	d := &usersDraft{step: newUserStepName, inbounds: inbounds, selected: map[int]bool{},
-		gb: newUserTrafficPresets[0], days: newUserDaysPresets[0]}
+	gb, days := newUserDefaults()
+	d := &usersDraft{step: newUserStepName, inbounds: inbounds, selected: map[int]bool{}, gb: gb, days: days}
 	for _, ib := range inbounds {
 		d.selected[ib.Id] = ib.Enable
 	}
@@ -433,10 +467,11 @@ func (t *Tgbot) newUserView(chatId int64, d *usersDraft, errText string) usersRe
 			return button(label, fmt.Sprintf("%s %d", data, n))
 		}
 		var traffic, days []telego.InlineKeyboardButton
-		for _, gb := range newUserTrafficPresets {
+		defaultGB, defaultDays := newUserDefaults()
+		for _, gb := range newUserPresets(defaultGB, newUserTrafficPresets) {
 			traffic = append(traffic, preset(gb, d.gb, t.newUserTraffic(gb), "nu_gb"))
 		}
-		for _, n := range newUserDaysPresets {
+		for _, n := range newUserPresets(defaultDays, newUserDaysPresets) {
 			days = append(days, preset(n, d.days, t.newUserDays(n), "nu_dy"))
 		}
 		rows = append(rows,
