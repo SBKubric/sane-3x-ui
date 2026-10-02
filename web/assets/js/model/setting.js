@@ -24,6 +24,8 @@ class AllSetting {
         this.tgBotLoginNotify = true;
         this.tgCpu = 80;
         this.tgLang = "en-US";
+        // where the captcha opens (#243): "" / "edge" = the active edge, "panel", or a hop's name
+        this.tgCaptchaHost = "";
         // request defaults (#221): "" = every enabled inbound
         this.subRequestInbounds = "";
         this.subRequestTrafficGB = 50;

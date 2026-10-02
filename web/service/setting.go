@@ -55,6 +55,7 @@ var defaultValueMap = map[string]string{
 	"subRequestTrafficGB":         "50",
 	"subRequestExpiryDays":        "30",
 	"tgThirdPartySecret":          "", // the bot's path /third-party/<secret>/ (#220), made when first asked for
+	"tgCaptchaHost":               "", // where the captcha opens (#243): "" / edge, panel or a hop, setting_third_party.go
 	"twoFactorEnable":             "false",
 	"twoFactorToken":              "",
 	"subEnable":                   "true",

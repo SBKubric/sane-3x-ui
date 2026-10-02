@@ -90,6 +90,19 @@
                 <a-button data-testid="bot-path-renew" icon="sync" @click="renewBotPath()">{{ i18n "pages.settings.botPathRenew" }}</a-button>
             </template>
         </a-setting-list-item>
+        <!-- the captcha's host (#243): where the bot opens the Mini App; only the captcha's link moves -->
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.tgCaptchaHost" }}</template>
+            <template #description>{{ i18n "pages.settings.tgCaptchaHostDesc" }}</template>
+            <template #control>
+                <a-select data-testid="tg-captcha-host" v-model="allSetting.tgCaptchaHost"
+                    :dropdown-class-name="themeSwitcher.currentTheme" :style="{ width: '100%' }">
+                    <a-select-option v-for="o in captchaHostOptions" :key="'host-' + o.value" :value="o.value">
+                        [[ o.label ]]
+                    </a-select-option>
+                </a-select>
+            </template>
+        </a-setting-list-item>
         <a-setting-list-item paddings="small">
             <template #title>{{ i18n "pages.settings.subRequestInbounds" }}</template>
             <template #description>{{ i18n "pages.settings.subRequestInboundsDesc" }}</template>

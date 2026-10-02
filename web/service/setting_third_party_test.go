@@ -2,14 +2,17 @@ package service
 
 import (
 	"net"
+	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
 	"github.com/coinman-dev/3ax-ui/v2/database"
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
+	"github.com/coinman-dev/3ax-ui/v2/logger"
 	"github.com/coinman-dev/3ax-ui/v2/nginx"
 )
 
@@ -154,8 +157,8 @@ func TestTheFrontPublishesTheBotPathBesideThePanel(t *testing.T) {
 
 // TestBotPublicBase: the Mini App opens at the active edge's https address —
 // its front, or its own https port — and on a panel with no chain at its own
-// front; never at an http address, nor at the panel's own address behind a
-// chain.
+// front; never at an http address, nor — by default — at the panel's own
+// address behind a chain.
 func TestBotPublicBase(t *testing.T) {
 	newNginxTestServer(t)
 	if base, ok := BotPublicBase(); ok {
@@ -185,5 +188,131 @@ func TestBotPublicBase(t *testing.T) {
 		if base != c.want || ok != (c.want != "") {
 			t.Errorf("%s: %q %v, want %q", c.name, base, ok, c.want)
 		}
+	}
+}
+
+// captchaHostWarnings counts the warnings about an unusable captcha host in
+// the panel's log buffer.
+func captchaHostWarnings() int {
+	n := 0
+	for _, line := range logger.GetLogs(10000, "WARNING") {
+		if strings.Contains(line, "the captcha's host is") {
+			n++
+		}
+	}
+	return n
+}
+
+// TestBotPublicBaseByCaptchaHost (#243): tgCaptchaHost moves the Mini App —
+// "" and edge to the active edge, panel to the panel's own front in a chain
+// too, a hop's name to that hop, a standby edge or an inner one, with the
+// active edge's rule of address. A chosen host that cannot serve it gives
+// no address and a warning, never another host.
+func TestBotPublicBaseByCaptchaHost(t *testing.T) {
+	newNginxTestServer(t)
+	dir := useIPCertDir(t)
+	useCertDirs(t, t.TempDir())
+	hops := []model.ChainHop{
+		{Name: "edge-a", Role: chain.RoleEdge, State: chain.StateJoined, IsActive: true,
+			Host: "198.51.100.20", FrontMode: chain.FrontOnly443, SubPort: 443, SubScheme: "https"},
+		{Name: "edge-b", Role: chain.RoleEdge, State: chain.StateJoined,
+			Host: "2001:db8::2", FrontMode: chain.FrontOnly443, SubPort: 443, SubScheme: "https"},
+		{Name: "inner-a", Role: chain.RoleInner, State: chain.StateJoined,
+			Host: "inner.example.net", FrontMode: chain.FrontOff, SubPort: 2096, SubScheme: "https"},
+		{Name: "inner-http", Role: chain.RoleInner, State: chain.StateJoined,
+			Host: "plain.example.net", FrontMode: chain.FrontOff, SubPort: 2096, SubScheme: "http"},
+		{Name: "edge-new", Role: chain.RoleEdge, State: chain.StatePending,
+			Host: "new.example.net", SubPort: 2096, SubScheme: "https"},
+		{Name: "edge-gone", Role: chain.RoleEdge, State: chain.StateDraining,
+			Host: "gone.example.net", FrontMode: chain.FrontOnly443, SubPort: 443, SubScheme: "https"},
+	}
+	for i := range hops {
+		if err := database.GetDB().Create(&hops[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	panelFront := func(mode nginx.Mode, domain string, ipCert bool) {
+		setSetting(t, "nginxMode", string(mode))
+		setSetting(t, "nginxDomain", domain)
+		_ = os.RemoveAll(dir)
+		if ipCert {
+			writeIPCert(t, dir, time.Now().Add(5*24*time.Hour), []string{"203.0.113.5"}, nil)
+		}
+	}
+
+	for _, c := range []struct {
+		name, choice string
+		front        func()
+		want         string
+		warns        bool
+	}{
+		{"default", "", nil, "https://198.51.100.20", false},
+		{"edge", "edge", nil, "https://198.51.100.20", false},
+		{"panel by its domain", "panel", func() { panelFront(nginx.ModeOnly443, "panel.example.com", true) },
+			"https://panel.example.com", false},
+		{"panel by its IP certificate", "panel", func() { panelFront(nginx.ModeOnly443, "", true) },
+			"https://203.0.113.5", false},
+		{"panel with its front off", "panel", func() { panelFront(nginx.ModeOff, "panel.example.com", true) }, "", true},
+		{"panel with neither a domain nor an IP certificate", "panel", func() { panelFront(nginx.ModeOnly443, "", false) },
+			"", true},
+		{"a standby edge", "edge-b", nil, "https://[2001:db8::2]", false},
+		{"an inner hop on its https port", "inner-a", nil, "https://inner.example.net:2096", false},
+		{"a hop without https", "inner-http", nil, "", true},
+		{"a hop not yet joined", "edge-new", nil, "", true},
+		{"a hop on its way out", "edge-gone", nil, "", true},
+		{"a hop not in the chain", "edge-z", nil, "", true},
+	} {
+		if c.front != nil {
+			c.front()
+		}
+		setSetting(t, tgCaptchaHostKey, c.choice)
+		before := captchaHostWarnings()
+		base, ok := BotPublicBase()
+		if base != c.want || ok != (c.want != "") {
+			t.Errorf("%s: %q %v, want %q", c.name, base, ok, c.want)
+		}
+		if warned := captchaHostWarnings() > before; warned != c.warns {
+			t.Errorf("%s: warned %v, want %v", c.name, warned, c.warns)
+		}
+	}
+
+	// With no active edge the default is the panel's front, as without a
+	// chain; a chosen hop does not need one.
+	if err := database.GetDB().Model(&model.ChainHop{}).Where("1 = 1").Update("is_active", false).Error; err != nil {
+		t.Fatal(err)
+	}
+	panelFront(nginx.ModeOnly443, "panel.example.com", false)
+	for choice, want := range map[string]string{"": "https://panel.example.com", "edge-b": "https://[2001:db8::2]"} {
+		setSetting(t, tgCaptchaHostKey, choice)
+		if base, ok := BotPublicBase(); !ok || base != want {
+			t.Errorf("no active edge, %q: %q %v, want %q", choice, base, ok, want)
+		}
+	}
+}
+
+// TestSetTgCaptchaHost: the CLI's setter takes edge, panel, a hop name and
+// "" (trimmed), and refuses anything else, keeping what was stored.
+func TestSetTgCaptchaHost(t *testing.T) {
+	newNginxTestServer(t)
+	s := &SettingService{}
+	if got, _ := s.GetTgCaptchaHost(); got != "" {
+		t.Fatalf("the default: %q", got)
+	}
+	for _, value := range []string{"panel", "edge", "edge-b", " inner-1 ", ""} {
+		if err := s.SetTgCaptchaHost(value); err != nil {
+			t.Errorf("%q: %v", value, err)
+		}
+		if got, _ := s.GetTgCaptchaHost(); got != strings.TrimSpace(value) {
+			t.Errorf("%q stored as %q", value, got)
+		}
+	}
+	_ = s.SetTgCaptchaHost("panel")
+	for _, bad := range []string{"Panel", "edge_b", "https://panel.example.com", "203.0.113.5", strings.Repeat("a", 33)} {
+		if err := s.SetTgCaptchaHost(bad); err == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+	if got, _ := s.GetTgCaptchaHost(); got != "panel" {
+		t.Errorf("after the refusals: %q", got)
 	}
 }

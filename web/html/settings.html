@@ -149,6 +149,8 @@
       userInbounds: [],
       // the bot's path /third-party/<secret>/ and its captcha's address (#220)
       botPath: { path: '', captchaUrl: '' },
+      // the chain's hops the captcha may open on (#243): {name, role, state}
+      captchaHops: [],
       remarkModels: {
         i: 'Inbound',
         e: 'Email',
@@ -353,6 +355,10 @@
         const msg = await HttpUtil.post("/panel/setting/botPath");
         if (msg && msg.success && msg.obj) this.botPath = msg.obj;
       },
+      async loadCaptchaHops() {
+        const msg = await ChainApi.list();
+        this.captchaHops = msg && msg.success && msg.obj && Array.isArray(msg.obj.hops) ? msg.obj.hops : [];
+      },
       renewBotPath() {
         this.$confirm({
           title: '{{ i18n "pages.settings.botPathRenew" }}',
@@ -376,6 +382,8 @@
         this.loading(false);
         if (msg.success) {
           await this.getAllSetting();
+          // the captcha's address follows the captcha's host (#243)
+          await this.loadBotPath();
         }
       },
       async updateUser() {
@@ -738,6 +746,23 @@
           this.allSetting.subRequestInbounds = ids.join(',');
         }
       },
+      // The captcha's host (#243) as the select offers it: the active edge
+      // ("" — or "edge", as the CLI may have stored it), the panel, and every
+      // hop of the chain; a stored hop the chain no longer has is shown too,
+      // so the select never hides what the bot is told.
+      captchaHostOptions() {
+        const edge = this.allSetting.tgCaptchaHost === 'edge' ? 'edge' : '';
+        const options = [
+          { value: edge, label: '{{ i18n "pages.settings.tgCaptchaHostEdge" }}' },
+          { value: 'panel', label: '{{ i18n "pages.settings.tgCaptchaHostPanel" }}' },
+        ];
+        this.captchaHops.forEach(h => options.push({ value: h.name, label: `${h.name} (${h.role}${h.state === 'joined' ? '' : ', ' + h.state})` }));
+        const current = this.allSetting.tgCaptchaHost;
+        if (!options.some(o => o.value === current)) {
+          options.push({ value: current, label: current + ' ({{ i18n "pages.settings.tgCaptchaHostMissing" }})' });
+        }
+        return options;
+      },
       confAlerts: {
         get: function() {
           if (!this.allSetting) return [];
@@ -769,6 +794,7 @@
       await this.loadInboundTags();
       await this.loadUserInbounds();
       await this.loadBotPath();
+      await this.loadCaptchaHops();
       while (true) {
         await PromiseUtil.sleep(1000);
         this.saveBtnDisable = this.oldAllSetting.equals(this.allSetting);
