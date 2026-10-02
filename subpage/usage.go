@@ -23,6 +23,11 @@ type Usage struct {
 	Expire int64
 	// Disabled is a subscription the panel switched off.
 	Disabled bool
+	// Parts are the clients behind the sum, from TrafficPartsHeader (#247);
+	// nil when the panel or a hop on the way did not send them. With them,
+	// the traffic used and the quota are theirs, and the page words the
+	// total limit and lists each.
+	Parts []TrafficPart
 }
 
 // ParseUserinfo reads a Subscription-Userinfo header
@@ -62,18 +67,33 @@ type usageView struct {
 	Expire     string
 	ExpireDays int
 	Active     bool
+	// Quota words the total limit, Parts list the clients behind it; both
+	// empty without Usage.Parts. Render fills them, in the visitor's
+	// language.
+	Quota string
+	Parts []partView
+}
+
+// partView is one client of the total limit as the page lists it.
+type partView struct {
+	Label string
+	Used  string
+	Limit string
 }
 
 func (u Usage) view(now time.Time) *usageView {
 	if !u.Known {
 		return nil
 	}
-	used := u.Up + u.Down
+	used, total := u.Up+u.Down, u.Total
+	if len(u.Parts) > 0 {
+		used, total = QuotaUsed(u.Parts), QuotaTotal(u.Parts)
+	}
 	v := &usageView{Used: common.FormatTraffic(used), Total: "∞", Active: !u.Disabled}
-	if u.Total > 0 {
-		v.Total = common.FormatTraffic(u.Total)
-		v.Remained = common.FormatTraffic(max(u.Total-used, 0))
-		if used >= u.Total {
+	if total > 0 {
+		v.Total = common.FormatTraffic(total)
+		v.Remained = common.FormatTraffic(max(total-used, 0))
+		if used >= total {
 			v.Active = false
 		}
 	}
@@ -88,4 +108,23 @@ func (u Usage) view(now time.Time) *usageView {
 		v.ExpireDays = int((-u.Expire + 86399) / 86400)
 	}
 	return v
+}
+
+// quota fills the total limit and its parts into v, in tr's language.
+func (u Usage) quota(v *usageView, tr translator) {
+	if v == nil || len(u.Parts) == 0 {
+		return
+	}
+	v.Quota = QuotaText(u.Parts, QuotaWords{
+		Size:      common.FormatTraffic,
+		Unlimited: tr.T("page.quotaUnlimited", nil),
+		Protocols: [3]string{tr.T("page.protocolsOne", nil), tr.T("page.protocolsFew", nil), tr.T("page.protocolsMany", nil)},
+	})
+	for i, label := range PartLabels(u.Parts) {
+		limit := "∞"
+		if p := u.Parts[i]; p.Limit > 0 {
+			limit = common.FormatTraffic(p.Limit)
+		}
+		v.Parts = append(v.Parts, partView{Label: label, Used: common.FormatTraffic(u.Parts[i].Used), Limit: limit})
+	}
 }
