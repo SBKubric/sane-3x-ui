@@ -274,6 +274,15 @@ func (t *Tgbot) mysubUser(v *SubUserView, route string) screenReply {
 	return screenReply{usersReply: usersReply{text: text, keyboard: tu.InlineKeyboard(rows...), route: route}}
 }
 
+// mysubLink is the line with the link to the subscription page of the user
+// v, which a registration tells its person over «My subscription» (#245):
+// the link alone, the configs and their QR codes are on the screen's
+// buttons.
+func (t *Tgbot) mysubLink(v *SubUserView) string {
+	subURL, _ := t.subscriptionURLs(v.SubId)
+	return t.I18nBot("tgbot.mysub.link", "Link=="+html.EscapeString(subURL))
+}
+
 // mysubExpiry words the subscription's expiry for its owner: until a date,
 // N days from the first connection, none — or «—» when the clients' expiries
 // differ.

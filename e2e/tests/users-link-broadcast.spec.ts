@@ -5,15 +5,16 @@ import { botSent, startTelegramBot } from '../fixtures/tg-panel';
 // The link broadcast (#222, docs/spec/users.md §13), against panel-tg,
 // whose bot runs on fakebot (fixtures/tg-panel.ts): «Send links» on the
 // users page asks first, then the bot sends the user with Telegram their
-// subscription link — the QR as a photo, the link and how to update it in
-// the caption, «📱 My subscription» — and the admin the report. The user
-// without Telegram gets nothing and is counted in the answer.
+// subscription link — one text message, the link and how to update it,
+// «📱 My subscription», no QR picture or files (#245) — and the admin the
+// report. The user without Telegram gets nothing and is counted in the
+// answer.
 
 const person = { id: 5550222, username: 'e2e_link_person' };
 const ADMIN_CHAT = '4242001'; // tgBotChatId of startTelegramBot
 
 test.describe('users page: send the subscription links', () => {
-  test('asks, sends the link with its QR to the user with Telegram, reports to the admin', async ({
+  test('asks, sends the link to the user with Telegram, reports to the admin', async ({
     authedPage: page,
     authedRequest: request,
   }) => {
@@ -40,18 +41,18 @@ test.describe('users page: send the subscription links', () => {
     await dialog.getByRole('button', { name: 'Send links' }).click();
     await expect(page.getByText(/Broadcast #\d+ started: \d+ users, \d+ without Telegram/)).toBeVisible();
 
-    // The person's message: the QR as a photo, the link in the caption, «My subscription».
+    // The person's message: the link as text, «My subscription»; no photo, no file.
     await expect
       .poll(async () => (await botSent(request)).slice(before).filter((s) => String(s.chat_id) === String(person.id)).length, {
         timeout: 15_000,
       })
       .toBe(1);
     const sent = (await botSent(request)).slice(before);
-    const photo = sent.find((s) => String(s.chat_id) === String(person.id))!;
-    expect(photo.method).toBe('sendPhoto');
-    expect(photo.text).toContain('Your subscription link has changed');
-    expect(photo.text).toMatch(new RegExp(`<code>https?://[^<]+/${subId}</code>`));
-    expect(JSON.stringify(photo.reply_markup)).toContain('📱 My subscription');
+    const message = sent.find((s) => String(s.chat_id) === String(person.id))!;
+    expect(message.method).toBe('sendMessage');
+    expect(message.text).toContain('Your subscription link has changed');
+    expect(message.text).toMatch(new RegExp(`<code>https?://[^<]+/${subId}</code>`));
+    expect(JSON.stringify(message.reply_markup)).toContain('📱 My subscription');
 
     // The report to the admin.
     await expect

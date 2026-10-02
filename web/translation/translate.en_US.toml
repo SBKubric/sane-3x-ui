@@ -1632,6 +1632,7 @@
 "conf" = "📄 {{ .Name }}: .conf and QR"
 "links" = "🔗 Links and QR codes"
 "noClients" = "No clients."
+"link" = "🔗 Your subscription page: {{ .Link }}"
 
 [tgbot.screen]
 "menu" = "🏠 <b>Main menu</b> · {{ .Hostname }}"
@@ -1843,8 +1844,9 @@
 "answeredNo" = "✖ Not sent ({{ .Admin }})."
 "outdated" = "This question is outdated or already answered."
 "sending" = "📣 Sending…"
-"message" = "🔗 <b>Your subscription link has changed</b>\n\n<code>{{ .Link }}</code>\n\nUpdate the subscription in your app. If that does not help, delete the subscription and add it again by this link or the QR code."
+"message" = "🔗 <b>Your subscription link has changed</b>\n\n<code>{{ .Link }}</code>\n\nUpdate the subscription in your app. If that does not help, delete the subscription and add it again by this link."
 "mySub" = "📱 My subscription"
+"confChanged" = "📄 There is a new .conf for AmneziaWG/WireGuard: get it in «📱 My subscription» → «📄 My configs»."
 "report" = "📣 <b>Link broadcast #{{ .Id }}</b> is over"
 "reportSent" = "✅ Sent: {{ .Count }}"
 "reportFailed" = "❌ Not sent: {{ .Count }}"

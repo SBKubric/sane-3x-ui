@@ -31,8 +31,9 @@ import (
 //     resets it too.
 //
 // The applicant is told on a new screen of their own chat: «Your
-// subscription is ready» over «My subscription», or the rejection with its
-// reason and the date a new request becomes possible. Every route here is
+// subscription is ready» and the link to the subscription page over «My
+// subscription» (no files, #245), or the rejection with its reason and the
+// date a new request becomes possible. Every route here is
 // an admin's: none is in the access list of tgbot_access.go.
 
 // Callback data of the admin's request screens, and the chat state of a
@@ -322,12 +323,13 @@ func (t *Tgbot) requestApprove(chatId, id int64) screenReply {
 }
 
 // requestApproved shows the user v a request made, and tells the applicant
-// tgId once the screen is updated.
+// tgId once the screen is updated: ready, and the subscription page's link.
 func (t *Tgbot) requestApproved(v *SubUserView, tgId int64) screenReply {
 	reply := screenReply{usersReply: t.usersCardOf(v)}
 	reply.toast = t.I18nBot("tgbot.requests.approvedToast")
 	reply.text = t.I18nBot("tgbot.requests.approved", "Name=="+html.EscapeString(v.Name)) + "\r\n\r\n" + reply.text
-	reply.after = func(int64) { t.requestTell(tgId, t.I18nBot("tgbot.requests.ready")) }
+	head := t.I18nBot("tgbot.requests.ready") + "\r\n" + t.mysubLink(v)
+	reply.after = func(int64) { t.requestTell(tgId, head) }
 	return reply
 }
 
