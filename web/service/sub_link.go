@@ -260,9 +260,9 @@ func subLinkAcknowledge(users []subLinkChange) error {
 	})
 }
 
-// subLinkDelivered records that the person got link, and the configs whose
-// hash is confHash ("" leaves the known hash as it is), as the links are now
-// (the VPN name, the host override).
+// subLinkDelivered records that the person got link, and was told of the
+// configs whose hash is confHash ("" leaves the known hash as it is), as the
+// links are now (the VPN name, the host override).
 func subLinkDelivered(tgId int64, subId, link, confHash string) error {
 	vpnName, edgeHost := subLinkState()
 	subLinkMu.Lock()
@@ -277,8 +277,8 @@ func subLinkDelivered(tgId int64, subId, link, confHash string) error {
 		DoUpdates: clause.AssignmentColumns(columns)}).Create(&row).Error
 }
 
-// subLinkKnownConf is the hash of the configs the person last got; "" for
-// none known.
+// subLinkKnownConf is the hash of the configs the person was last told of
+// (or had when first seen); "" for none known.
 func subLinkKnownConf(tgId int64) string {
 	subLinkMu.Lock()
 	defer subLinkMu.Unlock()
@@ -353,12 +353,13 @@ func subLinkReasons(oldURL, newURL string, edges map[string]bool, public string)
 	return reasons
 }
 
-// subLinkConfFiles are the .conf files (with their QR) of the user's tunnel
-// clients, as the tunnel client card and SendAwgConfigsToClients render them,
-// and the hash of the configs; none for a user without enabled ones.
-func (t *Tgbot) subLinkConfFiles(v *SubUserView) ([]tunnelFile, string) {
-	var files []tunnelFile
+// subLinkConfHash is the hash of the configs of the user's enabled tunnel
+// clients; "" for none. The broadcast tells the person when it differs from
+// the one they were last told of (#245: the .conf itself is on «📄 My
+// configs»).
+func (t *Tgbot) subLinkConfHash(v *SubUserView) string {
 	h := fnv.New128a()
+	found := false
 	for _, c := range v.Clients {
 		if c.Kind == SubUserClientXray || !c.Enable {
 			continue
@@ -368,16 +369,10 @@ func (t *Tgbot) subLinkConfFiles(v *SubUserView) ([]tunnelFile, string) {
 			continue
 		}
 		h.Write([]byte(c.Key + "\n" + conf + "\n"))
-		files = append(files, tunnelConfigFiles(c.Kind, c.Name, conf)...)
+		found = true
 	}
-	if len(files) == 0 {
-		return nil, ""
+	if !found {
+		return ""
 	}
-	return files, hex.EncodeToString(h.Sum(nil))
-}
-
-// subLinkConfHash is the hash of the user's tunnel configs; "" for none.
-func (t *Tgbot) subLinkConfHash(v *SubUserView) string {
-	_, hash := t.subLinkConfFiles(v)
-	return hash
+	return hex.EncodeToString(h.Sum(nil))
 }

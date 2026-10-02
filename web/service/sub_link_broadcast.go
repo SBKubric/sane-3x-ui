@@ -16,14 +16,18 @@ import (
 	"github.com/mymmrac/telego"
 	ta "github.com/mymmrac/telego/telegoapi"
 	tu "github.com/mymmrac/telego/telegoutil"
-	"github.com/skip2/go-qrcode"
 )
 
 // The link broadcast itself (#214 points 3-5, #222): a queue that sends
-// each recipient «Your subscription link has changed» — the link, its QR as
-// a picture, «📱 My subscription» and how to update it in the app — with
-// the .conf files of their tunnel clients when those changed since they last
-// got them; then a report to the admin, and a journal of the broadcasts.
+// each recipient «Your subscription link has changed» — the link,
+// «📱 My subscription» and how to update it in the app, with a line that
+// their tunnel clients' .conf changed when it did since they were last told;
+// then a report to the admin, and a journal of the broadcasts.
+//
+// The message is text only (#245): no QR picture, no .conf files. «📣 Send
+// the link» is how a user the admin made with their Telegram first hears
+// from the bot, and the owner's rule is the subscription page's link alone;
+// the configs are a press away on «📱 My subscription».
 //
 // The link goes to the subscription's owner only: the user's own Telegram
 // (sub_users.tg_id), never the tgIds of the clients. Technical and disabled
@@ -121,47 +125,29 @@ func (t *Tgbot) subLinkRun(b *model.SubLinkBroadcast, job subLinkJob) {
 	t.subLinkReport(b, job.reportTo)
 }
 
-// subLinkDeliver sends v the new link, and the .conf files of v's tunnel
-// clients when they changed since v last got them. It returns how it went.
+// subLinkDeliver sends v the new link, and says so when the .conf of v's
+// tunnel clients changed since v was last told. It returns how it went.
 func (t *Tgbot) subLinkDeliver(pacer *subLinkPacer, v *SubUserView, base string) (status, reason string) {
 	link := base + v.SubId
 	text := t.I18nBot("tgbot.sublink.message", "Link=="+html.EscapeString(link))
+	confHash := ""
+	if hash := t.subLinkConfHash(v); hash != "" && hash != subLinkKnownConf(v.TgId) {
+		text += "\n\n" + t.I18nBot("tgbot.sublink.confChanged")
+		confHash = hash
+	}
 	kb := tu.InlineKeyboard(tu.InlineKeyboardRow(
 		tu.InlineKeyboardButton(t.I18nBot("tgbot.sublink.mySub")).WithCallbackData("client_commands")))
 	err := pacer.call(func(ctx context.Context) error {
-		png, qrErr := qrcode.Encode(link, qrcode.Medium, 320)
-		if qrErr != nil { // too long to encode: the link alone
-			_, err := bot.SendMessage(ctx, tu.Message(tu.ID(v.TgId), text).WithParseMode("HTML").WithReplyMarkup(kb))
-			return err
-		}
-		_, err := bot.SendPhoto(ctx, tu.Photo(tu.ID(v.TgId), tu.FileFromBytes(png, "subscription.png")).
-			WithCaption(text).WithParseMode("HTML").WithReplyMarkup(kb))
+		_, err := bot.SendMessage(ctx, tu.Message(tu.ID(v.TgId), text).WithParseMode("HTML").WithReplyMarkup(kb))
 		return err
 	})
 	if err != nil {
 		return subLinkRefusal(err)
 	}
-	confHash := ""
-	if files, hash := t.subLinkConfFiles(v); hash != "" && hash != subLinkKnownConf(v.TgId) {
-		for _, f := range files {
-			err := pacer.call(func(ctx context.Context) error {
-				_, err := bot.SendDocument(ctx, tu.Document(tu.ID(v.TgId), tu.FileFromBytes(f.data, f.name)))
-				return err
-			})
-			if err != nil {
-				_, why := subLinkRefusal(err)
-				reason = ".conf: " + why
-				break
-			}
-		}
-		if reason == "" {
-			confHash = hash
-		}
-	}
 	if err := subLinkDelivered(v.TgId, v.SubId, link, confHash); err != nil {
 		logger.Warning("link broadcast: known link:", err)
 	}
-	return model.SubLinkSent, reason
+	return model.SubLinkSent, ""
 }
 
 // subLinkRefusal words Telegram's refusal: a person who blocked the bot, or

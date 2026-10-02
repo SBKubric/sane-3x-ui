@@ -147,7 +147,7 @@ func TestSubLinkPromptYes(t *testing.T) {
 	linkPress(tg, linkAdmin2, linkAdmin2, 0, p.button(t, "Yes"))
 	link := "http://localhost:2096/feed/" + ivan.SubId
 	got := fake.to(linkPerson)
-	if len(got) != 1 || got[0].method != "sendPhoto" || !strings.Contains(got[0].text, link) {
+	if len(got) != 1 || got[0].method != "sendMessage" || !strings.Contains(got[0].text, link) {
 		t.Fatalf("ivan got %+v", got)
 	}
 	if report := reportTo(t, fake, linkAdmin2); !strings.Contains(report.text, "Sent: 1") {

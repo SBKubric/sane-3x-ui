@@ -15,7 +15,8 @@ import (
 // link of an invite, pressed by anyone — the person the admin sent it to,
 // who is no admin and usually has no user yet. TgInviteService decides; the
 // sender sees the outcome over their own main menu («My subscription» once
-// linked), and the notification channel hears of it. The sender learns
+// linked, with the link to the subscription page and no files, #245), and
+// the notification channel hears of it. The sender learns
 // nothing of any user but their own: a refusal names nobody.
 
 // tgInviteTokenPattern is what a start parameter of ours can look like; any
@@ -64,9 +65,9 @@ func (t *Tgbot) startInviteOutcome(r *TgInviteRedeem, from telego.User) string {
 	switch r.Outcome {
 	case TgInviteLinked:
 		t.SendMsgToNotifyChannel(t.I18nBot("tgbot.tginvite.notifyLinked", name, account))
-		return t.I18nBot("tgbot.tginvite.linked")
+		return t.I18nBot("tgbot.tginvite.linked") + "\r\n" + t.mysubLink(r.User)
 	case TgInviteAlready:
-		return t.I18nBot("tgbot.tginvite.linked")
+		return t.I18nBot("tgbot.tginvite.linked") + "\r\n" + t.mysubLink(r.User)
 	case TgInviteExpired:
 		t.SendMsgToNotifyChannel(t.I18nBot("tgbot.tginvite.notifyExpired", name, account))
 		return t.I18nBot("tgbot.tginvite.expired")

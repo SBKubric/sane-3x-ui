@@ -18,7 +18,7 @@ import (
 
 // The broadcast's queue, report and journal (#222) on a fake Bot API: the
 // pace, a 429 waited out, a person who blocked the bot, a refusal, the
-// users without Telegram, the .conf only when it changed.
+// users without Telegram, the line about a new .conf only when it changed.
 
 const (
 	linkBlocked = int64(503) // oleg blocked the bot
@@ -51,9 +51,10 @@ func linkQueueFixture(t *testing.T) (*Tgbot, *linkTelegram, *[]time.Duration, li
 	return tg, fake, slept, u
 }
 
-// TestSubLinkQueue: everyone with Telegram gets the link, its QR and «My
-// subscription»; maria after the 429's retry_after, with her AWG .conf;
-// oleg is recorded as having blocked the bot; the calls keep ~25 a second.
+// TestSubLinkQueue: everyone with Telegram gets one message — the link and
+// «My subscription», no QR picture and no files (#245); maria after the
+// 429's retry_after, told that her AWG .conf is new; oleg is recorded as
+// having blocked the bot; the calls keep ~25 a second.
 func TestSubLinkQueue(t *testing.T) {
 	tg, fake, slept, u := linkQueueFixture(t)
 
@@ -66,7 +67,7 @@ func TestSubLinkQueue(t *testing.T) {
 	}
 
 	got := fake.to(linkPerson)
-	if len(got) != 1 || got[0].method != "sendPhoto" || got[0].file != "subscription.png" {
+	if len(got) != 1 || got[0].method != "sendMessage" || got[0].file != "" {
 		t.Fatalf("ivan got %+v", got)
 	}
 	msg := got[0]
@@ -76,17 +77,19 @@ func TestSubLinkQueue(t *testing.T) {
 			t.Errorf("ivan's message %q lacks %q", msg.text, want)
 		}
 	}
+	if strings.Contains(msg.text, "QR") || strings.Contains(msg.text, ".conf") {
+		t.Errorf("ivan, with xray clients only, is told of a QR or a .conf: %q", msg.text)
+	}
 	mySub := msg.button(t, "📱 My subscription")
 	if !tg.clientMayPress(&telego.CallbackQuery{From: telego.User{ID: linkPerson}, Data: mySub}) {
 		t.Errorf("ivan may not press %q", mySub)
 	}
 
-	var files []string
-	for _, c := range fake.to(linkPerson2) {
-		files = append(files, c.method+":"+c.file)
-	}
-	if strings.Join(files, " ") != "sendPhoto:subscription.png sendDocument:maria-awg.conf sendDocument:maria-awg.conf.png" {
-		t.Errorf("maria got %q", files)
+	got = fake.to(linkPerson2)
+	if len(got) != 1 || got[0].method != "sendMessage" || got[0].file != "" ||
+		!strings.Contains(got[0].text, "http://localhost:2096/sub/"+u.maria.SubId) ||
+		!strings.Contains(got[0].text, "There is a new .conf for AmneziaWG/WireGuard") {
+		t.Errorf("maria got %+v", got)
 	}
 	for _, chat := range []int64{linkBlocked, linkGone, linkOff} {
 		if got := fake.to(chat); len(got) != 0 {
@@ -139,12 +142,13 @@ func TestSubLinkQueue(t *testing.T) {
 		t.Errorf("deliveries: %q", status)
 	}
 
-	// maria's .conf did not change since: the next broadcast sends the link alone.
+	// maria's .conf did not change since: the next broadcast tells her the
+	// link alone.
 	if _, err := tg.subLinkStartAll(model.SubLinkTriggerAll, "1", []int64{linkAdmin}); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(fake.to(linkPerson2)); n != 4 {
-		t.Errorf("maria's second broadcast: %+v", fake.to(linkPerson2)[3:])
+	if got := fake.to(linkPerson2); len(got) != 2 || got[1].method != "sendMessage" || strings.Contains(got[1].text, ".conf") {
+		t.Errorf("maria's second broadcast: %+v", got)
 	}
 }
 
@@ -250,7 +254,7 @@ func TestSubLinkFromTheUserCard(t *testing.T) {
 	if !strings.Contains(card.text, "Broadcast #1 started: 1 users") || !strings.Contains(card.text, "<b>ivan</b>") {
 		t.Errorf("the card after: %q", card.text)
 	}
-	if got := fake.to(linkPerson); len(got) != 1 || got[0].method != "sendPhoto" {
+	if got := fake.to(linkPerson); len(got) != 1 || got[0].method != "sendMessage" {
 		t.Errorf("ivan got %+v", got)
 	}
 	for _, chat := range []int64{linkPerson2, linkBlocked, linkGone} {
