@@ -142,9 +142,10 @@ func (t *Tgbot) requestCaptchaStep(warning string) screenReply {
 }
 
 // requestCaptchaURL is the captcha page on the bot's path,
-// https://<edge>/third-party/<secret>/captcha, at the https address of the
-// active edge — or of the panel's own front without a chain (BotPublicBase);
-// "" when there is none, for Telegram opens a Mini App on https only.
+// https://<host>/third-party/<secret>/captcha, at the https address of the
+// captcha's host (BotPublicBase, tgCaptchaHost): the active edge by default,
+// the panel's own front, or a chosen hop; "" when there is none, for
+// Telegram opens a Mini App on https only.
 func (t *Tgbot) requestCaptchaURL() string {
 	base, ok := BotPublicBase()
 	if !ok {

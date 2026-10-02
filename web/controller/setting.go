@@ -51,8 +51,9 @@ func (a *SettingController) initRouter(g *gin.RouterGroup) {
 }
 
 // botPath is the bot's path as the Telegram tab shows it: the path with its
-// secret, and the captcha's address Telegram opens ("" while there is no
-// https address for it).
+// secret, and the captcha's address Telegram opens, on the captcha's host
+// the settings name (tgCaptchaHost, #243); "" while that host has no https
+// address for it.
 type botPath struct {
 	Path       string `json:"path"`
 	CaptchaURL string `json:"captchaUrl"`

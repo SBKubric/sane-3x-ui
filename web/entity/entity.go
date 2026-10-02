@@ -50,6 +50,10 @@ type AllSetting struct {
 	TgCpu            int    `json:"tgCpu" form:"tgCpu"`                       // CPU usage threshold for alerts
 	TgLang           string `json:"tgLang" form:"tgLang"`                     // Telegram bot language
 
+	// The captcha's host (#243, tg_captcha_host.go): where the bot opens its
+	// Mini App — "" or edge for the active edge, panel, or a hop's name.
+	TgCaptchaHost string `json:"tgCaptchaHost" form:"tgCaptchaHost"`
+
 	// Request defaults (#221, sub_request.go): what «✅ Approve» gives the
 	// user a request makes. The inbounds are a list of ids, "" for every
 	// enabled one; the traffic is per protocol, 0 = unlimited; the expiry
@@ -267,6 +271,9 @@ func (s *AllSetting) CheckValid() error {
 		return err
 	}
 	if err := checkTgNotifyChatId(s); err != nil {
+		return err
+	}
+	if err := checkTgCaptchaHost(s); err != nil {
 		return err
 	}
 	if err := checkSubRequestDefaults(s); err != nil {
