@@ -34,8 +34,9 @@ func (a *SUBController) renderSubPage(c *gin.Context, subId, host string, page P
 		tuns = append(tuns, subpage.Tunnel{Kind: item.Kind, Name: item.Name, Filename: item.Filename, Enable: item.Enable, Conf: item.Conf})
 	}
 	p := subpage.Page{
-		Title:   a.subTitle,
-		Usage:   subpage.Usage{Known: true, Up: page.UploadByte, Down: page.DownloadByte, Total: page.TotalByte, Expire: page.Expire, Disabled: !page.Enabled},
+		Title: a.subTitle,
+		Usage: subpage.Usage{Known: true, Up: page.UploadByte, Down: page.DownloadByte, Total: page.TotalByte, Expire: page.Expire,
+			Disabled: !page.Enabled, Parts: a.trafficParts(subId, tunnels)},
 		Links:   links,
 		Tunnels: tuns,
 		Apps:    a.pageApps(),

@@ -161,6 +161,7 @@ func (a *SUBController) subs(c *gin.Context) {
 		header := fmt.Sprintf("upload=%d; download=%d; total=%d; expire=%d", traffic.Up, traffic.Down, traffic.Total, traffic.ExpiryTime/1000)
 		profileUrl := a.profileURL(c, scheme, hostWithPort)
 		a.ApplyCommonHeaders(c, header, a.updateInterval, a.subTitle, a.subSupportUrl, profileUrl, a.subAnnounce, a.subEnableRouting, a.subRoutingRules)
+		setTrafficParts(c, a.trafficParts(subId, a.answerTunnels(subId)))
 
 		if a.subEncrypt {
 			c.String(200, base64.StdEncoding.EncodeToString([]byte(result)))
