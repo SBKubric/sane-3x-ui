@@ -5,6 +5,8 @@ import { expect, test } from '../fixtures/panel';
 const SUB_URL = process.env.E2E_SUB_URL || 'http://127.0.0.1:2096';
 const HOP = 'e2e-captcha-edge';
 const HOP_HOST = '198.51.100.62';
+/** The captcha's address on the hop: its https sub port, the bot's path. */
+const CAPTCHA_ON_HOP = /^https:\/\/198\.51\.100\.62(:\d+)?\/third-party\/[A-Za-z0-9]{24}\/captcha$/;
 
 /** The Telegram tab with its «Subscription requests» block open, where the captcha's host is chosen. */
 async function openCaptchaHost(page: Page) {
@@ -68,9 +70,7 @@ test.describe('captcha host', () => {
       await choose(page, `${HOP} (edge)`);
       await save(page);
       expect(await stored(authedRequest)).toBe(HOP);
-      await expect(page.getByTestId('bot-captcha-url')).toHaveText(
-        new RegExp(`^https://${HOP_HOST.replace(/\./g, '\\.')}(:\\d+)?/third-party/[A-Za-z0-9]{24}/captcha$`),
-      );
+      await expect(page.getByTestId('bot-captcha-url')).toHaveText(CAPTCHA_ON_HOP);
 
       // The panel: this one has no 443 front, so the captcha has no address,
       // and the bot does not fall back to the hop.
