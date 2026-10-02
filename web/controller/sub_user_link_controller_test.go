@@ -109,7 +109,7 @@ func TestUsersBroadcastLinksAPI(t *testing.T) {
 	if broadcast.Trigger != model.SubLinkTriggerAPI || broadcast.StartedBy != "panel" || broadcast.Sent != 1 || broadcast.NoTelegram != 1 {
 		t.Errorf("journal: %+v", broadcast)
 	}
-	if calls := fake.sent(); len(calls) != 1 || calls[0] != "sendPhoto 7101" {
+	if calls := fake.sent(); len(calls) != 1 || calls[0] != "sendMessage 7101" {
 		t.Errorf("Telegram got %q", calls)
 	}
 }
