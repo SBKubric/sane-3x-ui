@@ -102,6 +102,9 @@ func (x *XrayAPI) Close() {
 
 // AddInbound adds a new inbound configuration to the Xray core via gRPC.
 func (x *XrayAPI) AddInbound(inbound []byte) error {
+	if err := x.requireConnection(); err != nil {
+		return err
+	}
 	client := *x.HandlerServiceClient
 
 	conf := new(conf.InboundDetourConfig)
@@ -124,6 +127,9 @@ func (x *XrayAPI) AddInbound(inbound []byte) error {
 
 // DelInbound removes an inbound configuration from the Xray core by tag.
 func (x *XrayAPI) DelInbound(tag string) error {
+	if err := x.requireConnection(); err != nil {
+		return err
+	}
 	client := *x.HandlerServiceClient
 	_, err := client.RemoveInbound(context.Background(), &command.RemoveInboundRequest{
 		Tag: tag,
@@ -374,9 +380,10 @@ func mapToSlice[T any](m map[string]*T) []*T {
 }
 
 // requireConnection turns a call on a client whose Init failed (xray not
-// running, so there is no API port) into an error. Without it AddUser and
-// RemoveUser dereference the nil handler client and panic, taking the panel
-// down for adding an enabled client while xray is stopped.
+// running, so there is no API port) into an error. Without it AddUser,
+// RemoveUser, AddInbound and DelInbound dereference the nil handler client and
+// panic, taking the panel down for saving an enabled client or inbound while
+// xray is stopped.
 func (x *XrayAPI) requireConnection() error {
 	if !x.isConnected || x.HandlerServiceClient == nil {
 		return errors.New("xray API is not connected")

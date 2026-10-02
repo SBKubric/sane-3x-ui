@@ -1092,6 +1092,14 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) (*model.Inbound, 
 		oldInbound.Tag = fmt.Sprintf("inbound-%v:%v", inbound.Listen, inbound.Port)
 	}
 
+	// Save before anything acts on the edit, as AddInbound does: a failed save
+	// must leave the running xray alone and roll the transaction back through
+	// err (#250), and the ports hook below must see the edited row.
+	err = tx.Save(oldInbound).Error
+	if err != nil {
+		return inbound, false, err
+	}
+
 	needRestart := false
 	s.xrayApi.Init(xrayAPIPort())
 	if s.xrayApi.DelInbound(tag) == nil {
@@ -1121,7 +1129,7 @@ func (s *InboundService) UpdateInbound(inbound *model.Inbound) (*model.Inbound, 
 	s.xrayApi.Close()
 
 	chainPortsChanged(tx) // the chain relays this port list (proxy-chain.md §3.4)
-	return inbound, needRestart, tx.Save(oldInbound).Error
+	return inbound, needRestart, nil
 }
 
 func (s *InboundService) buildRuntimeInboundForAPI(tx *gorm.DB, inbound *model.Inbound) (*model.Inbound, error) {
