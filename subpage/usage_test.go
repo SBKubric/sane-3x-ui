@@ -1,13 +1,14 @@
 package subpage
 
 import (
+	"reflect"
 	"testing"
 	"time"
 )
 
 func TestParseUserinfo(t *testing.T) {
 	u := ParseUserinfo("upload=1048576; download=1048576; total=10485760; expire=1893456000")
-	if u != (Usage{Known: true, Up: 1048576, Down: 1048576, Total: 10485760, Expire: 1893456000}) {
+	if !reflect.DeepEqual(u, Usage{Known: true, Up: 1048576, Down: 1048576, Total: 10485760, Expire: 1893456000}) {
 		t.Fatalf("ParseUserinfo = %+v", u)
 	}
 	if u := ParseUserinfo(""); u.Known {

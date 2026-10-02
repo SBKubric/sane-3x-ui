@@ -5,6 +5,7 @@ import (
 	"html"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/database/model"
 	"github.com/coinman-dev/3ax-ui/v2/util/common"
@@ -51,7 +52,10 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		b.WriteString(t.I18nBot("tgbot.messages.enabled", "Enable=="+enabled))
 		b.WriteString(t.I18nBot("tgbot.users.traffic", "UpDown=="+common.FormatTraffic(v.Up+v.Down), "Total=="+t.usersTraffic(v.Total)))
 	} else {
-		b.WriteString(t.usersSubscriptionLine(v))
+		b.WriteString(t.usersCardSubscriptionLine(v))
+		if quota := t.usersQuotaLine(v); quota != "" {
+			b.WriteString(quota + "\r\n")
+		}
 		if v.TgId != 0 {
 			b.WriteString(t.I18nBot("tgbot.screen.telegram", "TgId=="+strconv.FormatInt(v.TgId, 10)))
 		}
@@ -129,6 +133,17 @@ func (t *Tgbot) usersCard(v *SubUserView) (string, *telego.InlineKeyboardMarkup)
 		kb = tu.InlineKeyboard(rows...)
 	}
 	return b.String(), kb
+}
+
+// usersCardSubscriptionLine is the card's summary of the subscription: on
+// or paused, until when. The traffic is the total limit's line below it
+// (#247), not the sum the lists show.
+func (t *Tgbot) usersCardSubscriptionLine(v *SubUserView) string {
+	status := t.I18nBot("tgbot.screen.subActive")
+	if !v.Enable {
+		status = t.I18nBot("tgbot.screen.subPaused")
+	}
+	return t.I18nBot("tgbot.users.subStatus", "Status=="+status, "Exp=="+t.usersExpiryShort(v.ExpiryTime, time.Now()))
 }
 
 // usersClientLines lists clients grouped by protocol, in the order the

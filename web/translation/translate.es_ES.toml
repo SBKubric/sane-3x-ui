@@ -1526,6 +1526,12 @@
 "chainSwitch" = "Switch"
 
 [tgbot.users]
+"subStatus" = "🔗 Subscription: {{ .Status }} · until {{ .Exp }}\r\n"
+"quota" = "📊 Total limit: {{ .Limit }} · used {{ .Used }}"
+"quotaUnlimited" = "unlimited"
+"protocolsOne" = "protocols"
+"protocolsFew" = "protocols"
+"protocolsMany" = "protocols"
 "menu" = "👥 Users"
 "newUser" = "➕ New user"
 "chooseProtocols" = "📡 Choose the protocols of the new user:"
@@ -1615,7 +1621,7 @@
 "config" = "📄 Config and QR"
 
 [tgbot.mysub]
-"card" = "💳 <b>My subscription</b> · {{ .Name }}\r\nSubscription: {{ .Status }}\r\n📅 Expires: {{ .Exp }}\r\n📊 Traffic: {{ .Traffic }}\r\n🔌 Protocols: {{ .Protocols }}"
+"card" = "💳 <b>My subscription</b> · {{ .Name }}\r\nSubscription: {{ .Status }}\r\n📅 Expires: {{ .Exp }}\r\n🔌 Protocols: {{ .Protocols }}"
 "configs" = "📄 My configs"
 "until" = "until {{ .Date }}"
 "afterFirstUse" = "{{ .Days }} days from the first connection"

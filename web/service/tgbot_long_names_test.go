@@ -82,7 +82,7 @@ func TestClientLongNamesButtonsWork(t *testing.T) {
 
 	fake.hashedButton(t, 1, "My configs")
 	fake.clientPress(t, tg, 1, "My configs")
-	if m := fake.messages[1]; !strings.Contains(m.text, "My configs</b> · "+longName) || !strings.Contains(m.text, "AWG · "+longName+"-awg") {
+	if m := fake.messages[1]; !strings.Contains(m.text, "My configs</b> · "+longName) || !strings.Contains(m.text, "AmneziaWG · "+longName+"-awg") {
 		t.Fatalf("My configs: %q", m.text)
 	}
 

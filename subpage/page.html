@@ -204,6 +204,11 @@
   .usage div { display: flex; flex-direction: column; }
   .usage dt { color: var(--muted); font-size: 12px; }
   .usage dd { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 16px; }
+  .quota { margin: 12px 0 0; }
+  .quota p { margin: 0 0 6px; font-weight: 600; }
+  .quota ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+  .quota li { display: flex; justify-content: space-between; gap: 16px; font-size: 14px; }
+  .quota li span:last-child { color: var(--muted); white-space: nowrap; }
   .status { font-weight: 700; }
   .status.on { color: var(--ok); }
   .status.off { color: var(--bad); }
@@ -391,6 +396,15 @@
       {{if .Remained}}<div><dt>{{$.T "page.remained"}}</dt><dd>{{.Remained}}</dd></div>{{end}}
       <div><dt>{{$.T "page.expires"}}</dt><dd>{{if .Expire}}{{.Expire}}{{else if .ExpireDays}}{{$.TD "page.afterFirstUse" .ExpireDays}}{{else}}{{$.T "page.noExpiry"}}{{end}}</dd></div>
     </dl>
+    {{if .Quota}}
+    <div class="quota" data-testid="sub-quota">
+      <p>{{$.TD "page.quotaTotal" .Quota}}</p>
+      <ul>
+        {{range .Parts}}<li data-testid="sub-quota-part"><span>{{.Label}}</span><span>{{.Used}} / {{.Limit}}</span></li>
+        {{end}}
+      </ul>
+    </div>
+    {{end}}
     {{end}}
 
     {{if .SubURL}}
