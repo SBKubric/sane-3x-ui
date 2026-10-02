@@ -95,6 +95,12 @@ func TestDefaultAppsAreShowable(t *testing.T) {
 			}
 		}
 	}
+	// A GitHub app opens on its latest release, not on the list of releases.
+	for _, app := range apps {
+		if strings.HasPrefix(app.URL, "https://github.com/") && !strings.HasSuffix(app.URL, "/releases/latest") {
+			t.Errorf("default %s (%s) links to %s, want its /releases/latest", app.Name, app.Platform, app.URL)
+		}
+	}
 	// DefaultApps is a copy: a caller cannot change the next page's list.
 	apps[0].Protocols = append(apps[0].Protocols, "changed")
 	apps[0].Name = "changed"

@@ -33,19 +33,21 @@ type App struct {
 // being public. V2rayNG is left out, it does not read
 // Profile-Update-Interval (#217). AmneziaVPN reads AWG 3 but not the xhttp
 // parameters of a VLESS link — the example the page's warning gives. DefaultVPN's
-// VLESS + XHTTP label rests on the owner's check (2026-10-01).
+// VLESS + XHTTP label rests on the owner's check (2026-10-01). An app
+// downloaded from GitHub links to its latest release, not to the list of
+// releases (owner, 2026-10-02).
 var defaultApps = []App{
 	{Name: "v2RayTun", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.v2raytun.android", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "v2RayTun", Platform: "iPhone / iPad", URL: "https://apps.apple.com/us/app/v2ray-vpn-client/id6752994543", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "Happ", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=com.happproxy", Protocols: []string{"VLESS + XHTTP"}},
-	{Name: "Happ", Platform: "Windows / macOS / Linux", URL: "https://github.com/Happ-proxy/happ-desktop/releases", Protocols: []string{"VLESS + XHTTP"}},
+	{Name: "Happ", Platform: "Windows / macOS / Linux", URL: "https://github.com/Happ-proxy/happ-desktop/releases/latest", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "Shadowrocket", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id932747118", Protocols: []string{"VLESS + XHTTP"}},
 	{Name: "V2Box", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id6446814690", Protocols: []string{"VLESS + XHTTP"}},
-	{Name: "v2rayN", Platform: "Windows / macOS / Linux", URL: "https://github.com/2dust/v2rayN/releases", Protocols: []string{"VLESS + XHTTP"}},
-	{Name: "AmneziaVPN", Platform: "Android / iOS / Windows / macOS / Linux", URL: "https://github.com/amnezia-vpn/amnezia-client/releases", Protocols: []string{LabelAWG3}},
+	{Name: "v2rayN", Platform: "Windows / macOS / Linux", URL: "https://github.com/2dust/v2rayN/releases/latest", Protocols: []string{"VLESS + XHTTP"}},
+	{Name: "AmneziaVPN", Platform: "Android / iOS / Windows / macOS / Linux", URL: "https://github.com/amnezia-vpn/amnezia-client/releases/latest", Protocols: []string{LabelAWG3}},
 	{Name: "AmneziaWG", Platform: "Android", URL: "https://play.google.com/store/apps/details?id=org.amnezia.awg", Protocols: []string{LabelAWG3}},
 	{Name: "AmneziaWG", Platform: "iPhone / iPad / Mac", URL: "https://apps.apple.com/app/id6478942365", Protocols: []string{LabelAWG3}},
-	{Name: "AmneziaWG", Platform: "Windows", URL: "https://github.com/amnezia-vpn/amneziawg-windows-client/releases", Protocols: []string{LabelAWG3}},
+	{Name: "AmneziaWG", Platform: "Windows", URL: "https://github.com/amnezia-vpn/amneziawg-windows-client/releases/latest", Protocols: []string{LabelAWG3}},
 	{Name: "DefaultVPN", Platform: "iPhone / iPad", URL: "https://apps.apple.com/app/id6744725017", Protocols: []string{"VLESS + XHTTP", LabelAWG3}},
 }
 
