@@ -158,10 +158,15 @@ func TestNotifyChannelByChatId(t *testing.T) {
 }
 
 // notifyUnsetWarnings counts the warnings about the missing channel in the
-// panel's log buffer.
-func notifyUnsetWarnings() int {
+// panel's log buffer since the marker was logged. The buffer is a ring the
+// rest of the package fills, so a count of the whole buffer can lose a line
+// at its old end; the newest lines down to the marker are this test's own.
+func notifyUnsetWarnings(marker string) int {
 	n := 0
 	for _, line := range logger.GetLogs(10000, "WARNING") {
+		if strings.Contains(line, marker) {
+			return n
+		}
 		if strings.Contains(line, "no notification channel") {
 			n++
 		}
@@ -174,7 +179,11 @@ func notifyUnsetWarnings() int {
 // admins, monitoring events stay un-notified, and the log says why once.
 func TestNotifyChannelUnsetSendsNothing(t *testing.T) {
 	tg, fake := notifyBotFixture(t, "")
-	before := notifyUnsetWarnings()
+	// An earlier test of the package may have logged the missing channel
+	// already; the warning is once per stretch without a channel.
+	notifyChannelWarned.Store(false)
+	marker := fmt.Sprintf("test marker %s %d", t.Name(), time.Now().UnixNano())
+	logger.Warning(marker)
 
 	tg.UserLoginNotify("admin", "guess", "203.0.113.6", "2026-09-29 10:01:00", LoginFail)
 	tg.NotifyMonitoringStale(time.Now())
@@ -198,7 +207,7 @@ func TestNotifyChannelUnsetSendsNothing(t *testing.T) {
 		t.Errorf("the admin got %q, want the backup only", admin)
 	}
 
-	if n := notifyUnsetWarnings() - before; n != 1 {
+	if n := notifyUnsetWarnings(marker); n != 1 {
 		t.Errorf("warned %d times, want once", n)
 	}
 }
