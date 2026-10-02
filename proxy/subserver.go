@@ -31,10 +31,13 @@ const (
 	fallbackTunPath = "/tun/"
 )
 
-// headers copied through from the next hop to subscription clients.
+// headers copied through from the next hop to subscription clients. The
+// traffic breakdown (#247) is for the page of a hop nearer the clients; apps
+// ignore it.
 var passthroughHeaders = []string{
 	"Subscription-Userinfo", "Profile-Update-Interval", "Profile-Title",
 	"Profile-Web-Page-Url", "Support-Url", "Announce", "Routing-Enable", "Routing",
+	subpage.TrafficPartsHeader,
 }
 
 // SubServer is the hop's sub port: subscriptions proxied from the next hop,
@@ -499,11 +502,22 @@ func (s *SubServer) renderPage(c *gin.Context, subid string, body []byte, header
 	subpage.Render(c.Writer, c.Request, subpage.Page{
 		Title:   profileTitle(header),
 		SubURL:  s.publicURL(c, s.publicSubPath(), subid),
-		Usage:   subpage.ParseUserinfo(header.Get("Subscription-Userinfo")),
+		Usage:   pageUsage(header),
 		Links:   pageLinks,
 		Tunnels: tunnels,
 		Apps:    s.pageApps(subid),
 	})
+}
+
+// pageUsage is the page's usage from the next hop's answer: the sum in
+// Subscription-Userinfo and, from a panel that sends it, the clients behind
+// it (#247). Without the breakdown the page shows the sum alone, as before.
+func pageUsage(header http.Header) subpage.Usage {
+	usage := subpage.ParseUserinfo(header.Get("Subscription-Userinfo"))
+	if usage.Known {
+		usage.Parts = subpage.ParseTrafficParts(header.Get(subpage.TrafficPartsHeader))
+	}
+	return usage
 }
 
 // pageApps is the owner's app list for the page, from the next hop's

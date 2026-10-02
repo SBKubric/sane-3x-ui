@@ -58,6 +58,7 @@ func (a *TunnelSubController) tun(c *gin.Context) {
 		s := a.sub
 		s.ApplyCommonHeaders(c, header, s.updateInterval, s.subTitle, s.subSupportUrl, a.pageURL(c, subId),
 			s.subAnnounce, s.subEnableRouting, s.subRoutingRules)
+		setTrafficParts(c, tunnelTrafficParts(entries))
 	}
 	c.JSON(http.StatusOK, tunnelSubItems(entries))
 }

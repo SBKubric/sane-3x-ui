@@ -1525,6 +1525,12 @@
 "chainSwitch" = "Переключить"
 
 [tgbot.users]
+"subStatus" = "🔗 Подписка: {{ .Status }} · до {{ .Exp }}\r\n"
+"quota" = "📊 Общий лимит: {{ .Limit }} · израсходовано {{ .Used }}"
+"quotaUnlimited" = "без ограничения"
+"protocolsOne" = "протокол"
+"protocolsFew" = "протокола"
+"protocolsMany" = "протоколов"
 "menu" = "👥 Пользователи"
 "newUser" = "➕ Новый пользователь"
 "chooseProtocols" = "📡 Выберите протоколы нового пользователя:"
@@ -1614,7 +1620,7 @@
 "config" = "📄 Конфиг и QR"
 
 [tgbot.mysub]
-"card" = "💳 <b>Моя подписка</b> · {{ .Name }}\r\nПодписка: {{ .Status }}\r\n📅 Срок: {{ .Exp }}\r\n📊 Трафик: {{ .Traffic }}\r\n🔌 Протоколы: {{ .Protocols }}"
+"card" = "💳 <b>Моя подписка</b> · {{ .Name }}\r\nПодписка: {{ .Status }}\r\n📅 Срок: {{ .Exp }}\r\n🔌 Протоколы: {{ .Protocols }}"
 "configs" = "📄 Мои конфиги"
 "until" = "до {{ .Date }}"
 "afterFirstUse" = "{{ .Days }} дн. с первого подключения"

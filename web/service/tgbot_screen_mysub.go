@@ -16,10 +16,10 @@ import (
 // (tgbot_screen.go), showing their own users only, as telegramSubUsers finds
 // them:
 //   - «My subscription», the main menu of someone with one user: on or
-//     paused, the expiry, the traffic, the protocols; «🔗 Show subscription»
-//     (the link, its QR as a file), «📄 My configs» (the clients; a tunnel
-//     client's .conf and QR, the xray links and their QRs, as files) and
-//     «🔄 Refresh»;
+//     paused, the expiry, the protocols; «🔗 Show subscription» (the link,
+//     its QR as a file), «📄 My configs» (the total limit and the clients; a
+//     tunnel client's .conf and QR, the xray links and their QRs, as files)
+//     and «🔄 Refresh»;
 //   - the pick among several users that carry the same Telegram ID (legacy
 //     data: the rule is one user per account, #178);
 //   - «No subscription» for someone with none, with «📝 Leave a request»
@@ -251,7 +251,8 @@ func (t *Tgbot) mysubButton(label, data string) telego.InlineKeyboardButton {
 }
 
 // mysubUser is «My subscription» of the user v; route is how it shows again:
-// the main menu, or the user picked among several.
+// the main menu, or the user picked among several. The traffic is on «📄 My
+// configs», where the total limit says how it is made (#247).
 func (t *Tgbot) mysubUser(v *SubUserView, route string) screenReply {
 	expired := v.ExpiryTime > 0 && v.ExpiryTime <= time.Now().UnixMilli()
 	status := t.I18nBot("tgbot.screen.subActive")
@@ -262,7 +263,7 @@ func (t *Tgbot) mysubUser(v *SubUserView, route string) screenReply {
 		status = t.I18nBot("tgbot.request.subExpired")
 	}
 	text := t.I18nBot("tgbot.mysub.card", "Name=="+html.EscapeString(v.Name), "Status=="+status,
-		"Exp=="+t.mysubExpiry(v), "Traffic=="+t.usersTrafficShort(v.Up+v.Down, v.Total), "Protocols=="+usersProtocols(v))
+		"Exp=="+t.mysubExpiry(v), "Protocols=="+usersProtocols(v))
 	rows := [][]telego.InlineKeyboardButton{
 		tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.screen.showSub"), mysubSubRoute+" "+v.SubId)),
 		tu.InlineKeyboardRow(t.mysubButton(t.I18nBot("tgbot.mysub.configs"), mysubConfigsRoute+" "+v.SubId)),
@@ -328,20 +329,25 @@ func (t *Tgbot) mysubSubscription(v *SubUserView) screenReply {
 	return reply
 }
 
-// mysubConfigs is «My configs»: the user's clients with their state and
-// traffic; a tunnel client's button sends its .conf and QR, the xray links'
-// button the links and their QRs.
+// mysubConfigs is «My configs»: the total limit (#247), then the user's
+// clients with their state and traffic, each named by its protocol (and its
+// inbound, after a protocol two share); a tunnel client's button sends its
+// .conf and QR, the xray links' button the links and their QRs.
 func (t *Tgbot) mysubConfigs(v *SubUserView) screenReply {
 	var b strings.Builder
 	b.WriteString(t.I18nBot("tgbot.mysub.configsTitle", "Name=="+html.EscapeString(v.Name)))
+	if quota := t.usersQuotaLine(v); quota != "" {
+		b.WriteString("\r\n" + quota)
+	}
 	var rows [][]telego.InlineKeyboardButton
 	xray := false
-	for _, c := range v.Clients {
+	labels := usersPartLabels(v.Clients)
+	for i, c := range v.Clients {
 		status := "🟢"
 		if !c.Enable {
 			status = "⏸"
 		}
-		b.WriteString("\r\n" + status + " " + protocolLabel(c.Protocol) + " · " + html.EscapeString(c.Name) + " · " +
+		b.WriteString("\r\n" + status + " " + html.EscapeString(labels[i]) + " · " + html.EscapeString(c.Name) + " · " +
 			t.usersTrafficShort(c.Up+c.Down, c.TotalGB))
 		if c.Kind == SubUserClientXray {
 			xray = true

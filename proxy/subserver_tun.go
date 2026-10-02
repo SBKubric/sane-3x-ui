@@ -86,7 +86,7 @@ func (s *SubServer) renderTunnelsOnlyPage(c *gin.Context, subid string) bool {
 	c.Status(http.StatusOK)
 	subpage.Render(c.Writer, c.Request, subpage.Page{
 		Title:   profileTitle(header),
-		Usage:   subpage.ParseUserinfo(header.Get("Subscription-Userinfo")),
+		Usage:   pageUsage(header),
 		Tunnels: tunnels,
 		Apps:    s.pageApps(subid),
 	})

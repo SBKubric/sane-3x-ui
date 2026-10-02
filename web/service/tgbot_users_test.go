@@ -144,7 +144,7 @@ func TestUserCardButtons(t *testing.T) {
 	}{
 		{"regular", ivan.SubId, []string{"🔗 Show subscription", "Trojan · ivan-de", "➕ Protocol", "➖ Protocol", "🔗 Invite link",
 			"✏️ Enter tg_id or @nick", "⏸ Suspend", "🗑 Delete"},
-			[]string{"<b>ivan</b>", "Subscription: 🟢 active · until — · 0/∞", "<b>trojan</b>", "<code>ivan-de</code>"}},
+			[]string{"<b>ivan</b>", "Subscription: 🟢 active · until —\r\n📊 Total limit: unlimited · used 0 GB\r\n", "<b>trojan</b>", "<code>ivan-de</code>"}},
 		{"every inbound taken", full.SubId, []string{"🔗 Show subscription", "VLESS · full-NL-Amsterdam-1", "Trojan · full-de",
 			"VMess · full-vm-off", "AWG · full-awg", "➖ Protocol", "🔗 Invite link", "✏️ Enter tg_id or @nick", "⏸ Suspend", "🗑 Delete"}, nil},
 		{"no clients", empty.SubId, []string{"🔗 Show subscription", "➕ Protocol", "🔗 Invite link", "✏️ Enter tg_id or @nick", "🗑 Delete"},

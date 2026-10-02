@@ -127,6 +127,7 @@ func Render(w http.ResponseWriter, r *http.Request, p Page) {
 		Usage:     p.Usage.view(time.Now()),
 		Languages: languages,
 	}
+	p.Usage.quota(v.Usage, tr)
 	for _, app := range p.Apps {
 		v.Apps = append(v.Apps, appView{App: app, Icon: platformIcon(app.Platform)})
 	}
