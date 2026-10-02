@@ -95,10 +95,17 @@ func TestDefaultAppsAreShowable(t *testing.T) {
 			}
 		}
 	}
-	// A GitHub app opens on its latest release, not on the list of releases.
+	// A GitHub app's card downloads one file: the latest release's, or a
+	// pinned release's where the file name carries the version.
 	for _, app := range apps {
-		if strings.HasPrefix(app.URL, "https://github.com/") && !strings.HasSuffix(app.URL, "/releases/latest") {
-			t.Errorf("default %s (%s) links to %s, want its /releases/latest", app.Name, app.Platform, app.URL)
+		if !strings.HasPrefix(app.URL, "https://github.com/") {
+			continue
+		}
+		if !strings.Contains(app.URL, "/releases/latest/download/") && !strings.Contains(app.URL, "/releases/download/") {
+			t.Errorf("default %s (%s) links to %s, want a release file", app.Name, app.Platform, app.URL)
+		}
+		if strings.Contains(app.Platform, "/") {
+			t.Errorf("default %s card %q names several platforms for one file", app.Name, app.Platform)
 		}
 	}
 	// DefaultApps is a copy: a caller cannot change the next page's list.
