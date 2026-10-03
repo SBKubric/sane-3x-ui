@@ -135,7 +135,7 @@
                           [[ MonUtil.latency(target.latAvg24) ]]
                         </template>
                         <template slot="reason" slot-scope="text, target">
-                          <span class="mon-mono mon-muted">[[ target.reason ]]</span>
+                          <span class="mon-mono mon-muted">[[ reasonText(target.reason) ]]</span>
                         </template>
                       </a-table>
 
@@ -170,13 +170,25 @@
                   <div v-if="events.length">
                     <div class="mon-event" v-for="event in events" :key="event.id">
                       <div class="mon-event-time">[[ MonUtil.time(event.ts) ]]</div>
-                      <div>
+                      <!-- A diagnostic sweep: one entry per phase with what it
+                           found, a line per node of the chain. -->
+                      <div v-if="event.kind === 'sweep'" data-testid="mon-event-sweep">
+                        <span class="mon-dot" :class="'mon-dot-' + eventTone(event)"></span>
+                        <b>[[ sweepKind(event.inboundKind) ]]</b> [[ sweepTitle(event) ]]
+                        <template v-if="event.monClientName"> · [[ event.monClientName ]]</template>
+                        <a-tag v-if="event.retired" :style="{ marginInlineStart: '4px' }">{{ i18n
+                          "pages.monitoring.retired" }}</a-tag>
+                        <div class="mon-mono mon-muted" v-for="(line, i) in sweepLines(event.report)" :key="i">[[
+                          line ]]</div>
+                      </div>
+                      <div v-else>
                         <span class="mon-dot" :class="'mon-dot-' + eventTone(event)"></span>
                         <b>[[ event.to ]]</b>
                         <template v-if="event.inboundRemark"> · [[ event.inboundRemark ]]</template>
                         <template v-if="event.path"> {{ i18n "pages.monitoring.path" }} [[ event.path ]]</template>
                         <template v-if="event.monClientName"> · [[ event.monClientName ]]</template>
-                        <template v-if="event.reason"> · <span class="mon-mono">[[ event.reason ]]</span></template>
+                        <template v-if="event.reason"> · <span class="mon-mono">[[ reasonText(event.reason)
+                            ]]</span></template>
                         <a-tag v-if="event.retired" :style="{ marginInlineStart: '4px' }">{{ i18n
                           "pages.monitoring.retired" }}</a-tag>
                         <span class="mon-muted" v-if="event.kind === 'panel'"> · {{ i18n
@@ -211,7 +223,21 @@
   const MON_TEXT = {
     filterAll: '{{ i18n "pages.monitoring.filterAll" }}',
     noHopData: '{{ i18n "pages.monitoring.noHopData" }}',
+    sweepStart: '{{ i18n "pages.monitoring.sweepStart" }}',
+    sweepChange: '{{ i18n "pages.monitoring.sweepChange" }}',
+    sweepEnd: '{{ i18n "pages.monitoring.sweepEnd" }}',
+    sweepNoReport: '{{ i18n "pages.monitoring.sweepNoReport" }}',
+    sweepSince: '{{ i18n "pages.monitoring.sweepSince" }}',
+    sweepTunnel: '{{ i18n "pages.monitoring.sweepTunnel" }}',
   };
+  // Target reasons the page words instead of printing them as they came
+  // (monitoring-contract.md §4.6); any other reason is shown as is.
+  const MON_REASON_TEXT = {
+    derived: '{{ i18n "pages.monitoring.reasonDerived" }}',
+    sweep: '{{ i18n "pages.monitoring.reasonSweep" }}',
+  };
+  // How a sweep line names the real server, whose node name in a report is "".
+  const MON_REAL_SERVER = 'real';
   // A hop's badge without data (pending, draining, not yet reported).
   const MON_HOP_NONE = 'NONE';
   // Which standby the summary names: the best that is not DOWN and has data.
@@ -368,10 +394,70 @@
       hopLabel(hop) {
         return hop.state === MON_HOP_NONE ? MON_TEXT.noHopData : hop.state;
       },
+      reasonText(reason) {
+        return MON_REASON_TEXT[reason] || reason;
+      },
       eventTone(event) {
+        if (event.kind === 'sweep') return event.phase === 'end' ? 'up' : 'down';
         if (event.kind === 'mon_client') return event.to === 'ONLINE' ? 'up' : 'down';
         if (event.kind === 'panel') return event.to === 'PANEL_UP' ? 'up' : 'stale';
         return String(event.to || '').toLowerCase();
+      },
+
+      // --- the diagnostic sweep ----------------------------------------------
+
+      sweepKind(kind) {
+        return kind === 'awg' ? 'AWG' : kind === 'xray' ? 'Xray' : kind;
+      },
+      sweepTitle(event) {
+        if (event.phase === 'start') return MON_TEXT.sweepStart;
+        if (event.phase === 'change') return MON_TEXT.sweepChange;
+        return MON_TEXT.sweepEnd;
+      },
+      // The same lines as the Telegram summary (sweep lines in
+      // tgbot_monitoring.go): a check from the mon-client to a node carries the
+      // tunnel probe of that node's path, a check between hops is a line of its
+      // own, and a path no check names gets a tunnel-only line.
+      sweepLines(report) {
+        if (!report) return [];
+        const paths = report.paths || [];
+        const byPath = {};
+        paths.forEach(p => { byPath[p.path] = p; });
+        const shown = {};
+        const node = name => name === '' ? MON_REAL_SERVER : name;
+        const pathNode = path => path === 'direct' ? MON_REAL_SERVER + ' (direct)' : path.replace(/^(edge|inner):/, '');
+        const tunnel = p => MON_TEXT.sweepTunnel + ' ' + (p.ok ? '✅' : '❌ ' + (p.reason || 'unknown'));
+        const icmp = h => {
+          if (h.at === null || h.at === undefined) {
+            return 'ICMP ❌ ' + MON_TEXT.sweepNoReport + (h.lastAt ? ' ' + MON_TEXT.sweepSince + ' ' + MonUtil.time(h.lastAt) : '');
+          }
+          const loss = Number(h.lossPct) || 0;
+          const icon = loss <= 0 ? '✅' : loss >= 100 ? '❌' : '⚠️';
+          return 'ICMP ' + icon + ' ' + loss + '%' + (h.rttAvgMs === null || h.rttAvgMs === undefined ? '' : ' · ' + h.rttAvgMs + ' ms');
+        };
+        const lines = [];
+        (report.hosts || []).forEach(h => {
+          if (h.from !== 'mon-client') {
+            lines.push(h.from + ' → ' + node(h.to) + ' — ' + icmp(h));
+            return;
+          }
+          let path = '';
+          if (h.to === '') path = byPath.direct ? 'direct' : '';
+          else if (byPath['edge:' + h.to]) path = 'edge:' + h.to;
+          else if (byPath['inner:' + h.to]) path = 'inner:' + h.to;
+          let line = (path ? pathNode(path) : node(h.to)) + ' — ' + icmp(h);
+          if (path && !shown[path]) {
+            shown[path] = true;
+            line += ' · ' + tunnel(byPath[path]);
+          }
+          lines.push(line);
+        });
+        paths.forEach(p => {
+          if (shown[p.path]) return;
+          shown[p.path] = true;
+          lines.push(pathNode(p.path) + ' — ' + tunnel(p));
+        });
+        return lines;
       },
       rangeOf(inbound) {
         const entry = this.charts[this.key(inbound)];
