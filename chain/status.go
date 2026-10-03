@@ -42,8 +42,12 @@ type StatusRelay struct {
 }
 
 // StatusNextHop is what the hop can say about the neighbour it polls.
+//
+// Check is the hop's latest host reachability check of that neighbour's host
+// (#254); absent until the first series has finished.
 type StatusNextHop struct {
-	Host      string `json:"host"`
-	SubPort   int    `json:"subPort"`
-	Reachable bool   `json:"reachable"`
+	Host      string    `json:"host"`
+	SubPort   int       `json:"subPort"`
+	Reachable bool      `json:"reachable"`
+	Check     *HopCheck `json:"check,omitempty"`
 }

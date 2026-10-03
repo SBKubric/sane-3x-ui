@@ -194,25 +194,37 @@ func (s *ChainDocumentService) BuildAllWithPanelHost(fallbackHost string) (map[s
 // way out, so the live path runs past it (§4.5.2) — the departing box hands
 // its neighbours this very address itself, out of its own document (§4.5.3).
 func (s *ChainDocumentService) nextHopOf(hop model.ChainHop, byId map[int]model.ChainHop, panelHop chain.NextHop) chain.NextHop {
+	next, found := dialledHop(hop, byId)
+	if !found {
+		return panelHop
+	}
+	return chain.NextHop{
+		Host:           next.Host,
+		SubPort:        next.SubPort,
+		SubScheme:      next.SubScheme,
+		SubPath:        panelHop.SubPath,
+		JsonPath:       panelHop.JsonPath,
+		TunPath:        panelHop.TunPath,
+		ThirdPartyPath: panelHop.ThirdPartyPath,
+	}
+}
+
+// dialledHop is the registry row of the hop that hop dials inward, walking
+// past every hop nextHopOf skips; false means the panel itself. The document
+// builder and GET /mon/v1/state's chain.hops[].next (#254) both name the next
+// hop through it, so the two cannot disagree.
+func dialledHop(hop model.ChainHop, byId map[int]model.ChainHop) (model.ChainHop, bool) {
 	for id := hop.NextHopId; id != nil; {
 		next, found := byId[*id]
 		if !found {
 			break
 		}
 		if chainHopVisible(next) && next.State != chain.StateDraining {
-			return chain.NextHop{
-				Host:           next.Host,
-				SubPort:        next.SubPort,
-				SubScheme:      next.SubScheme,
-				SubPath:        panelHop.SubPath,
-				JsonPath:       panelHop.JsonPath,
-				TunPath:        panelHop.TunPath,
-				ThirdPartyPath: panelHop.ThirdPartyPath,
-			}
+			return next, true
 		}
 		id = next.NextHopId
 	}
-	return panelHop
+	return model.ChainHop{}, false
 }
 
 // chainHopVisible reports whether a registry row takes part in the documents

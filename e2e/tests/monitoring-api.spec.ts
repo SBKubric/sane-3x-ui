@@ -180,3 +180,64 @@ test.describe('monitoring per hop', () => {
     }
   });
 });
+
+/** The panel's sub server, where boxes join and poll (docker-compose.yml publishes it). */
+const SUB_URL = process.env.E2E_SUB_URL || 'http://127.0.0.1:2096';
+
+// A hop's host reachability check of its next hop (#254, decision
+// SBKubric/sane-3x-ui-monitoring#100): the box reports it on its chain poll in
+// X-Chain-Next-Hop-Check, and GET /state shows it on the hop as nextHopCheck,
+// beside next — the hop it dials, "" for the panel. The check stays out of the
+// revision.
+test.describe('monitoring next hop check', () => {
+  test('a hop names its next hop, and its check reaches GET /state without moving the revision', async ({
+    authedRequest,
+    request,
+  }) => {
+    const name = `e2e-chk-${randomUUID().slice(0, 8)}`;
+    const token = await openContract(authedRequest);
+    const headers = { Authorization: `Bearer ${token}` };
+    const hopOf = async () => {
+      const state = await request.get('/mon/v1/state', { headers });
+      expect(state.status()).toBe(200);
+      const body = await state.json();
+      return { revision: body.revision as string, hop: body.chain.hops.find((h: { name: string }) => h.name === name) };
+    };
+    try {
+      // An edge enters the chain the way a real box does; with no inner
+      // in front of it, its next hop is the panel.
+      const added = await (
+        await authedRequest.post('/panel/api/chain/add', { data: { name, host: '198.51.100.62', role: 'edge' } })
+      ).json();
+      expect(added.success, added.msg).toBe(true);
+      const joined = await request.post(`${SUB_URL}/chain/v1/join`, { data: { token: added.obj.joinToken } });
+      expect(joined.status()).toBe(200);
+      const { secret } = await joined.json();
+
+      const before = await hopOf();
+      expect(before.hop).toMatchObject({ name, role: 'edge', next: '' });
+      expect(before.hop.nextHopCheck).toBeUndefined();
+
+      // The box polls with the check of its last series: three echoes lost.
+      const at = Date.now() - 1000;
+      const poll = await request.get(`${SUB_URL}/chain/v1/document`, {
+        headers: {
+          Authorization: `Bearer ${secret}`,
+          'X-Chain-Next-Hop-Check': `at=${at}; sent=10; lossPct=30; rttAvgMs=12`,
+        },
+      });
+      expect(poll.status()).toBe(200);
+
+      const after = await hopOf();
+      expect(after.hop.nextHopCheck).toEqual({ at, sent: 10, lossPct: 30, rttAvgMs: 12 });
+      expect(after.revision).toBe(before.revision);
+    } finally {
+      const list = await (await authedRequest.get('/panel/api/chain/list')).json();
+      const hop = (list.obj?.hops || []).find((h: { name: string }) => h.name === name);
+      if (hop) {
+        await authedRequest.post(`/panel/api/chain/del/${hop.id}`, { data: { force: true, skipDrain: true } });
+      }
+      await closeContract(authedRequest);
+    }
+  });
+});

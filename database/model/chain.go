@@ -79,8 +79,19 @@ type ChainHop struct {
 	JoinedAt     int64  `json:"joinedAt"`
 	LastSeenAt   int64  `json:"lastSeenAt"`   // last confirmed poll
 	LastRevision int64  `json:"lastRevision"` // last revision the hop confirmed
-	CreatedAt    int64  `json:"createdAt" gorm:"autoCreateTime:milli"`
-	UpdatedAt    int64  `json:"updatedAt" gorm:"autoUpdateTime:milli"`
+
+	// The latest host reachability check of this hop's next hop (#254): ten
+	// ICMP echoes the box sends to the host it dials, reported on its poll or
+	// in its inner neighbour's acknowledgements. NextCheckAt is 0 until the
+	// first report; NextCheckRttMs is NULL when no echo came back. Shown to
+	// mon-server as chain.hops[].nextHopCheck, never to the editor's API.
+	NextCheckAt      int64  `json:"-" gorm:"not null;default:0"`
+	NextCheckSent    int    `json:"-" gorm:"not null;default:0"`
+	NextCheckLossPct int    `json:"-" gorm:"not null;default:0"`
+	NextCheckRttMs   *int64 `json:"-"`
+
+	CreatedAt int64 `json:"createdAt" gorm:"autoCreateTime:milli"`
+	UpdatedAt int64 `json:"updatedAt" gorm:"autoUpdateTime:milli"`
 }
 
 // TableName pins the table name so a future rename of the struct cannot

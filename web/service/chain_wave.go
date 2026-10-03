@@ -261,3 +261,61 @@ func (s *ChainWaveService) RecordFront(hopName string, own *chain.FrontReport, o
 	}
 	return nil
 }
+
+// RecordNextHopChecks writes down the host reachability checks the poll
+// carried (#254): the polling hop's own check of its next hop, and the checks
+// of the hops outward of it as their acknowledgements brought them.
+//
+// The rules are those of freshness. A hop speaks only for itself and the hops
+// outward of it; a check the registry could not hold is ignored; a check is
+// never wound back — an older one arriving by a slower route behind a newer
+// one changes nothing — and its time is clamped to the panel's clock, so a box
+// with a fast clock cannot make a check look newer than the last one.
+//
+// A check never moves the chain revision or mon-server's: it changes every
+// poll and says nothing any document or probe is built from.
+func (s *ChainWaveService) RecordNextHopChecks(hopName string, own *chain.HopCheck, outer []chain.OuterAck) error {
+	db := database.GetDB()
+	if db == nil {
+		return nil
+	}
+	checks := map[string]chain.HopCheck{}
+	if own != nil && own.Valid() {
+		checks[hopName] = *own
+	}
+	if len(outer) > 0 {
+		outward, err := outwardOf(db, hopName)
+		if err != nil {
+			return err
+		}
+		for _, ack := range outer {
+			name := strings.TrimSpace(ack.Name)
+			if _, allowed := outward[name]; !allowed || ack.NextHopCheck == nil || !ack.NextHopCheck.Valid() {
+				continue
+			}
+			checks[name] = *ack.NextHopCheck
+		}
+	}
+	if len(checks) == 0 {
+		return nil
+	}
+
+	now := time.Now().UnixMilli()
+	return db.Transaction(func(tx *gorm.DB) error {
+		for name, check := range checks {
+			at := min(check.At, now)
+			err := tx.Model(&model.ChainHop{}).
+				Where("name = ? AND next_check_at < ?", name, at).
+				UpdateColumns(map[string]any{
+					"next_check_at":       at,
+					"next_check_sent":     check.Sent,
+					"next_check_loss_pct": check.LossPct,
+					"next_check_rtt_ms":   check.RttAvgMs,
+				}).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}

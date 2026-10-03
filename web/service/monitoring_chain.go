@@ -19,11 +19,18 @@ import (
 // query of our own from inside an open transaction would wait on itself.
 
 // MonChainHop is one probed hop as GET /state reports it.
+//
+// Next is the name of the hop it dials inward, "" for the panel itself (#254).
+// NextHopCheck is its latest host reachability check of that next hop, absent
+// until the box has reported one; it changes every poll, so unlike Next it
+// stays out of the revision (contract §4.2).
 type MonChainHop struct {
-	Name  string `json:"name"`
-	Role  string `json:"role"`
-	Host  string `json:"host"`
-	State string `json:"state"`
+	Name         string          `json:"name"`
+	Role         string          `json:"role"`
+	Host         string          `json:"host"`
+	State        string          `json:"state"`
+	Next         string          `json:"next"`
+	NextHopCheck *chain.HopCheck `json:"nextHopCheck,omitempty"`
 }
 
 // MonChain is the chain field of GET /state (contract §4.1): the registry
@@ -69,6 +76,10 @@ func monChainTx(tx *gorm.DB) (*MonChain, error) {
 	if err != nil {
 		return nil, err
 	}
+	byId := make(map[int]model.ChainHop, len(rows))
+	for _, hop := range rows {
+		byId[hop.Id] = hop
+	}
 	out := &MonChain{Revision: revision, Hops: []MonChainHop{}}
 	for _, hop := range rows {
 		if hop.IsActive && out.ActiveEdge == nil {
@@ -76,10 +87,29 @@ func monChainTx(tx *gorm.DB) (*MonChain, error) {
 			out.ActiveEdge = &name
 		}
 		if monHopProbed(hop.State) {
-			out.Hops = append(out.Hops, MonChainHop{Name: hop.Name, Role: hop.Role, Host: hop.Host, State: hop.State})
+			entry := MonChainHop{Name: hop.Name, Role: hop.Role, Host: hop.Host, State: hop.State,
+				NextHopCheck: monNextHopCheck(hop)}
+			if next, found := dialledHop(hop, byId); found {
+				entry.Next = next.Name
+			}
+			out.Hops = append(out.Hops, entry)
 		}
 	}
 	return out, nil
+}
+
+// monNextHopCheck is the hop's stored host reachability check, nil until its
+// box has reported one.
+func monNextHopCheck(hop model.ChainHop) *chain.HopCheck {
+	if hop.NextCheckAt <= 0 {
+		return nil
+	}
+	check := &chain.HopCheck{At: hop.NextCheckAt, Sent: hop.NextCheckSent, LossPct: hop.NextCheckLossPct}
+	if hop.NextCheckRttMs != nil {
+		rtt := *hop.NextCheckRttMs
+		check.RttAvgMs = &rtt
+	}
+	return check
 }
 
 // probed reports whether the chain has anything the revision hashes: a
@@ -92,11 +122,14 @@ func (c *MonChain) probed() bool {
 
 // revisionMaterial is the chain as the revision hashes it (contract §4.2):
 // the active edge and the probed hops, without the registry revision, as
-// maps so the canonical JSON sorts their keys like everything else.
+// maps so the canonical JSON sorts their keys like everything else. A hop's
+// next is in it, its nextHopCheck is not: the order of the chain is what
+// mon-server builds its picture from, the check is a reading that changes
+// every poll (#254).
 func (c *MonChain) revisionMaterial() map[string]any {
 	hops := make([]map[string]any, 0, len(c.Hops))
 	for _, h := range c.Hops {
-		hops = append(hops, map[string]any{"name": h.Name, "role": h.Role, "host": h.Host, "state": h.State})
+		hops = append(hops, map[string]any{"name": h.Name, "role": h.Role, "host": h.Host, "state": h.State, "next": h.Next})
 	}
 	return map[string]any{"activeEdge": c.ActiveEdge, "hops": hops}
 }

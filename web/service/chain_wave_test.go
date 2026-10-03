@@ -311,3 +311,77 @@ func TestChainWaveMovesAnOuterHopBehindItsFront(t *testing.T) {
 		t.Errorf("an invalid report was stored: %+v", hop)
 	}
 }
+
+// TestChainWaveRecordsNextHopChecks (#254): the caller's own check and the
+// checks its acknowledgements carry land on the hops' registry rows, a hop
+// speaks only for itself and the hops outward of it, and an invalid check is
+// dropped. None of it moves the chain revision.
+func TestChainWaveRecordsNextHopChecks(t *testing.T) {
+	registry := newChainService(t)
+	wave := &ChainWaveService{}
+	joinedWithSecret(t, registry, AddHopInput{Name: "inner-1", Host: "10.0.0.7", Role: chain.RoleInner})
+	joinedWithSecret(t, registry, AddHopInput{Name: "inner-2", Host: "10.0.0.8", Role: chain.RoleInner})
+	joinedWithSecret(t, registry, AddHopInput{Name: "edge-a", Host: "a.example.net", Role: chain.RoleEdge})
+	before := revisionOf(t, registry)
+	at := time.Now().Add(-time.Minute).UnixMilli()
+	rtt := int64(7)
+
+	err := wave.RecordNextHopChecks("inner-2", &chain.HopCheck{At: at, Sent: 10, LossPct: 10, RttAvgMs: &rtt}, []chain.OuterAck{
+		{Name: "edge-a", NextHopCheck: &chain.HopCheck{At: at, Sent: 10, LossPct: 100}},
+		{Name: "inner-1", NextHopCheck: &chain.HopCheck{At: at, Sent: 10, LossPct: 0, RttAvgMs: &rtt}}, // inward
+		{Name: "ghost", NextHopCheck: &chain.HopCheck{At: at, Sent: 10, LossPct: 0, RttAvgMs: &rtt}},   // not a hop
+	})
+	if err != nil {
+		t.Fatalf("RecordNextHopChecks: %v", err)
+	}
+	if hop := hopByName(t, registry, "inner-2"); hop.NextCheckAt != at || hop.NextCheckSent != 10 || hop.NextCheckLossPct != 10 ||
+		hop.NextCheckRttMs == nil || *hop.NextCheckRttMs != 7 {
+		t.Errorf("inner-2's own check = %+v", hop)
+	}
+	if hop := hopByName(t, registry, "edge-a"); hop.NextCheckAt != at || hop.NextCheckLossPct != 100 || hop.NextCheckRttMs != nil {
+		t.Errorf("edge-a's check from the acknowledgement = %+v", hop)
+	}
+	if hop := hopByName(t, registry, "inner-1"); hop.NextCheckAt != 0 {
+		t.Errorf("inner-2 spoke for its inward neighbour: %+v", hop)
+	}
+
+	// An invalid check is no check.
+	if err := wave.RecordNextHopChecks("inner-1", &chain.HopCheck{At: at, Sent: 10, LossPct: 100, RttAvgMs: &rtt}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if hop := hopByName(t, registry, "inner-1"); hop.NextCheckAt != 0 {
+		t.Errorf("an invalid check was stored: %+v", hop)
+	}
+	if after := revisionOf(t, registry); after != before {
+		t.Errorf("a check moved the chain revision %d -> %d", before, after)
+	}
+}
+
+// TestChainWaveNeverWindsANextHopCheckBack: an older check arriving behind a
+// newer one changes nothing, and one from a box with a fast clock is clamped
+// to the panel's.
+func TestChainWaveNeverWindsANextHopCheckBack(t *testing.T) {
+	registry := newChainService(t)
+	wave := &ChainWaveService{}
+	joinedWithSecret(t, registry, AddHopInput{Name: "inner-1", Host: "10.0.0.7", Role: chain.RoleInner})
+	rtt := int64(5)
+	newer := time.Now().Add(-time.Minute).UnixMilli()
+
+	if err := wave.RecordNextHopChecks("inner-1", &chain.HopCheck{At: newer, Sent: 10, LossPct: 0, RttAvgMs: &rtt}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := wave.RecordNextHopChecks("inner-1", &chain.HopCheck{At: newer - 30_000, Sent: 10, LossPct: 100}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if hop := hopByName(t, registry, "inner-1"); hop.NextCheckAt != newer || hop.NextCheckLossPct != 0 {
+		t.Errorf("an older check wound the hop back: %+v", hop)
+	}
+
+	future := time.Now().Add(time.Hour).UnixMilli()
+	if err := wave.RecordNextHopChecks("inner-1", &chain.HopCheck{At: future, Sent: 10, LossPct: 50, RttAvgMs: &rtt}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if hop := hopByName(t, registry, "inner-1"); hop.NextCheckAt > time.Now().UnixMilli() || hop.NextCheckLossPct != 50 {
+		t.Errorf("a check from the future = %+v", hop)
+	}
+}
