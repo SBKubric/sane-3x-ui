@@ -45,6 +45,9 @@ func Run(cfg *Config, stub string) error {
 	relay := NewRelay(cfg.RelayListen)
 	defer relay.Stop()
 	poller := NewPoller(cfg, state, store, relay)
+	// x-ui proxy runs as root: the check of the next hop's host gets a raw
+	// ICMP socket (#254).
+	poller.SetHostChecker(NewICMPChecker())
 
 	var join *JoinPage
 	if cfg.Bootstrap() {

@@ -271,6 +271,16 @@ func (a *ChainController) recordWave(c *gin.Context, hopName string) {
 	if err := a.waveService.RecordFront(hopName, front, outer); err != nil {
 		logger.Warning("chain: cannot record the front report of", hopName, err)
 	}
+	// How the caller and the hops outward of it reach their next hops (#254),
+	// for mon-server's diagnostic sweep. A box older than the check sends
+	// none, and the registry keeps whatever it last had.
+	var check *chain.HopCheck
+	if parsed, ok := chain.ParseHopCheck(c.GetHeader(chain.NextHopCheckHeader)); ok {
+		check = &parsed
+	}
+	if err := a.waveService.RecordNextHopChecks(hopName, check, outer); err != nil {
+		logger.Warning("chain: cannot record the next hop checks of", hopName, err)
+	}
 }
 
 // parseOuterAcks decodes X-Chain-Outer. Anything that does not decode, does

@@ -75,12 +75,14 @@ func ParseDocument(data []byte) (*chain.Document, error) {
 // neighbours told it, so the registry learns the freshness of every hop
 // without ever calling outward.
 //
-// Front is the neighbour's own front report (#140), passed on as it came.
+// Front is the neighbour's own front report (#140), passed on as it came, and
+// NextHopCheck its host reachability check of its own next hop (#254).
 type OuterAck struct {
 	Name         string             `json:"name"`
 	LastRevision int64              `json:"lastRevision"`
 	LastSeen     int64              `json:"lastSeen"`
 	Front        *chain.FrontReport `json:"front,omitempty"`
+	NextHopCheck *chain.HopCheck    `json:"nextHopCheck,omitempty"`
 }
 
 // State is everything the running hop knows about itself: the current
@@ -96,6 +98,9 @@ type State struct {
 	lastPollOK bool
 	stale      bool
 	outer      map[string]OuterAck
+	// nextCheck is the latest host reachability check of the next hop
+	// (#254), nil until the first series has finished.
+	nextCheck *chain.HopCheck
 }
 
 // NewState returns an empty state — a box that has not joined yet.
@@ -155,6 +160,25 @@ func (s *State) LastOk() int64 {
 	return s.lastOk
 }
 
+// SetNextHopCheck records the latest host reachability check of the next hop.
+func (s *State) SetNextHopCheck(check chain.HopCheck) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.nextCheck = &check
+}
+
+// NextHopCheck is the latest host reachability check of the next hop, nil
+// while there has been none. The copy is the caller's.
+func (s *State) NextHopCheck() *chain.HopCheck {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.nextCheck == nil {
+		return nil
+	}
+	check := *s.nextCheck
+	return &check
+}
+
 // RecordOuter stores the acks an outer neighbour reported: its own, plus
 // everything that reached it from further out. The freshest value per hop
 // wins, since the same hop can be reported by several routes.
@@ -185,12 +209,32 @@ func (s *State) OuterAcks() []OuterAck {
 	return acks
 }
 
+// nextHopOf is the next hop this box dials: the document's once there is one,
+// what proxy.json says before that.
+func nextHopOf(doc *chain.Document, cfg *Config) (string, int) {
+	if doc != nil && doc.NextHop.Host != "" {
+		return doc.NextHop.Host, doc.NextHop.SubPort
+	}
+	return cfg.NextHop.Host, cfg.NextHop.SubPort
+}
+
+// nextHopHost is the host of the next hop this box dials right now.
+func (s *State) nextHopHost(cfg *Config) string {
+	host, _ := nextHopOf(s.Document(), cfg)
+	return host
+}
+
 // Status is the body of GET /chain/v1/status (§3.6): a health view, never a
 // second way to read the document — no secrets and no hop list.
 func (s *State) Status(relay RelayController, cfg *Config) chain.Status {
 	s.mu.RLock()
 	doc := s.doc
 	lastPollOK := s.lastPollOK
+	var nextCheck *chain.HopCheck
+	if s.nextCheck != nil {
+		check := *s.nextCheck
+		nextCheck = &check
+	}
 	status := chain.Status{
 		Version:  chain.DocumentVersion,
 		LastPoll: s.lastPoll,
@@ -199,15 +243,12 @@ func (s *State) Status(relay RelayController, cfg *Config) chain.Status {
 	}
 	s.mu.RUnlock()
 
-	nextHost, nextPort := cfg.NextHop.Host, cfg.NextHop.SubPort
+	nextHost, nextPort := nextHopOf(doc, cfg)
 	if doc != nil {
 		status.Name = doc.Self.Name
 		status.Role = doc.Self.Role
 		status.Revision = doc.Revision
 		status.Draining = doc.Self.Draining()
-		if doc.NextHop.Host != "" {
-			nextHost, nextPort = doc.NextHop.Host, doc.NextHop.SubPort
-		}
 		// The registry's idea of this hop's address against the one its
 		// owner configured here: a hint for the owner, never a refusal (§4.4).
 		status.ObservedHostMismatch = cfg.Domain != "" && doc.Self.Host != "" && doc.Self.Host != cfg.Domain
@@ -219,6 +260,7 @@ func (s *State) Status(relay RelayController, cfg *Config) chain.Status {
 		// having succeeded: a next hop that answered once and has refused
 		// every connection since must not still read as reachable (#98).
 		Reachable: !status.Stale && lastPollOK,
+		Check:     nextCheck,
 	}
 	if relay != nil {
 		status.Relay = chain.StatusRelay{

@@ -185,6 +185,8 @@ func TestFetchAndPrintStatus(t *testing.T) {
 	state := NewState()
 	state.SetDocument(innerDocument())
 	state.MarkPoll(1758379990000, true)
+	rtt := int64(4)
+	state.SetNextHopCheck(chain.HopCheck{At: 1758379990000, Sent: 10, LossPct: 20, RttAvgMs: &rtt})
 
 	cfg := &Config{HopSecret: "inner-1-secret", Domain: "10.0.0.7"}
 	server := httptest.NewServer(testChainHandler(t, cfg, state))
@@ -202,12 +204,16 @@ func TestFetchAndPrintStatus(t *testing.T) {
 	if status.Name != "inner-1" || status.Revision != 42 {
 		t.Errorf("status = %+v", status)
 	}
+	if status.NextHop.Check == nil || status.NextHop.Check.LossPct != 20 {
+		t.Errorf("status next hop = %+v, want the host reachability check (#254)", status.NextHop)
+	}
 
 	var out bytes.Buffer
 	status.Relay = chain.StatusRelay{Running: true, Ports: []int{443, 51820}}
 	PrintStatus(&out, status)
 	printed := out.String()
-	for _, want := range []string{"inner-1", "inner", "198.51.100.1:" + strconv.Itoa(status.NextHop.SubPort), "443 51820", "42"} {
+	for _, want := range []string{"inner-1", "inner", "198.51.100.1:" + strconv.Itoa(status.NextHop.SubPort), "443 51820", "42",
+		"10 sent, 20% lost, avg 4 ms"} {
 		if !strings.Contains(printed, want) {
 			t.Errorf("printed status lacks %q:\n%s", want, printed)
 		}

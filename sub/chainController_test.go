@@ -550,3 +550,47 @@ func TestChainDocumentRecordsTheFront(t *testing.T) {
 		t.Errorf("revision = %d, want one bump from %d", after.Revision, state.Revision)
 	}
 }
+
+// TestChainDocumentRecordsTheNextHopChecks (#254): the poll carries the box's
+// host reachability check of its next hop, and an edge's arrives in its
+// inner's acknowledgements; both land in the registry. A box older than the
+// check sends none, and a garbled header costs the document nothing.
+func TestChainDocumentRecordsTheNextHopChecks(t *testing.T) {
+	engine, registry := newChainRouter(t)
+	_, secret := enterHop(t, registry, service.AddHopInput{Name: "inner-1", Host: "10.0.0.7", Role: chain.RoleInner})
+	enterHop(t, registry, service.AddHopInput{Name: "edge-a", Host: "a.example.net", Role: chain.RoleEdge})
+	state, _ := registry.List()
+
+	request := documentRequest(secret)
+	request.Header.Set(chain.NextHopCheckHeader, "garbled")
+	if recorder := do(engine, request); recorder.Code != http.StatusOK {
+		t.Fatalf("a garbled check cost the document: %d", recorder.Code)
+	}
+	if hop := hopFromRegistry(t, registry, "inner-1"); hop.NextCheckAt != 0 {
+		t.Fatalf("a garbled check was stored: %+v", hop)
+	}
+
+	rtt := int64(3)
+	own := chain.HopCheck{At: 1757721530000, Sent: 10, LossPct: 0, RttAvgMs: &rtt}
+	outer, err := json.Marshal([]chain.OuterAck{{Name: "edge-a", LastRevision: state.Revision, LastSeen: 1,
+		NextHopCheck: &chain.HopCheck{At: 1757721520000, Sent: 10, LossPct: 100}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request = documentRequest(secret)
+	request.Header.Set(chain.NextHopCheckHeader, own.Header())
+	request.Header.Set(chain.OuterHeader, base64.StdEncoding.EncodeToString(outer))
+	if recorder := do(engine, request); recorder.Code != http.StatusOK {
+		t.Fatalf("GET /chain/v1/document: %d", recorder.Code)
+	}
+
+	if hop := hopFromRegistry(t, registry, "inner-1"); hop.NextCheckAt != own.At || hop.NextCheckRttMs == nil || *hop.NextCheckRttMs != 3 {
+		t.Errorf("inner-1's own check = at %d rtt %v", hop.NextCheckAt, hop.NextCheckRttMs)
+	}
+	if hop := hopFromRegistry(t, registry, "edge-a"); hop.NextCheckAt != 1757721520000 || hop.NextCheckLossPct != 100 || hop.NextCheckRttMs != nil {
+		t.Errorf("edge-a's check = at %d loss %d rtt %v", hop.NextCheckAt, hop.NextCheckLossPct, hop.NextCheckRttMs)
+	}
+	if after, _ := registry.List(); after.Revision != state.Revision {
+		t.Errorf("a check moved the revision %d -> %d", state.Revision, after.Revision)
+	}
+}

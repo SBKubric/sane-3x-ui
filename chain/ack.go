@@ -15,11 +15,16 @@ import "regexp"
 // X-Chain-Front (#140): the panel hears only the first tier directly, so a
 // hop further out gets its move to 443 into the registry this way. Absent for
 // a box that does not report one.
+//
+// NextHopCheck is that neighbour's host reachability check of its own next
+// hop as it arrived in its NextHopCheckHeader (#254), carried inward the same
+// way. Absent for a box older than the check or one that has not run it yet.
 type OuterAck struct {
 	Name         string       `json:"name"`
 	LastRevision int64        `json:"lastRevision"`
 	LastSeen     int64        `json:"lastSeen"`
 	Front        *FrontReport `json:"front,omitempty"`
+	NextHopCheck *HopCheck    `json:"nextHopCheck,omitempty"`
 }
 
 // SeenHeader, OuterHeader and ObservedHeader are the wave's request headers,

@@ -10,6 +10,8 @@
 
 Правка 2026-09-28, совместимая (версия остаётся 3): **standby edge и inbound'ы за цепочкой** ([sane-3x-ui#161](https://github.com/SBKubric/sane-3x-ui/issues/161), решение [#157](https://github.com/SBKubric/sane-3x-ui/issues/157) Q2) — `GET /probe/configs?hop=<standby edge>` не отдаёт xray-элементы inbound'ов с `followChain` (§4.4), их xray-запись в ревизии несёт `followChain: true` (§4.2), смена active edge удаляет строки `mon_targets` таких inbound'ов на path standby edge (§6).
 
+Правка 2026-10-03, совместимая (версия остаётся 3): **звено и его next hop** ([sane-3x-ui#254](https://github.com/SBKubric/sane-3x-ui/issues/254), решение [sane-3x-ui-monitoring#100](https://github.com/SBKubric/sane-3x-ui-monitoring/issues/100)) — элементы `chain.hops[]` в `GET /state` несут `next` (имя следующего звена, `""` — панель) и необязательный `nextHopCheck` (последний host reachability check звена до его next hop'а, §4.1); `next` входит в ревизию, `nextHopCheck` — нет (§4.2), поэтому после обновления панели ревизия один раз сдвигается и mon-server перечитывает `/probe/configs`. Выкатка — вместе с mon-server v1.9.3.
+
 **Версия 3** (2026-09-25, решение [sane-3x-ui-monitoring#61](https://github.com/SBKubric/sane-3x-ui-monitoring/issues/61), карта [#49](https://github.com/SBKubric/sane-3x-ui-monitoring/issues/49)): мониторинг через каждое звено цепочки ([proxy-chain](proxy-chain.md) §6). `GET /state` несёт `chain {revision, activeEdge, hops[…]}` (звенья `joined`/`legacy`), `activeEdge` и `hops` входят в ревизию; `GET /probe/configs?hop=<name>` рендерит probe-набор с адресом звена (`409 unknown_hop`/`hop_not_joined`); при пробируемых звеньях path — `direct`, `edge:<name>`, `inner:<name>`, `proxy` — только пока их нет; снимок ensure несёт `paths` mon-clients, AWG probe-пиры заводятся только на пары mon-client × path, которые клиент пробует, с потолком `monProbePeerLimit`, `unallocated` — с `reason`; при смене пробируемого набора панель удаляет строки `mon_targets` выпавших path; `contract: 3`. Панель и mon-server — строгое совпадение версии, обновляются вместе.
 
 Контракт описывает **только** ручки, которые панель (real server) открывает mon-server. Протокол mon-server ↔ mon-client — [mon-protocol.md](https://github.com/SBKubric/3ax-ui-monitoring/blob/main/docs/spec/mon-protocol.md) в репо `3ax-ui-monitoring`. Панель наружу не звонит: все запросы инициирует mon-server.
@@ -72,9 +74,11 @@
     "revision": 42,
     "activeEdge": "edge-a",
     "hops": [
-      {"name": "inner-1", "role": "inner", "host": "10.0.0.7",          "state": "joined"},
-      {"name": "edge-a",  "role": "edge",  "host": "front.example.net", "state": "joined"},
-      {"name": "edge-b",  "role": "edge",  "host": "b.example.net",     "state": "joined"}
+      {"name": "inner-1", "role": "inner", "host": "10.0.0.7",          "state": "joined", "next": "",
+       "nextHopCheck": {"at": 1757721530000, "sent": 10, "lossPct": 0, "rttAvgMs": 2}},
+      {"name": "edge-a",  "role": "edge",  "host": "front.example.net", "state": "joined", "next": "inner-1",
+       "nextHopCheck": {"at": 1757721540000, "sent": 10, "lossPct": 100, "rttAvgMs": null}},
+      {"name": "edge-b",  "role": "edge",  "host": "b.example.net",     "state": "joined", "next": "inner-1"}
     ]
   },
   "probe": {"subId": "k3j9d8s7f6g5h4j3", "lastEnsured": 1757721540000},
@@ -93,6 +97,8 @@
   - `revision` — `chainRevision` реестра (монотонный `int64`); отдельная величина от `revision` контракта.
   - `activeEdge` — имя active edge или `null`. Может не встречаться в `hops`: активное edge после `reissueToken` — `pending` ([proxy-chain](proxy-chain.md) §2.3) и не пробируется. Известный пробел: такое edge держит host override, но до нового join не мониторится.
   - `hops` — все звенья в состоянии `joined` и `legacy`, и `inner`, и `edge`: сначала inner'ы по порядку цепочки от панели наружу (`position`), затем edge по `name` ([proxy-chain](proxy-chain.md) §6.1); `role` ∈ `inner` | `edge`, `state` ∈ `joined` | `legacy`, `host` — адрес звена из реестра. `pending` и `draining` не входят: их не пробируют.
+    - `next` — имя звена, которое это звено набирает внутрь (то, что стоит в `nextHop` его документа цепочки, [proxy-chain](proxy-chain.md) §3.1); `""` — следующей идёт сама панель (real server). Может назвать звено, которого нет в `hops`: перевходящее (`pending` с прежним секретом, [proxy-chain](proxy-chain.md) §4.5.7) по-прежнему держит соседей. Поле есть всегда; панель старее правки 2026-10-03 его не шлёт.
+    - `nextHopCheck` — последний host reachability check звена до его next hop'а: серия ICMP-эхо, которую звено (`x-ui proxy`) шлёт на каждом опросе цепочки ([proxy-chain](proxy-chain.md) §3.3). `{"at": <ms UTC, конец серии>, "sent": <1–100, обычно 10>, "lossPct": 0..100, "rttAvgMs": <int|null>}`, `rttAvgMs` = `null` при 100 % потерь. Поля нет, пока звено ни разу не отчиталось (и у панели старее правки). Отчёт приезжает по тому же плечу, которое проверяет: потерянное плечо — это старый `at`, а не `lossPct: 100`; панель `at` не двигает назад и не ставит новее своих часов.
 
 ### 4.2 Ревизия
 
@@ -110,7 +116,7 @@
  ],
  "override": {"enabled": true, "host": "front.example.net"},
  "chain": {"activeEdge": "edge-a",
-           "hops": [{"name": "inner-1", "role": "inner", "host": "10.0.0.7", "state": "joined"}, "…"]},
+           "hops": [{"name": "inner-1", "role": "inner", "host": "10.0.0.7", "state": "joined", "next": ""}, "…"]},
  "probeSubId": "k3j9d8s7f6g5h4j3"}
 ```
 
@@ -118,7 +124,7 @@
   - xray: `followChain: true` — только у inbound'а за цепочкой (у остальных ключа нет, их хэш от этого не меняется): флаг решает, пробируется ли inbound через standby edge (§4.4); `listen` (адрес path `direct`, если публичный); `stream` — `streamSettings` целиком, кроме `externalProxy` (в probe-ссылках он не участвует, §4.4): транспорт, TLS/Reality, `serverNames`/`target`/ключи/`shortIds`/SNI/fingerprint; `settings` — настройки протокола (метод shadowsocks, `decryption`, `fallbacks`…), где `clients` сокращён до probe-клиента этого inbound'а (`probe-<inboundId>` со всеми его полями). Добавление и правка пользователей ревизию не двигают. Сохранённые JSON-колонки разбираются и сериализуются заново, числа — в исходной записи.
   - AWG: `peers` — все probe-пиры AWG-сервера (`probe-awg-<monClientId>-<path>`, §4.3) по имени, отсортированы по `name`; `conf` — текст `.conf`, как его отдаёт `/probe/configs`, но с хостом `Endpoint`, заменённым на `probe.invalid` (хост — не материал панели: для `proxy` это `override.host`, для звена — `host` из `chain.hops`, для `direct` — `host` из запроса). В `conf` входят публичные параметры AWG-сервера (публичный ключ, порт, MTU, DNS, обфускация) и ключи/адреса пира, так что ротация любого из них двигает ревизию; набор пиров — тоже: новый mon-client в снимке получает пиры на ближайшем ensure, ревизия сдвигается, и mon-server перечитывает `/probe/configs`. Смена `state` mon-client'а ревизию не двигает.
 - `hiddifyCompat` — настройка панели `xrayHiddifyCompat`, меняющая вид xhttp/grpc-ссылок.
-- `chain` — `activeEdge` и `hops` из `/state` (§4.1), без `chain.revision`; при пустом реестре поля нет. Смена звеньев, их хостов и состояний, active edge двигает ревизию: от них зависят path и приоритет выдачи AWG probe-пиров (§4.3).
+- `chain` — `activeEdge` и `hops` из `/state` (§4.1), без `chain.revision`; при пустом реестре поля нет. Элемент `hops` — `name`, `role`, `host`, `state` и `next`, **без** `nextHopCheck`: проверка меняется на каждом опросе, а ревизия — сигнал перечитать probe-материал. Смена звеньев, их хостов, состояний и порядка (`next`), active edge двигает ревизию: от них зависят path, приоритет выдачи AWG probe-пиров (§4.3) и картина цепочки у mon-server.
 - `remark`/`tag` в хэш не входят (переименование не меняет targets).
 
 Ревизия детерминирована между рестартами панели: в хэше нет времени и нет зависимости от порядка map или порядка ключей в БД; счётчика в настройках нет. Для mon-server строка непрозрачна: он сравнивает её с последней виденной и при отличии перечитывает `/probe/configs` и пересобирает targets. Ревизия может сдвинуться и без видимой смены targets (ротация ключа, смена SNI) — это и есть сигнал перечитать материал.
