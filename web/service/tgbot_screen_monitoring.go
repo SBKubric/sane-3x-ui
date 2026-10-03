@@ -175,6 +175,15 @@ func (t *Tgbot) monEventLine(ev *MonUIEvent) string {
 		return t.I18nBot("tgbot.ops.monEventTarget", at, inbound, "Path=="+html.EscapeString(ev.Path), from, to, reason, client)
 	case model.MonEventKindMonClient:
 		return t.I18nBot("tgbot.ops.monEventClient", at, client, from, to)
+	case model.MonEventKindSweep:
+		kind := "Kind==" + monSweepKindLabel(ev.InboundKind)
+		switch ev.Phase {
+		case model.MonSweepPhaseStart:
+			return t.I18nBot("tgbot.ops.monEventSweepStart", at, kind, client)
+		case model.MonSweepPhaseChange:
+			return t.I18nBot("tgbot.ops.monEventSweepChange", at, kind, client)
+		}
+		return t.I18nBot("tgbot.ops.monEventSweepEnd", at, kind, client)
 	}
 	return t.I18nBot("tgbot.ops.monEventPanel", at, from, to, reason)
 }

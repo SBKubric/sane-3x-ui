@@ -619,6 +619,14 @@
 "range24h" = "24h"
 "range7d" = "7d"
 "range30d" = "30d"
+"reasonDerived" = "derived from edge paths"
+"reasonSweep" = "from diagnostic sweep"
+"sweepStart" = "unreachable through every edge"
+"sweepChange" = "the picture changed"
+"sweepEnd" = "reachable again"
+"sweepNoReport" = "no report"
+"sweepSince" = "since"
+"sweepTunnel" = "tunnel"
 
 [pages.subUsers]
 "title" = "Users"
@@ -1436,6 +1444,18 @@
 "standbySwitch" = "\n↪️ Standby: {{ .Standby }}. Switch: /proxy {{ .Name }}"
 "standbyNoHealthy" = "\n↪️ Standby: {{ .Standby }}. No healthy standby edge."
 "standbyNone" = "\n↪️ No healthy standby edge."
+"sweepStart" = "⛔ {{ .Kind }} unreachable through every edge · {{ .Client }}"
+"sweepChange" = "⛔ {{ .Kind }} still unreachable through every edge, the picture changed · {{ .Client }}"
+"sweepEnd" = "✅ {{ .Kind }} reachable again{{ .Via }} · {{ .Client }}{{ .Lasted }}"
+"sweepVia" = " through {{ .Edge }}"
+"sweepLasted" = " · the outage lasted {{ .Duration }}"
+"sweepHost" = "{{ .Node }} — ICMP {{ .Icmp }}"
+"sweepTunnel" = " · tunnel {{ .Result }}"
+"sweepLeg" = "{{ .From }} → {{ .To }} — ICMP {{ .Icmp }}"
+"sweepPath" = "{{ .Node }} — tunnel {{ .Result }}"
+"sweepRtt" = " · {{ .Rtt }} ms"
+"sweepNoReport" = "❌ no report"
+"sweepNoReportSince" = "❌ no report since {{ .Since }}"
 
 [tgbot.probe]
 "card" = "📡 <b>{{ .Name }}</b>\r\n🔒 Probe account: read only.\r\n"
@@ -1479,6 +1499,9 @@
 "adminLinkSent" = "🔧 Link sent: it goes in 5 minutes"
 "adminLink" = "🔧 Admin panel: {{ .URL }}\r\nThis message is deleted in 5 minutes."
 "monEventPanel" = "{{ .Time }} · panel: {{ .From }} → {{ .To }}{{ .Reason }}"
+"monEventSweepStart" = "{{ .Time }} · ⛔ {{ .Kind }}: diagnostic sweep started · {{ .Client }}"
+"monEventSweepChange" = "{{ .Time }} · ⛔ {{ .Kind }}: diagnostic sweep, the picture changed · {{ .Client }}"
+"monEventSweepEnd" = "{{ .Time }} · ✅ {{ .Kind }}: diagnostic sweep over · {{ .Client }}"
 
 [tgbot.buttons]
 "closeKeyboard" = "❌ Fechar teclado"

@@ -45,6 +45,14 @@ const (
 	MonEventKindTarget    = "target"     // a target changed state
 	MonEventKindMonClient = "mon_client" // a mon-client went ONLINE/OFFLINE
 	MonEventKindPanel     = "panel"      // mon-server lost/regained the panel
+	MonEventKindSweep     = "sweep"      // a diagnostic sweep started, changed or ended
+)
+
+// Phases of a diagnostic sweep event (kind=sweep).
+const (
+	MonSweepPhaseStart  = "start"
+	MonSweepPhaseChange = "change"
+	MonSweepPhaseEnd    = "end"
 )
 
 // MonTarget is the current state of one (mon-client, inbound, path) probe. A
@@ -89,7 +97,9 @@ type MonEvent struct {
 
 	// Set for kind=target and kind=mon_client; empty for kind=panel.
 	MonClientId string `json:"monClientId" gorm:"size:64"`
-	// Set for kind=target only; a panel or mon_client event carries zero values.
+	// Set for kind=target; kind=sweep sets InboundKind only (a sweep covers
+	// every inbound of that kind). A panel or mon_client event carries zero
+	// values.
 	InboundKind string `json:"inboundKind" gorm:"size:16;index:idx_mon_events_inbound_ts,priority:1"`
 	InboundId   int    `json:"inboundId" gorm:"index:idx_mon_events_inbound_ts,priority:2"`
 	Path        string `json:"path" gorm:"size:16"`
@@ -101,6 +111,12 @@ type MonEvent struct {
 	// Notified is true once the Telegram message for this transition went out,
 	// or when mon-server said the panel need not send one.
 	Notified bool `json:"notified"`
+
+	// Set for kind=sweep only: the phase (MonSweepPhase*) and the report of
+	// the diagnostic sweep as mon-server sent it, as JSON text
+	// (monitoring-contract.md §4.6). A sweep has no from/to.
+	Phase  string `json:"phase,omitempty" gorm:"size:16"`
+	Report string `json:"-" gorm:"column:report;type:text"`
 }
 
 // MonStatsCurrent is one fine-grained bucket (bucket_ms wide, 5 minutes in v1)
