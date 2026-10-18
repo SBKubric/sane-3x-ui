@@ -85,7 +85,7 @@ func Join(ctx context.Context, cfg *Config, token string) (*JoinResult, error) {
 
 	resp, err := joinClient().Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("next hop %s is unreachable: %w", cfg.NextHopBase(), err)
+		return nil, fmt.Errorf("next hop %s is unreachable: %w%s", cfg.NextHopBase(), err, subPortHint(cfg.NextHop.SubPort))
 	}
 	defer resp.Body.Close()
 	answer, err := io.ReadAll(io.LimitReader(resp.Body, maxDocumentBytes))
@@ -112,6 +112,17 @@ func Join(ctx context.Context, cfg *Config, token string) (*JoinResult, error) {
 			result.Document.Version, chain.DocumentVersion)
 	}
 	return &result, nil
+}
+
+// subPortHint follows an unreachable next hop with the likeliest reason: the
+// wrong one of its two sub ports. A hop behind the only443 front answers on 443
+// and its firewall closes 2096, so a box set up by hand with the default 2096
+// timed out (#265); a hop without a front answers on its own sub port only.
+func subPortHint(tried int) string {
+	if tried == 443 {
+		return fmt.Sprintf(" (tried sub port 443, where a hop behind the only443 front answers; a next hop without a front answers on its own sub port, %d by default)", DefaultSubPort)
+	}
+	return fmt.Sprintf(" (tried sub port %d; a next hop behind the only443 front answers on 443 only: PROXY_NEXT_HOP_SUB_PORT=443 at install, --sub-port 443 for x-ui chain rejoin)", tried)
 }
 
 // Accept records a successful join on disk and in memory: the hop secret and

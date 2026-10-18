@@ -1,7 +1,9 @@
 package proxy
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -10,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
 )
@@ -289,5 +292,71 @@ func TestJoinURLPathSitsNextToTheConfig(t *testing.T) {
 	url, err := ReadJoinURL(cfgPath)
 	if err != nil || url != "https://b.example.net:2096/join/abc" {
 		t.Errorf("ReadJoinURL = %q, %v", url, err)
+	}
+}
+
+// TestJoinPageStatesTheInstallersNextHopPort (#265): the installer writes the
+// next hop's sub port it found or was told into proxy.json, and the join page
+// of a box installed without a token joins through exactly that port — it
+// states it rather than asking again.
+func TestJoinPageStatesTheInstallersNextHopPort(t *testing.T) {
+	joined := false
+	nextHop := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		joined = true
+		_ = json.NewEncoder(w).Encode(joinAnswer())
+	}))
+	defer nextHop.Close()
+	host, port := hostPort(t, nextHop.URL)
+
+	page, _, _, _ := bootstrapBox(t, nextHop.URL)
+	w := httptest.NewRecorder()
+	page.Handler().ServeHTTP(w, httptest.NewRequest(http.MethodGet, page.Path(), nil))
+	want := `data-testid="chain-join-nexthop">http://` + host + ":" + strconv.Itoa(port) + "<"
+	if !strings.Contains(w.Body.String(), want) {
+		t.Errorf("the page does not state the configured next hop %s:\n%s", want, w.Body.String())
+	}
+	if strings.Contains(w.Body.String(), `name="nextHopSubPort"`) {
+		t.Error("the page asks for a sub port the installer has already settled")
+	}
+	if w := postJoinForm(page, url.Values{"token": {"0123456789012345678901234567890a"}}); w.Code != http.StatusOK || !joined {
+		t.Errorf("join through the configured port: status %d, reached the next hop: %t", w.Code, joined)
+	}
+}
+
+// TestJoinNamesTheSubPortWhenTheNextHopIsUnreachable (#265): a hop behind the
+// only443 front answers on 443 and its firewall drops 2096, so a box set up by
+// hand with the default port timed out with nothing to go on. The error now
+// names the port it tried and the one that front answers on.
+func TestJoinNamesTheSubPortWhenTheNextHopIsUnreachable(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := listener.Addr().(*net.TCPAddr).Port
+	listener.Close()
+
+	for _, tc := range []struct {
+		port int
+		want []string
+	}{
+		{port: closed, want: []string{"tried sub port " + strconv.Itoa(closed), "only443", "PROXY_NEXT_HOP_SUB_PORT=443", "--sub-port 443"}},
+		{port: 443, want: []string{"tried sub port 443", "only443", "2096"}},
+	} {
+		cfg := &Config{NextHop: NextHop{Host: "127.0.0.1", SubPort: tc.port, SubScheme: "http"}}
+		if tc.port == 443 {
+			// Nothing may answer on the real 443 of the test machine.
+			cfg.NextHop.Host = "192.0.2.1"
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		_, err := Join(ctx, cfg, "0123456789012345678901234567890a")
+		cancel()
+		if err == nil {
+			t.Fatalf("port %d: the join went through", tc.port)
+		}
+		for _, want := range tc.want {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("port %d: the error does not say %q: %v", tc.port, want, err)
+			}
+		}
 	}
 }

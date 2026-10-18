@@ -104,7 +104,26 @@ bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/3ax-ui-proxy/main/ins
 
 **Через join page (если токена под рукой нет):** запустите то же самое без `PROXY_JOIN_TOKEN`. Бокс стартует в bootstrap-режиме: релея нет, слушает только sub-порт и отдаёт одноразовую страницу входа. Футер печатает ссылку; повторно её покажет `x-ui chain join-url` (файл `/etc/x-ui/chain-join.url`). На странице — next hop (предзаполнен) и поле join-токена. После принятого входа страница отвечает 404, файл ссылки исчезает, релей и полный sub-сервер стартуют в том же процессе.
 
-Переменные установщика — в [README](../../README.md#11-proxy-chain-anti-blocking). Коротко: `PROXY_NEXT_HOP` (обязательна), `PROXY_NEXT_HOP_SUB_PORT` (2096), `PROXY_NEXT_HOP_SCHEME` (https), `PROXY_JOIN_TOKEN`, `PROXY_TLS` (`letsencrypt-ip`), `PROXY_TLS_IPV6` (выкл.), `PROXY_DOMAIN`, `PROXY_SUB_PORT` (2096), `PROXY_SUB_LISTEN`, `PROXY_RELAY_LISTEN` (`::`), `PROXY_CERT`/`PROXY_KEY` (только при `PROXY_TLS=manual`), `PROXY_FRONT` (`off` | `only443`, §3.5).
+**Вручную, за звеном с фронтом `only443` (#265).** Все звенья production и стенда стоят с `PROXY_FRONT=only443`: sub-порт 2096 у них закрыт файрволом, подписки и `/chain/v1/` отвечают на 443. Оркестратор передаёт порт сам (`roles/hop`), а при ручной установке его нужно назвать — иначе вход падает с `next hop https://<bridge>:2096 is unreachable … context deadline exceeded`. Join-токен берётся из п.3.1 (Settings → Subscription → Chain на панели). Запуск — от root: `sudo bash <(curl …)` теряет переменные окружения, а заодно и сам `<(…)`.
+
+```bash
+ssh root@<новый бокс>        # или sudo -i, затем команда ниже
+XUI_PROXY_MODE=1 \
+PROXY_NEXT_HOP=<bridge> PROXY_NEXT_HOP_SUB_PORT=443 \
+PROXY_JOIN_TOKEN=<токен из п.3.1> \
+PROXY_FRONT=only443 \
+bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/3ax-ui-proxy/main/install.sh)
+```
+
+Интерактивно (на TTY) установщик спрашивает недостающее:
+
+- **адрес next hop** — `host`, `host:port` или `[ipv6]:port`; порт из адреса становится `PROXY_NEXT_HOP_SUB_PORT`, а противоречие с явно заданной переменной — ошибка;
+- **порт, если он не задан ни переменной, ни в адресе,** установщик ищет сам: `POST /chain/v1/join` с пустым токеном сначала на 443, затем на 2096 (5 с на порт). Звено цепочки отвечает на это голым 404 без тела — так и `proxy.Join` понимает отказ, — а обычный веб-сервер или сайт-маскировка Reality отвечают 404 со страницей и звеном не считаются. Найденный порт печатается: `next hop answers on 443 (front only443)` или `next hop answers on 2096 (no front)`. Не ответил ни один — установка останавливается, ничего не тронув, и называет оба порта и `PROXY_NEXT_HOP_SUB_PORT`;
+- **фронт** (`only443` или `off`), с подсказкой, что звенья production и стенда идут с `only443`; если next hop ответил на 443, по умолчанию предлагается `only443`, иначе `off`.
+
+Без TTY вопросов нет: порт, если не задан, ищется так же, но при неудаче остаётся 2096 с WARN (раньше такой бокс поднимался в любом случае, и это сохранено), а `PROXY_FRONT` без переменной — `off`, как раньше. Явно заданный порт не проверяется и не подменяется никогда, поэтому прогон оркестратора, который передаёт все `PROXY_NEXT_HOP*`, не меняется. Если вход всё же не прошёл из-за недоступного next hop, ошибка `x-ui chain rejoin` / join page называет порт, который пробовали, и подсказывает `PROXY_NEXT_HOP_SUB_PORT=443` (или `--sub-port 443`) для next hop за `only443`.
+
+Переменные установщика — в [README](../../README.md#11-proxy-chain-anti-blocking). Коротко: `PROXY_NEXT_HOP` (обязательна; `host:port` задаёт и порт), `PROXY_NEXT_HOP_SUB_PORT` (не задан — ищется: 443, затем 2096), `PROXY_NEXT_HOP_SCHEME` (https), `PROXY_JOIN_TOKEN`, `PROXY_TLS` (`letsencrypt-ip`), `PROXY_TLS_IPV6` (выкл.), `PROXY_DOMAIN`, `PROXY_SUB_PORT` (2096), `PROXY_SUB_LISTEN`, `PROXY_RELAY_LISTEN` (`::`), `PROXY_CERT`/`PROXY_KEY` (только при `PROXY_TLS=manual`), `PROXY_FRONT` (`off` | `only443`, §3.5; на TTY спрашивается).
 
 Старые переменные (`PROXY_UPSTREAM_HOST`, `PROXY_UPSTREAM_BASE`, `PROXY_EXTRA_PORTS`, `PROXY_RELAY_MANIFEST`, `PROXY_SUB_PATH`, `PROXY_JSON_PATH`, `PROXY_XRAY_CONFIG`) установщик **отвергает с ошибкой**, а не игнорирует: молча проглоченный `PROXY_EXTRA_PORTS` дал бы фронт без половины портов, и выяснилось бы это только на клиенте.
 
