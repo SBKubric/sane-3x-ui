@@ -763,6 +763,8 @@
 "subEnableRoutingDesc" = "Глобальная настройка для включения маршрутизации в VPN-клиенте. (Только для Happ)"
 "subRoutingRules" = "Правила маршрутизации"
 "subRoutingRulesDesc" = "Глобальные правила маршрутизации для VPN-клиента. (Только для Happ)"
+"subClientRouting" = "Маршрутизация клиента (Happ, Incy, v2RayTun)"
+"subClientRoutingDesc" = "Правила маршрутизации для Happ, Incy и v2RayTun: панель отдаёт их заголовком routing в формате клиента. JSON-объект: name, domainStrategy (AsIs, IPIfNonMatch, IPOnDemand), directSites, directIp, directProtocols (только v2RayTun), proxySites, proxyIp, blockSites, blockIp, geositeUrl и geoipUrl (geo-файлы Happ, пусто — его стандартные). Правила «через VPN» проверяются раньше «напрямую». Если задано — вместо правил маршрутизации выше. Пусто — выключено. Остальные клиенты ничего не получают; сама подписка одинакова для всех."
 "subListen" = "Прослушивание IP"
 "subListenDesc" = "Оставьте пустым по умолчанию, чтобы отслеживать все IP-адреса"
 "subPort" = "Порт подписки"

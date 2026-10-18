@@ -66,6 +66,8 @@ var defaultValueMap = map[string]string{
 	"subAnnounce":                 "",
 	"subEnableRouting":            "true",
 	"subRoutingRules":             "",
+	"subClientRouting":            "",  // the routing header of Happ, Incy and v2RayTun (#263), setting_sub_client_routing.go
+	"subClientRoutingUpdated":     "0", // when subClientRouting last changed, Unix seconds: Happ's LastUpdated
 	"subListen":                   "",
 	"subPort":                     "2096",
 	"subPath":                     fmt.Sprintf("/sub-%s/", random.Seq(12)),
@@ -902,6 +904,7 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 	}
 	previousPublic, _ := s.GetSubPublicURL()
 	previousTrusted, _ := s.getString("frontTrustedAddrs")
+	previousRouting, _ := s.getString(subClientRoutingKey)
 	// The masked DNSExit API key the form loaded comes back as the mask:
 	// the stored key stays (#225).
 	if allSetting.DnsExitApiKey == entity.DnsExitApiKeyMask {
@@ -939,6 +942,11 @@ func (s *SettingService) UpdateAllSetting(allSetting *entity.AllSetting) error {
 		if err := frontTrustedAddrsChanged(); err != nil {
 			errs = append(errs, err)
 		}
+	}
+	// The client routing's change time is Happ's LastUpdated (#263): it
+	// moves with the routing, not with every save of the form.
+	if err := s.subClientRoutingSaved(previousRouting, allSetting.SubClientRouting); err != nil {
+		errs = append(errs, err)
 	}
 	return common.Combine(errs...)
 }
