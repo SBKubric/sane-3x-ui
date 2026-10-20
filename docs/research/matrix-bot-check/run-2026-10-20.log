@@ -1,0 +1,106 @@
+--- idle homeservers
+mx275-hs1 57.27MiB / 15.62GiB 0.00%
+mx275-hs2 52.84MiB / 15.62GiB 0.00%
+mx275-front 5.695MiB / 15.62GiB 0.00%
+[PASS] S1.register: register admin1 with registration token (39ms)
+[PASS] S1.register: register bot with registration token (29ms)
+[PASS] S1.register: register botx with registration token (29ms)
+[PASS] S1.register: register u1 with registration token (29ms)
+[PASS] S1.register: register u2 with registration token (30ms)
+[PASS] S1.register: register u3 with registration token (30ms)
+[PASS] S1.register: register admin2 with registration token (42ms)
+[PASS] S1.register: register r1 with registration token (30ms)
+[PASS] S2.create: bot creates unencrypted DM and invites @u1:hs1.test
+[PASS] S2.invite: u1 sees the invite in /sync after 63ms
+[INFO] S2.invite: invite sender=@bot:hs1.test is_direct=true
+[PASS] S2.join: u1 accepts the invite
+[PASS] S2.send: bot sends the cabinet as HTML formatted_body
+[PASS] S2.recv: u1 receives it
+[PASS] S2.html: formatted_body arrives byte-identical (server does not sanitise; rendering is up to the client)
+[PASS] S3.create: bot invites remote @r1:hs2.test over federation (37ms)
+[PASS] S3.invite: remote user sees the invite after 37ms
+[PASS] S3.join: remote user joins via federation (18ms)
+[PASS] S3.send: bot sends m.notice
+[PASS] S3.recv: remote user receives it after 52ms
+[PASS] S4.create: u2 creates a DM with the bot
+[PASS] S4.autojoin: bot auto-accepts the invite (110ms)
+[PASS] S4.send: u2 sends /link <code>
+[PASS] S4.recv: bot receives the code
+[INFO] S4.identity: event sender=@u2:hs1.test (asserted by the homeserver of the sender; that is the proof of MXID ownership)
+[INFO] S5.block-all: config=map[default_action:block] -> invite: 400 M_INVITE_BLOCKED, u3 sees invite: false
+[INFO] S5.block-all+allow-bot: config=map[allowed_users:[@bot:hs1.test] default_action:block] -> invite: 400 M_INVITE_BLOCKED, u3 sees invite: false
+[INFO] S5.block-servers+allow-bot: config=map[allowed_users:[@bot:hs1.test] blocked_servers:[*]] -> invite: ok, u3 sees invite: true
+[INFO] S5.ignore-bot: config=map[ignored_users:[@bot:hs1.test]] -> invite: ok, u3 sees invite: false
+[INFO] S5.reset: config=map[] -> invite: ok, u3 sees invite: true
+[PASS] S6.upload: upload .conf (129 B) -> mxc://hs1.test/A4s1zO3LyOuue5JC7y0hWCbFNsPWaG1V
+[PASS] S6.file: send m.file
+[PASS] S6.file.recv: u1 receives m.file
+[PASS] S6.file.dl: u1 downloads via /_matrix/client/v1/media (authenticated)
+[INFO] S6.legacy: unauthenticated GET /_matrix/media/v3/download -> HTTP 403
+[INFO] S6.noauth: GET /_matrix/client/v1/media/download without token -> HTTP 401 (a link to the file is useless outside Matrix)
+[PASS] S6.image: send m.image to !kefMToxby3lihKLWmwNFDqir73Yd4E0aaAQF8kH2R2E
+[PASS] S6.image: send m.image to !ovABng9k2UCW1YCtQxyFsKLG3nWDMcv0B2RyA8z2qMw
+[PASS] S6.image.fed: remote user receives m.image
+[PASS] S6.image.fed.dl: remote user downloads it through its own homeserver (federated authenticated media, 55ms)
+[PASS] S7.create: bot creates public room #status6cd4cc22:hs1.test (events_default=50, bot=100, reactions=0)
+[INFO] S7.link: matrix.to link: https://matrix.to/#/%23status6cd4cc22:hs1.test
+[PASS] S7.join: u1 joins by alias
+[PASS] S7.join: u2 joins by alias
+[PASS] S7.join.fed: remote user joins by alias over federation (28ms)
+[INFO] S7.readonly: subscriber posts a message -> 403 M_FORBIDDEN
+[PASS] S7.post: bot posts an announcement (one event, regardless of N)
+[PASS] S7.post.fed: remote member receives it
+[PASS] S7.members: subscriber u2 asks /joined_members
+[INFO] S7.members: u2 sees 4 members: @bot:hs1.test, @r1:hs2.test, @u1:hs1.test, @u2:hs1.test
+[INFO] S7.peek.messages: non-member u3 /messages on world_readable room -> ok (8 events)
+[INFO] S7.peek.members: non-member u3 /members -> ok (4 member events)
+[INFO] S7.peek.fed: remote member /messages -> ok
+[INFO] S8.burst: 200 messages back-to-back in 527ms: ok=200, 429=0
+[PASS] S8.recv: u1 received the last burst message
+[INFO] S8.invites: 30 createRoom+invite in 368ms: 429=0
+[PASS] E1.bot: bot with E2EE (goolm + sqlite crypto store) logs in, device AmPxXuXS4N
+[PASS] E1.user: test user with E2EE logs in, device 3X601I3X65
+[PASS] E1.room: user creates an encrypted DM with the bot
+[PASS] E2.user->bot: u2e -> botx decrypted (source=true)
+[PASS] E2.bot->user: botx -> u2e decrypted (source=true)
+[INFO] E2.trust.nocs: user's view of bot device AmPxXuXS4N: trust=unverified (bot has 1 devices with keys)
+[PASS] E2.file.upload: upload encrypted .conf
+[PASS] E2.file.send: send encrypted m.file
+[PASS] E2.file.recv: user receives encrypted m.file
+[PASS] E2.file.dec: user downloads and decrypts the attachment
+[PASS] E3.xsign: bot generates cross-signing keys + SSSS recovery key and signs its device
+[INFO] E3.trust.cs: user's view of bot device AmPxXuXS4N: trust=cross-signed-tofu (bot has 1 devices with keys)
+[PASS] E3.bot->user: botx -> u2e decrypted (source=true)
+[PASS] E4.restart: bot restarts from the same crypto store (35ms), device AmPxXuXS4N (same=true)
+[PASS] E4.bot->user: botx -> u2e decrypted (source=true)
+[PASS] E4.user->bot: u2e -> botx decrypted (source=true)
+[INFO] E4.trust: user's view of bot device AmPxXuXS4N: trust=cross-signed-tofu (bot has 1 devices with keys)
+[INFO] E5.lost-same-device: empty store + old token/device -> olm account is not marked as shared, but there are keys on the server
+[PASS] E6.newdevice: bot logs in with password into an empty store -> new device 1vz87zbFeQ
+[PASS] E6.recover: bot restores cross-signing from SSSS with the recovery key and signs the new device
+[PASS] devices: bot deletes 2 stale devices (UIA password)
+[INFO] E6.trust: user's view of bot device 1vz87zbFeQ: trust=cross-signed-tofu (bot has 1 devices with keys)
+[PASS] E6.bot->user: botx -> u2e decrypted (source=true)
+[PASS] E6.user->bot: u2e -> botx decrypted (source=true)
+[PASS] E7.newdevice: bot loses store AND recovery key: new device lrMvmPlsDL
+[INFO] E7.reset.helper: mautrix GenerateAndUploadCrossSigningKeysWithPassword (legacy UIA "user" field) -> 400 M_BAD_JSON
+[PASS] E7.reset: bot uploads NEW cross-signing keys (identity reset)
+[INFO] E7.trust: user's view of bot device lrMvmPlsDL: trust=cross-signed-untrusted (bot has 2 devices with keys)
+[PASS] E7.bot->user: botx -> u2e decrypted (source=true)
+[PASS] E8.room: user creates an encrypted DM with the bot that has no E2EE
+[INFO] E8.bot-sees: plain bot receives event type m.room.encrypted (cannot read the command)
+[INFO] E8.plain-send: plain bot sends unencrypted into the encrypted room -> ok
+[INFO] E8.user-sees: user receives plaintext event (decrypted flag=false) — clients mark it as not encrypted
+[INFO] E9.utd: live decryption failures: bot(last device)=0 user=0; history UTDs on the bot's fresh device=8
+[INFO] R1.mem: whole check process (6 clients incl. 2 E2EE): VmHWM: 23308 kB
+[INFO] R1.mem: whole check process (6 clients incl. 2 E2EE): VmRSS: 23024 kB
+--- homeservers after the run
+mx275-hs1 182.2MiB / 15.62GiB 0.06%
+mx275-hs2 70.32MiB / 15.62GiB 0.00%
+mx275-front 7.105MiB / 15.62GiB 0.00%
+26M	./.lab/hs1/data
+172K	./.lab/state/botx-crypto.db
+4.0K	./.lab/state/botx-lost.db
+172K	./.lab/state/botx-new.db
+172K	./.lab/state/botx-reset.db
+176K	./.lab/state/u2-crypto.db
