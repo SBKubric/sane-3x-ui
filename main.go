@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -430,6 +431,27 @@ func runTgCaptchaHostSetting(w io.Writer, value string) error {
 	return nil
 }
 
+// runSubClientRoutingSetting applies -subClientRouting (#263): the routing
+// Happ, Incy and v2RayTun get in the subscription's routing header, a JSON object
+// in the neutral form, "" turning it off. The value is checked as the
+// settings form checks it, and the stored one is printed back on one line.
+// Happ's LastUpdated moves only when the routing changed, so a run that sets
+// the same routing again has no Happ download its geo files again.
+func runSubClientRoutingSetting(w io.Writer, value string) error {
+	settingService := service.SettingService{}
+	if err := settingService.SetSubClientRouting(value); err != nil {
+		return fmt.Errorf("failed to set subClientRouting: %w", err)
+	}
+	stored, _ := settingService.GetSubClientRoutingSetting()
+	var line bytes.Buffer
+	if stored != "" && json.Compact(&line, []byte(stored)) != nil {
+		line.Reset()
+		line.WriteString(stored)
+	}
+	fmt.Fprintf(w, "subClientRouting: %s\n", line.String())
+	return nil
+}
+
 // updateSetting updates various panel settings including port, credentials, base path, listen IP, and two-factor authentication.
 func updateSetting(port int, username string, password string, webBasePath string, listenIP string, resetTwoFactor bool) error {
 	err := database.InitDB(config.GetDBPath())
@@ -839,6 +861,7 @@ func main() {
 	settingCmd.String("domainExpiry", "", "Set the domain's registration expiry date, YYYY-MM-DD, for the renewal reminder (\"\" for none)")
 	settingCmd.String("frontTrustedAddrs", "", "Set the front's trusted addresses: IPs or CIDRs, comma-separated, such as the subscription showcase's, that no front limits or bans (\"\" for none)")
 	settingCmd.String("tgCaptchaHost", "", "Set where the bot's captcha Mini App opens: edge (the active edge, also \"\"), panel (the panel's own front) or a hop's name")
+	settingCmd.String("subClientRouting", "", "Set the routing Happ, Incy and v2RayTun get in the subscription's routing header: a JSON object {name, domainStrategy, directSites, directIp, directProtocols, proxySites, proxyIp, blockSites, blockIp, geositeUrl, geoipUrl} (\"\" turns it off)")
 
 	oldUsage := flag.Usage
 	flag.Usage = func() {
@@ -924,13 +947,15 @@ func main() {
 				os.Exit(1)
 			}
 		}
-		var frontTrusted, captchaHost *flag.Flag
+		var frontTrusted, captchaHost, clientRouting *flag.Flag
 		settingCmd.Visit(func(f *flag.Flag) {
 			switch f.Name {
 			case "frontTrustedAddrs":
 				frontTrusted = f
 			case "tgCaptchaHost":
 				captchaHost = f
+			case "subClientRouting":
+				clientRouting = f
 			}
 		})
 		if frontTrusted != nil {
@@ -943,6 +968,12 @@ func main() {
 		// back, and no flag leaves the setting alone.
 		if captchaHost != nil {
 			if err = runTgCaptchaHostSetting(os.Stdout, captchaHost.Value.String()); err != nil {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+		if clientRouting != nil {
+			if err = runSubClientRoutingSetting(os.Stdout, clientRouting.Value.String()); err != nil {
 				fmt.Println(err)
 				os.Exit(1)
 			}

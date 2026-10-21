@@ -122,6 +122,11 @@ type AllSetting struct {
 	// {name, platform, url, protocols}; the form shows the built-in list.
 	SubPageApps string `json:"subPageApps" form:"subPageApps"`
 
+	// The client routing (#263, sub_client_routing.go): the routing Happ, Incy
+	// and v2RayTun get in the routing header, each in its own format; a JSON
+	// object in the neutral form of package clientrouting, "" for none.
+	SubClientRouting string `json:"subClientRouting" form:"subClientRouting"`
+
 	// The VPN name (#225, vpn_name.go): the DNSExit API key (shown masked),
 	// the name the VLESS links name instead of the active edge's address,
 	// its record's TTL in minutes, and the domain's registration expiry
@@ -265,6 +270,9 @@ func (s *AllSetting) CheckValid() error {
 		return err
 	}
 	if err := checkSubPageApps(s); err != nil {
+		return err
+	}
+	if err := checkSubClientRouting(s); err != nil {
 		return err
 	}
 	if err := checkVPNName(s); err != nil {

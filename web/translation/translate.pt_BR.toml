@@ -763,6 +763,8 @@
 "subEnableRoutingDesc" = "Configuração global para habilitar o roteamento no cliente VPN. (Apenas para Happ)"
 "subRoutingRules" = "Regras de roteamento"
 "subRoutingRulesDesc" = "Regras de roteamento globais para o cliente VPN. (Apenas para Happ)"
+"subClientRouting" = "Client routing (Happ, Incy, v2RayTun)"
+"subClientRoutingDesc" = "Routing rules for Happ, Incy and v2RayTun: the panel hands them out in the routing header, in each client's format. A JSON object: name, domainStrategy (AsIs, IPIfNonMatch, IPOnDemand), directSites, directIp, directProtocols (v2RayTun only), proxySites, proxyIp, blockSites, blockIp, geositeUrl and geoipUrl (Happ's geo files, empty for its default). The VPN rules are checked before the direct ones. Set, it replaces the routing rules above. Empty: off. Other clients get nothing; the subscription itself is the same for every client."
 "subListen" = "IP de Escuta"
 "subListenDesc" = "O endereço IP para o serviço de assinatura. (deixe em branco para escutar em todos os IPs)"
 "subPort" = "Porta de Escuta"

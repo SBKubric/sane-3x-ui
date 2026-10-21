@@ -226,6 +226,17 @@
                 <a-textarea v-model="allSetting.subRoutingRules" placeholder="happ://routing/add/..."></a-textarea>
             </template>
         </a-setting-list-item>
+        <!-- The client routing (#263): one neutral JSON object, handed to
+             Happ, Incy and v2RayTun in the routing header in each one's format. -->
+        <a-setting-list-item paddings="small">
+            <template #title>{{ i18n "pages.settings.subClientRouting"}}</template>
+            <template #description>{{ i18n "pages.settings.subClientRoutingDesc"}}</template>
+            <template #control>
+                <a-textarea v-model="allSetting.subClientRouting" data-testid="sub-client-routing" spellcheck="false"
+                    placeholder='{"name": "RU", "domainStrategy": "IPIfNonMatch", "directSites": ["geosite:category-ru"], "directIp": ["geoip:ru", "geoip:private"], "proxySites": ["domain:acomics.ru"]}'
+                    :auto-size="{ minRows: 4, maxRows: 18 }" style="font-family: monospace; font-size: 12px;"></a-textarea>
+            </template>
+        </a-setting-list-item>
     </a-collapse-panel>
     <a-collapse-panel key="3" header='{{ i18n "pages.settings.certs" }}'>
         <a-setting-list-item paddings="small">

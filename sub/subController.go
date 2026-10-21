@@ -7,6 +7,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/coinman-dev/3ax-ui/v2/clientrouting"
+	"github.com/coinman-dev/3ax-ui/v2/logger"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -267,9 +270,42 @@ func (a *SUBController) ApplyCommonHeaders(
 		c.Writer.Header().Set("Announce", "base64:"+base64.StdEncoding.EncodeToString([]byte(profileAnnounce)))
 	}
 
+	if a.applyClientRouting(c, profileEnableRouting) {
+		return
+	}
+
 	//Advanced (Happ)
 	c.Writer.Header().Set("Routing-Enable", strconv.FormatBool(profileEnableRouting))
 	if profileRoutingRules != "" {
 		c.Writer.Header().Set("Routing", profileRoutingRules)
 	}
+}
+
+// applyClientRouting sets the routing header of the client routing (#263),
+// in the format of the app the User-Agent names: Happ's profile link with
+// its routing switched on, v2RayTun's object, nothing for other apps. It
+// takes the place of subRoutingRules, which then goes to nobody. false
+// while the client routing is off: the headers stay as they were. Read on
+// every answer, so a saved routing reaches the apps without a restart.
+func (a *SUBController) applyClientRouting(c *gin.Context, enableRouting bool) bool {
+	routing, updated, err := a.subService.settingService.GetSubClientRouting()
+	if err != nil {
+		logger.Warning("sub: client routing off, the stored value does not parse:", err)
+		return false
+	}
+	if routing == nil {
+		return false
+	}
+	// One address, an answer per app: a cache between the app and the panel
+	// must keep them apart.
+	c.Writer.Header().Add("Vary", "User-Agent")
+	userAgent := c.GetHeader("User-Agent")
+	if clientrouting.ClientOf(userAgent) == clientrouting.Happ {
+		enableRouting = true
+	}
+	c.Writer.Header().Set("Routing-Enable", strconv.FormatBool(enableRouting))
+	if header := clientrouting.Header(userAgent, routing, updated); header != "" {
+		c.Writer.Header().Set("Routing", header)
+	}
+	return true
 }

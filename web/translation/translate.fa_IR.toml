@@ -763,6 +763,8 @@
 "subEnableRoutingDesc" = "تنظیمات سراسری برای فعال‌سازی مسیریابی در کلاینت VPN. (فقط برای Happ)"
 "subRoutingRules" = "قوانین مسیریابی"
 "subRoutingRulesDesc" = "قوانین مسیریابی سراسری برای کلاینت VPN. (فقط برای Happ)"
+"subClientRouting" = "Client routing (Happ, Incy, v2RayTun)"
+"subClientRoutingDesc" = "Routing rules for Happ, Incy and v2RayTun: the panel hands them out in the routing header, in each client's format. A JSON object: name, domainStrategy (AsIs, IPIfNonMatch, IPOnDemand), directSites, directIp, directProtocols (v2RayTun only), proxySites, proxyIp, blockSites, blockIp, geositeUrl and geoipUrl (Happ's geo files, empty for its default). The VPN rules are checked before the direct ones. Set, it replaces the routing rules above. Empty: off. Other clients get nothing; the subscription itself is the same for every client."
 "subListen" = "آدرس آی‌پی"
 "subListenDesc" = "آدرس آی‌پی برای سرویس سابسکریپشن. برای گوش دادن به‌تمام آی‌پی‌ها خالی‌بگذارید"
 "subPort" = "پورت"

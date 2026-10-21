@@ -41,6 +41,7 @@ class AllSetting {
         this.subAnnounce = "";
         this.subEnableRouting = true;
         this.subRoutingRules = "";
+        this.subClientRouting = "";
         this.subListen = "";
         this.subPort = 2096;
         this.subPath = "";

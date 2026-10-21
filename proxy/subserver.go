@@ -38,6 +38,9 @@ var passthroughHeaders = []string{
 	"Subscription-Userinfo", "Profile-Update-Interval", "Profile-Title",
 	"Profile-Web-Page-Url", "Support-Url", "Announce", "Routing-Enable", "Routing",
 	subpage.TrafficPartsHeader,
+	// The panel answers one subscription address with a routing header per
+	// app (#263): a cache between must keep the answers apart.
+	"Vary",
 }
 
 // SubServer is the hop's sub port: subscriptions proxied from the next hop,
@@ -314,7 +317,14 @@ func (s *SubServer) handleSub(c *gin.Context, subid string) {
 		s.handleJSONList(c, base, subPath, subid, format)
 		return
 	}
-	body, header, status, err := s.fetchUpstream(base, subPath, subid)
+	// The links are fetched on behalf of the app that asked, by its
+	// User-Agent: the panel's routing header is in the app's format (#263).
+	// The page is the hop's own and shows no routing, whoever asks.
+	userAgent := ""
+	if !wantsHTML(c) {
+		userAgent = c.GetHeader("User-Agent")
+	}
+	body, header, status, err := s.fetchUpstreamAs(base, subPath, subid, userAgent)
 	if err == nil && isRefusal(status) {
 		// A subscription of tunnels alone has no xray links for the panel to
 		// answer with, but still a page (#167 Q7).
@@ -394,7 +404,7 @@ func (s *SubServer) pageJSONConfigs(subid string, links int) []string {
 // handleJson proxies the JSON subscription straight through.
 func (s *SubServer) handleJson(c *gin.Context, subid string) {
 	base, _, jsonPath := s.nextHop()
-	body, header, status, err := s.fetchUpstream(base, jsonPath, subid)
+	body, header, status, err := s.fetchUpstreamAs(base, jsonPath, subid, c.GetHeader("User-Agent"))
 	if err == nil && isRefusal(status) {
 		passRefusal(c, status, header, body)
 		return
@@ -437,11 +447,21 @@ func (s *SubServer) publicURL(c *gin.Context, path, subid string) string {
 // fetchUpstream GETs the raw subscription (not the HTML page) for the given
 // path+id from the next hop.
 func (s *SubServer) fetchUpstream(base, path, subid string) ([]byte, http.Header, int, error) {
+	return s.fetchUpstreamAs(base, path, subid, "")
+}
+
+// fetchUpstreamAs is fetchUpstream on behalf of an app: with its User-Agent,
+// which the panel's routing header depends on (#263); "" for the hop's own
+// fetch.
+func (s *SubServer) fetchUpstreamAs(base, path, subid, userAgent string) ([]byte, http.Header, int, error) {
 	req, err := http.NewRequest(http.MethodGet, base+path+subid, nil)
 	if err != nil {
 		return nil, nil, 0, err
 	}
 	req.Header.Set("Accept", "text/plain")
+	if userAgent != "" {
+		req.Header.Set("User-Agent", userAgent)
+	}
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, nil, 0, err

@@ -39,7 +39,7 @@ func (s *SubServer) tunPath() string {
 // this hop's. An empty answer is an answer, not a failure.
 func (s *SubServer) handleTun(c *gin.Context, subid string) {
 	base, _, _ := s.nextHop()
-	body, header, status, err := s.fetchUpstream(base, s.tunPath(), subid)
+	body, header, status, err := s.fetchUpstreamAs(base, s.tunPath(), subid, c.GetHeader("User-Agent"))
 	if err == nil && isRefusal(status) {
 		passRefusal(c, status, header, body)
 		return

@@ -763,6 +763,8 @@
 "subEnableRoutingDesc" = "在 VPN 用戶端中啟用路由的全域設定。（僅限 Happ）"
 "subRoutingRules" = "路由規則"
 "subRoutingRulesDesc" = "VPN 用戶端的全域路由規則。（僅限 Happ）"
+"subClientRouting" = "Client routing (Happ, Incy, v2RayTun)"
+"subClientRoutingDesc" = "Routing rules for Happ, Incy and v2RayTun: the panel hands them out in the routing header, in each client's format. A JSON object: name, domainStrategy (AsIs, IPIfNonMatch, IPOnDemand), directSites, directIp, directProtocols (v2RayTun only), proxySites, proxyIp, blockSites, blockIp, geositeUrl and geoipUrl (Happ's geo files, empty for its default). The VPN rules are checked before the direct ones. Set, it replaces the routing rules above. Empty: off. Other clients get nothing; the subscription itself is the same for every client."
 "subListen" = "監聽 IP"
 "subListenDesc" = "訂閱服務監聽的 IP 地址（留空表示監聽所有 IP）"
 "subPort" = "監聽埠"
