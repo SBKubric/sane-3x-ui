@@ -2982,7 +2982,7 @@ prompt_proxy_mode() {
     done
 
     if [[ -z "${PROXY_NEXT_HOP:-}" && -t 0 ]]; then
-        echo -en "${yellow}Next hop address (inner front or the real server): ${plain}"
+        echo -en "${yellow}Next hop address (inner front or the real server), host or host:port — blank port = detect 443/2096: ${plain}"
         read -r PROXY_NEXT_HOP
     fi
     if [[ -z "${PROXY_JOIN_TOKEN:-}" && -t 0 ]]; then
@@ -2994,21 +2994,17 @@ prompt_proxy_mode() {
         read -r PROXY_DOMAIN
     fi
 
-    : "${PROXY_NEXT_HOP_SUB_PORT:=2096}"
     : "${PROXY_NEXT_HOP_SCHEME:=https}"
     : "${PROXY_SUB_PORT:=2096}"
     : "${PROXY_SUB_LISTEN:=}"
     : "${PROXY_RELAY_LISTEN:=::}"
     : "${PROXY_TLS:=letsencrypt-ip}"
-    # The box's front (ADR 0005, #140): nginx on 443 in front of everything,
-    # a firewall around it. Off unless asked for, as before.
-    PROXY_FRONT="${PROXY_FRONT:-off}"
-    PROXY_FRONT="${PROXY_FRONT,,}"
 
     if [[ -z "${PROXY_NEXT_HOP}" ]]; then
         echo -e "${red}Proxy mode requires PROXY_NEXT_HOP (env var or prompt): the address this hop relays to and polls the chain document from.${plain}"
         exit 1
     fi
+    proxy_split_next_hop
     # Ports are checked by proxy_validate_config_values below, and a bad one is
     # an error rather than a silent fallback to 2096: the old fallback quietly
     # moved the sub port of a box whose owner had asked for another one, and it
@@ -3020,6 +3016,22 @@ prompt_proxy_mode() {
         PROXY_NEXT_HOP_SCHEME=https
         ;;
     esac
+    proxy_resolve_next_hop_port
+
+    # The box's front (ADR 0005, #140): nginx on 443 in front of everything,
+    # a firewall around it. Asked for on a TTY — the hops of production and of
+    # the stand all run only443, and a hop set up by hand next to them came up
+    # without one (#265) — and off otherwise, as before.
+    if [[ -z "${PROXY_FRONT:-}" && -t 0 ]]; then
+        local __front_default=off
+        # A next hop that answers on 443 is itself behind only443.
+        [[ "${PROXY_NEXT_HOP_SUB_PORT}" == "443" ]] && __front_default=only443
+        echo -e "${yellow}Front of this box: only443 (nginx on 443 in front of everything, the firewall closes the rest — production and stand hops run it) or off.${plain}"
+        read -rp "Front [only443/off] (default ${__front_default}): " PROXY_FRONT
+        PROXY_FRONT="${PROXY_FRONT:-${__front_default}}"
+    fi
+    PROXY_FRONT="${PROXY_FRONT:-off}"
+    PROXY_FRONT="${PROXY_FRONT,,}"
     case "${PROXY_TLS}" in
     letsencrypt-ip | none | manual) ;;
     *)
@@ -3051,6 +3063,113 @@ prompt_proxy_mode() {
     export PROXY_CERT PROXY_KEY PROXY_FRONT
 }
 
+# proxy_split_next_hop takes the port off PROXY_NEXT_HOP — host:port or
+# [ipv6]:port — into PROXY_NEXT_HOP_SUB_PORT, and the brackets off an IPv6
+# address: proxy.json keeps the bare host, and `x-ui proxy` brackets it again
+# when it builds a URL. A bare IPv6 address (two colons or more) carries no
+# port. A port in the address that contradicts PROXY_NEXT_HOP_SUB_PORT stops
+# the install: which of the two the owner meant is not ours to guess.
+proxy_split_next_hop() {
+    local __host="${PROXY_NEXT_HOP}" __port="" __with_port=0
+    local __bracketed='^\[([^]]+)\](:(.*))?$'
+    if [[ "${__host}" =~ ${__bracketed} ]]; then
+        __host="${BASH_REMATCH[1]}"
+        [[ -n "${BASH_REMATCH[2]}" ]] && __with_port=1
+        __port="${BASH_REMATCH[3]}"
+    elif [[ "${__host}" == *:*:* ]]; then
+        : # a bare IPv6 address
+    elif [[ "${__host}" == *:* ]]; then
+        __with_port=1
+        __port="${__host#*:}"
+        __host="${__host%%:*}"
+    fi
+    if [[ -z "${__host}" || ("${__with_port}" == "1" && -z "${__port}") ]]; then
+        echo -e "${red}PROXY_NEXT_HOP='${PROXY_NEXT_HOP}' is not host, host:port or [ipv6]:port. Nothing has been changed.${plain}"
+        exit 1
+    fi
+    if [[ -n "${__port}" ]]; then
+        if [[ -n "${PROXY_NEXT_HOP_SUB_PORT:-}" && "${PROXY_NEXT_HOP_SUB_PORT}" != "${__port}" ]]; then
+            echo -e "${red}PROXY_NEXT_HOP='${PROXY_NEXT_HOP}' names port ${__port}, PROXY_NEXT_HOP_SUB_PORT says ${PROXY_NEXT_HOP_SUB_PORT}. Keep one of them. Nothing has been changed.${plain}"
+            exit 1
+        fi
+        PROXY_NEXT_HOP_SUB_PORT="${__port}"
+    fi
+    PROXY_NEXT_HOP="${__host}"
+}
+
+# proxy_resolve_next_hop_port settles PROXY_NEXT_HOP_SUB_PORT (#265). A port the
+# owner named — the variable or the address — is taken as it is, unprobed: the
+# orchestrator always names one, and its run must not change. Otherwise the next
+# hop is asked on 443 first, where a hop behind the only443 front answers (its
+# firewall closes 2096), then on 2096, the sub port of a hop without a front.
+#
+# Nothing answering is an error on a TTY, where the owner can name the port and
+# run again. Without one it is a warning and the old default 2096: such a box
+# used to come up whether or not its next hop was there yet.
+proxy_resolve_next_hop_port() {
+    [[ -n "${PROXY_NEXT_HOP_SUB_PORT:-}" ]] && return 0
+    # The host goes into a URL below.
+    proxy_json_value_ok PROXY_NEXT_HOP "${PROXY_NEXT_HOP}" "$(proxy_host_re)"
+    if ! command -v curl >/dev/null 2>&1; then
+        echo -e "${yellow}WARN: no curl to look for the next hop's sub port with — assuming 2096. A next hop behind only443 needs PROXY_NEXT_HOP_SUB_PORT=443.${plain}"
+        PROXY_NEXT_HOP_SUB_PORT=2096
+        return 0
+    fi
+
+    echo -e "${green}Looking for the chain at ${PROXY_NEXT_HOP}: port 443, then 2096...${plain}"
+    local __port=""
+    __port=$(proxy_detect_next_hop_port "${PROXY_NEXT_HOP_SCHEME}" "${PROXY_NEXT_HOP}" 443 2096) || __port=""
+    case "${__port}" in
+    443)
+        echo -e "${green}next hop answers on 443 (front only443)${plain}"
+        ;;
+    2096)
+        echo -e "${green}next hop answers on 2096 (no front)${plain}"
+        ;;
+    *)
+        local __missed="next hop ${PROXY_NEXT_HOP} answers as a chain hop neither on 443 (behind the only443 front) nor on 2096 (without a front) over ${PROXY_NEXT_HOP_SCHEME}"
+        if [[ -t 0 ]]; then
+            echo -e "${red}${__missed}. Check the address, or name the port: PROXY_NEXT_HOP_SUB_PORT=<port>, or <host>:<port> at the prompt. Nothing has been changed.${plain}"
+            exit 1
+        fi
+        echo -e "${yellow}WARN: ${__missed} — keeping 2096, the default. A next hop behind only443 needs PROXY_NEXT_HOP_SUB_PORT=443.${plain}"
+        __port=2096
+        ;;
+    esac
+    PROXY_NEXT_HOP_SUB_PORT="${__port}"
+}
+
+# proxy_detect_next_hop_port <scheme> <host> <port>... prints the first of the
+# ports on which the next hop answers as a chain hop.
+proxy_detect_next_hop_port() {
+    local __scheme="$1" __host="$2" __port
+    shift 2
+    for __port in "$@"; do
+        if proxy_next_hop_is_chain "${__scheme}" "${__host}" "${__port}"; then
+            echo "${__port}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+# proxy_next_hop_is_chain <scheme> <host> <port> — <port> of the next hop
+# answers the way the chain does: POST /chain/v1/join with an empty token is
+# refused with a bare 404 and no body. A hop drops an empty token before it
+# forwards anything inward, the panel refuses it like any unknown token, and
+# proxy.Join reads that 404 as a refused token. An ordinary web server, or the
+# site xray's Reality hands a stranger to, answers 404 with a page: the empty
+# body is what tells the two apart. -k because a next hop is often a bare IP
+# with a self-signed certificate, as for the join itself.
+proxy_next_hop_is_chain() {
+    local __scheme="$1" __host="$2" __port="$3" __answer
+    [[ "${__host}" == *:* ]] && __host="[${__host}]"
+    __answer=$(curl -gsk -o /dev/null -w '%{http_code} %{size_download}' \
+        --connect-timeout 3 --max-time 5 -X POST -H 'Content-Type: application/json' \
+        --data '{"token":""}' "${__scheme}://${__host}:${__port}/chain/v1/join" 2>/dev/null)
+    [[ "${__answer}" == "404 0" ]]
+}
+
 # proxy_json_value_ok <name> <value> <alphabet-regex> — refuses a value that has
 # no business inside proxy.json.
 #
@@ -3080,13 +3199,19 @@ proxy_json_port_ok() {
     fi
 }
 
+# proxy_host_re prints the alphabet of a host in proxy.json: a name, an IP or an
+# IPv6 address. `]` leads the bracket expression and `-` closes it, so both are
+# literal.
+proxy_host_re() {
+    echo '^[]A-Za-z0-9.:[-]+$'
+}
+
 # Checks every PROXY_* value that ends up in proxy.json. Called once on the
 # values the owner supplied and again just before the file is written, because
 # proxy_setup_tls fills in cert and key in between.
 proxy_validate_config_values() {
-    # `]` leads the bracket expression and `-` closes it, so both are literal.
-    local host_re='^[]A-Za-z0-9.:[-]+$'
-    local path_re='^[A-Za-z0-9._/@-]+$'
+    local host_re path_re='^[A-Za-z0-9._/@-]+$'
+    host_re=$(proxy_host_re)
 
     proxy_json_value_ok PROXY_NEXT_HOP "${PROXY_NEXT_HOP:-}" "${host_re}"
     proxy_json_value_ok PROXY_DOMAIN "${PROXY_DOMAIN:-}" "${host_re}"
@@ -3365,7 +3490,9 @@ EOF
 print_proxy_footer() {
     echo -e "${green}x-ui ${tag_version}${plain} installed as a CHAIN HOP (proxy front) — running now."
     echo -e ""
-    echo -e "  Next hop:      ${blue}${PROXY_NEXT_HOP_SCHEME}://${PROXY_NEXT_HOP}:${PROXY_NEXT_HOP_SUB_PORT}${plain}"
+    local __next_hop="${PROXY_NEXT_HOP}"
+    [[ "${__next_hop}" == *:* ]] && __next_hop="[${__next_hop}]"
+    echo -e "  Next hop:      ${blue}${PROXY_NEXT_HOP_SCHEME}://${__next_hop}:${PROXY_NEXT_HOP_SUB_PORT}${plain}"
     echo -e "  Proxy config:  ${blue}/etc/x-ui/proxy.json${plain}"
     echo -e "  Chain state:   ${blue}/etc/x-ui/chain/${plain}"
     if [[ -n "${proxy_tls_ip:-}" ]]; then

@@ -95,6 +95,19 @@ bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/sane-3x-ui/main/insta
 
 The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain before it starts the service**, and the footer prints `x-ui chain status`. Without `PROXY_JOIN_TOKEN` the box comes up in *bootstrap mode* instead: it serves only a one-time **join page**, whose link the footer prints and `x-ui chain join-url` prints again; the token goes into that page, and the relay starts the moment the join is accepted.
 
+**By hand, next to hops behind `only443`.** A hop that runs the front answers on 443 only — its firewall closes 2096 — so a box joining it needs `PROXY_NEXT_HOP_SUB_PORT=443`, and usually the front itself, as every hop of a chain set up by the orchestrator has. Run it as root: `sudo bash <(curl …)` drops the variables.
+
+```bash
+sudo -i
+XUI_PROXY_MODE=1 \
+PROXY_NEXT_HOP=<bridge> PROXY_NEXT_HOP_SUB_PORT=443 \
+PROXY_JOIN_TOKEN=<token from step 1> \
+PROXY_FRONT=only443 \
+bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/sane-3x-ui/main/install.sh)
+```
+
+At a terminal the installer asks for whatever is missing. The next hop takes `host`, `host:port` or `[ipv6]:port`; without a port the installer looks for the chain on 443, then on 2096 — a `POST /chain/v1/join` with an empty token, which only a chain hop answers with a bare 404 — and prints what it found (`next hop answers on 443 (front only443)`), or stops and names both ports and `PROXY_NEXT_HOP_SUB_PORT` when neither answers. Then it asks for the front, offering `only443` when the next hop answered on 443. Without a terminal a missing port is probed the same way but falls back to 2096 with a warning, and `PROXY_FRONT` stays `off`. A port you name — in the variable or in the address — is never probed or replaced.
+
 3. When the hop is an edge and should face clients, make it the active one (step **a**).
 
 **Install variables** (proxy mode):
@@ -102,8 +115,8 @@ The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain befor
 | Variable | Default | Meaning |
 |---|---|---|
 | `XUI_PROXY_MODE` | — | `1` installs this host as a chain hop |
-| `PROXY_NEXT_HOP` | — | **required** — the next hop's address: an inner front, or the real server for the innermost hop |
-| `PROXY_NEXT_HOP_SUB_PORT` | `2096` | the next hop's subscription port (subscriptions, `/chain/v1/*`) |
+| `PROXY_NEXT_HOP` | — | **required** — the next hop's address: an inner front, or the real server for the innermost hop; `host:port` or `[ipv6]:port` also sets its sub port |
+| `PROXY_NEXT_HOP_SUB_PORT` | probed: `443`, then `2096` | the next hop's subscription port (subscriptions, `/chain/v1/*`): `443` behind its `only443` front, `2096` without one. Unset, the installer asks the next hop on both; when neither answers it stops at a terminal and keeps `2096` without one |
 | `PROXY_NEXT_HOP_SCHEME` | `https` | `http` or `https` for that port |
 | `PROXY_JOIN_TOKEN` | — | the one-time token from the registry; without it the box serves a join page |
 | `PROXY_TLS` | `letsencrypt-ip` | how this hop gets TLS for its own subscription port: `letsencrypt-ip`, `none` or `manual` |
@@ -113,7 +126,7 @@ The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain befor
 | `PROXY_SUB_LISTEN` | all interfaces | bind address for it |
 | `PROXY_RELAY_LISTEN` | `::` | bind address of the relay (`0.0.0.0` on hosts without IPv6) |
 | `PROXY_CERT` / `PROXY_KEY` | — | TLS paths, only meaningful with `PROXY_TLS=manual` |
-| `PROXY_FRONT` | `off` | `only443` puts nginx on 443 in front of this hop: TCP on 443 only, split by SNI, and a firewall around it (see below) |
+| `PROXY_FRONT` | `off` (asked at a terminal) | `only443` puts nginx on 443 in front of this hop: TCP on 443 only, split by SNI, and a firewall around it (see below) |
 
 With the default `PROXY_TLS=letsencrypt-ip` the installer issues a Let's Encrypt certificate **for the box's own IP address** — a fresh disposable front has no domain, and Let's Encrypt only issues IP certificates under the `shortlived` profile, so it is valid for about six days and renewed automatically. That needs port 80 free, both at issue time and at every renewal; if it is not, the installer warns and the box runs without TLS, serving its join page over plain HTTP with a warning banner. A box that relays port 80 through the chain cannot hold such a certificate — install it with `PROXY_TLS=manual` or `none`.
 
@@ -482,6 +495,19 @@ bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/3ax-ui-proxy/main/ins
 
 The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain before it starts the service**, and the footer prints `x-ui chain status`. Without `PROXY_JOIN_TOKEN` the box comes up in *bootstrap mode* instead: it serves only a one-time **join page**, whose link the footer prints and `x-ui chain join-url` prints again; the token goes into that page, and the relay starts the moment the join is accepted.
 
+**By hand, next to hops behind `only443`.** A hop that runs the front answers on 443 only — its firewall closes 2096 — so a box joining it needs `PROXY_NEXT_HOP_SUB_PORT=443`, and usually the front itself, as every hop of a chain set up by the orchestrator has. Run it as root: `sudo bash <(curl …)` drops the variables.
+
+```bash
+sudo -i
+XUI_PROXY_MODE=1 \
+PROXY_NEXT_HOP=<bridge> PROXY_NEXT_HOP_SUB_PORT=443 \
+PROXY_JOIN_TOKEN=<token from step 1> \
+PROXY_FRONT=only443 \
+bash <(curl -Ls https://raw.githubusercontent.com/SBKubric/3ax-ui-proxy/main/install.sh)
+```
+
+At a terminal the installer asks for whatever is missing. The next hop takes `host`, `host:port` or `[ipv6]:port`; without a port the installer looks for the chain on 443, then on 2096 — a `POST /chain/v1/join` with an empty token, which only a chain hop answers with a bare 404 — and prints what it found (`next hop answers on 443 (front only443)`), or stops and names both ports and `PROXY_NEXT_HOP_SUB_PORT` when neither answers. Then it asks for the front, offering `only443` when the next hop answered on 443. Without a terminal a missing port is probed the same way but falls back to 2096 with a warning, and `PROXY_FRONT` stays `off`. A port you name — in the variable or in the address — is never probed or replaced.
+
 3. When the hop is an edge and should face clients, make it the active one (step **a**).
 
 **Install variables** (proxy mode):
@@ -489,8 +515,8 @@ The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain befor
 | Variable | Default | Meaning |
 |---|---|---|
 | `XUI_PROXY_MODE` | — | `1` installs this host as a chain hop |
-| `PROXY_NEXT_HOP` | — | **required** — the next hop's address: an inner front, or the real server for the innermost hop |
-| `PROXY_NEXT_HOP_SUB_PORT` | `2096` | the next hop's subscription port (subscriptions, `/chain/v1/*`) |
+| `PROXY_NEXT_HOP` | — | **required** — the next hop's address: an inner front, or the real server for the innermost hop; `host:port` or `[ipv6]:port` also sets its sub port |
+| `PROXY_NEXT_HOP_SUB_PORT` | probed: `443`, then `2096` | the next hop's subscription port (subscriptions, `/chain/v1/*`): `443` behind its `only443` front, `2096` without one. Unset, the installer asks the next hop on both; when neither answers it stops at a terminal and keeps `2096` without one |
 | `PROXY_NEXT_HOP_SCHEME` | `https` | `http` or `https` for that port |
 | `PROXY_JOIN_TOKEN` | — | the one-time token from the registry; without it the box serves a join page |
 | `PROXY_TLS` | `letsencrypt-ip` | how this hop gets TLS for its own subscription port: `letsencrypt-ip`, `none` or `manual` |
@@ -500,7 +526,7 @@ The installer writes `/etc/x-ui/proxy.json`, issues TLS, **joins the chain befor
 | `PROXY_SUB_LISTEN` | all interfaces | bind address for it |
 | `PROXY_RELAY_LISTEN` | `::` | bind address of the relay (`0.0.0.0` on hosts without IPv6) |
 | `PROXY_CERT` / `PROXY_KEY` | — | TLS paths, only meaningful with `PROXY_TLS=manual`; there they are required — absolute paths to readable PEM files, or the install stops before changing anything |
-| `PROXY_FRONT` | `off` | `only443` puts nginx on 443 in front of this hop: TCP on 443 only, split by SNI, and a firewall around it (see below) |
+| `PROXY_FRONT` | `off` (asked at a terminal) | `only443` puts nginx on 443 in front of this hop: TCP on 443 only, split by SNI, and a firewall around it (see below) |
 
 With the default `PROXY_TLS=letsencrypt-ip` the installer issues a Let's Encrypt certificate **for the box's own IP address** — a fresh disposable front has no domain, and Let's Encrypt only issues IP certificates under the `shortlived` profile, so it is valid for about six days and renewed automatically. That needs port 80 free, both at issue time and at every renewal; if it is not, the installer warns and the box runs without TLS, serving its join page over plain HTTP with a warning banner. A box that relays port 80 through the chain cannot hold such a certificate — install it with `PROXY_TLS=manual` or `none`. A reinstall keeps the IP certificate already on the box (in `/root/cert/ip`, valid for more than a day and renewed by acme.sh) instead of issuing a new one.
 

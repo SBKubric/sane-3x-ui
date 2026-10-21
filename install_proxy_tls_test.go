@@ -124,12 +124,14 @@ func writeCert(t *testing.T, dir, ip string, notAfter time.Time) (certPath, keyP
 
 var promptProxyModeFunctions = []string{
 	"prompt_proxy_mode", "proxy_validate_config_values", "proxy_json_value_ok",
-	"proxy_json_port_ok", "proxy_check_manual_tls",
+	"proxy_json_port_ok", "proxy_check_manual_tls", "proxy_host_re",
+	"proxy_split_next_hop", "proxy_resolve_next_hop_port", "proxy_detect_next_hop_port",
 }
 
 func proxyModeEnv(tls, cert, key string) []string {
 	return []string{
-		"XUI_PROXY_MODE=1", "PROXY_NEXT_HOP=10.0.0.7", "PROXY_JOIN_TOKEN=0123456789012345678901234567890a",
+		"XUI_PROXY_MODE=1", "PROXY_NEXT_HOP=10.0.0.7", "PROXY_NEXT_HOP_SUB_PORT=2096",
+		"PROXY_JOIN_TOKEN=0123456789012345678901234567890a",
 		"PROXY_DOMAIN=10.0.0.9", "PROXY_TLS=" + tls, "PROXY_CERT=" + cert, "PROXY_KEY=" + key,
 	}
 }
