@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/coinman-dev/3ax-ui/v2/chain"
@@ -91,6 +92,14 @@ type Poller struct {
 	joinedAt     time.Time // zero unless this process performed the join
 	failures     int
 	lastStaleLog time.Time
+
+	// checker runs the host reachability check of the next hop beside every
+	// poll (#254); nil runs none. checking keeps a slow series from
+	// overlapping the next one, and lastCheckErr keeps a box without an ICMP
+	// socket from logging the same refusal every poll.
+	checker      HostChecker
+	checking     atomic.Bool
+	lastCheckErr string
 }
 
 // NewPoller builds the wave client for cfg. The HTTP client skips TLS
@@ -120,6 +129,9 @@ func (p *Poller) SetPollSeconds(seconds int) {
 		p.pollSeconds = seconds
 	}
 }
+
+// SetHostChecker makes every poll run checker against the next hop's host.
+func (p *Poller) SetHostChecker(checker HostChecker) { p.checker = checker }
 
 // MarkJoined starts the 3-minute fast-retry window of §4.3.
 func (p *Poller) MarkJoined() { p.joinedAt = p.now() }
@@ -183,8 +195,11 @@ func (p *Poller) logPollFailure(err error) {
 }
 
 // PollOnce performs one GET /chain/v1/document and applies what came back.
+// The host reachability check of the next hop starts beside it and never
+// holds it up: its result rides on the next poll.
 func (p *Poller) PollOnce(ctx context.Context) error {
 	now := p.now()
+	p.startCheck(ctx)
 	req, err := p.request(ctx)
 	if err != nil {
 		p.fail(now)
@@ -248,7 +263,43 @@ func (p *Poller) request(ctx context.Context) (*http.Request, error) {
 	// is what tells a box behind a new front that its neighbours have moved
 	// (#140).
 	req.Header.Set(chain.FrontHeader, p.cfg.FrontReport().Header())
+	// The latest check of the next hop's host travels inward like the
+	// front report (#254): the panel hears the first tier directly and the
+	// rest through their acknowledgements.
+	if check := p.state.NextHopCheck(); check != nil {
+		req.Header.Set(chain.NextHopCheckHeader, check.Header())
+	}
 	return req, nil
+}
+
+// startCheck runs one host reachability check of the next hop in the
+// background, unless the previous one is still running. The hop checks only
+// the host it already dials — its document's nextHop.host — so it learns
+// nothing about the chain it did not know (§3.7).
+func (p *Poller) startCheck(ctx context.Context) {
+	if p.checker == nil || !p.checking.CompareAndSwap(false, true) {
+		return
+	}
+	host := p.state.nextHopHost(p.cfg)
+	if host == "" {
+		p.checking.Store(false)
+		return
+	}
+	go func() {
+		defer p.checking.Store(false)
+		checkCtx, cancel := context.WithTimeout(ctx, hopCheckTimeout)
+		defer cancel()
+		check, err := p.checker.Check(checkCtx, host)
+		if err != nil {
+			if ctx.Err() == nil && err.Error() != p.lastCheckErr {
+				logger.Warningf("proxy-front: no host reachability check of next hop %s: %v", host, err)
+			}
+			p.lastCheckErr = err.Error()
+			return
+		}
+		p.lastCheckErr = ""
+		p.state.SetNextHopCheck(check)
+	}()
 }
 
 // etag is the document's ETag: the revision in quotes (§3.4).

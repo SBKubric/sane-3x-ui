@@ -64,3 +64,43 @@ func TestChainHopsTableEnforcesUniqueName(t *testing.T) {
 		t.Fatalf("NextHopId = %v, want nil", *loaded.NextHopId)
 	}
 }
+
+// TestChainHopsGainTheNextHopCheck (#254): a registry from before the host
+// reachability check gets its columns on the next start, and the hops already
+// in it read as never reported — no check, no round trip.
+func TestChainHopsGainTheNextHopCheck(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x-ui.db")
+	if err := InitDB(path); err != nil {
+		t.Fatalf("InitDB: %v", err)
+	}
+	db := GetDB()
+	columns := []string{"next_check_at", "next_check_sent", "next_check_loss_pct", "next_check_rtt_ms"}
+	for _, column := range columns {
+		if err := db.Exec("ALTER TABLE chain_hops DROP COLUMN " + column).Error; err != nil {
+			t.Fatalf("drop %s to fake the old schema: %v", column, err)
+		}
+	}
+	if err := db.Exec(`INSERT INTO chain_hops (name, host, role, state, sub_port, sub_scheme, position, is_active)
+		VALUES ('edge-a', 'a.example.net', 'edge', 'joined', 2096, 'https', 0, 0)`).Error; err != nil {
+		t.Fatalf("insert an old row: %v", err)
+	}
+	CloseDB()
+
+	if err := InitDB(path); err != nil {
+		t.Fatalf("InitDB over the old schema: %v", err)
+	}
+	t.Cleanup(func() { CloseDB() })
+	db = GetDB()
+	for _, column := range columns {
+		if !db.Migrator().HasColumn(&model.ChainHop{}, column) {
+			t.Errorf("column %s was not added", column)
+		}
+	}
+	var hop model.ChainHop
+	if err := db.Where("name = ?", "edge-a").First(&hop).Error; err != nil {
+		t.Fatal(err)
+	}
+	if hop.NextCheckAt != 0 || hop.NextCheckSent != 0 || hop.NextCheckRttMs != nil {
+		t.Errorf("an old hop reads as checked: %+v", hop)
+	}
+}

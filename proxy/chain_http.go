@@ -149,6 +149,9 @@ func (h *ChainHandler) recordAcks(hop chain.Hop, r *http.Request) {
 	if report, ok := chain.ParseFrontReport(r.Header.Get(chain.FrontHeader)); ok {
 		ack.Front = &report
 	}
+	if check, ok := chain.ParseHopCheck(r.Header.Get(chain.NextHopCheckHeader)); ok {
+		ack.NextHopCheck = &check
+	}
 	h.state.RecordOuter(ack)
 	h.state.RecordOuter(DecodeOuterAcks(r.Header.Get("X-Chain-Outer"))...)
 }

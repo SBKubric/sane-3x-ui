@@ -70,6 +70,7 @@ func PrintStatus(w io.Writer, status *chain.Status) {
 	}
 	fmt.Fprintf(w, "name:      %s (%s)\n", status.Name, status.Role)
 	fmt.Fprintf(w, "next hop:  %s:%d (reachable: %t)\n", status.NextHop.Host, status.NextHop.SubPort, status.NextHop.Reachable)
+	fmt.Fprintf(w, "icmp:      %s\n", formatHopCheck(status.NextHop.Check))
 	fmt.Fprintf(w, "revision:  %d%s\n", status.Revision, staleSuffix(status.Stale))
 	if status.Draining {
 		fmt.Fprintln(w, "draining:  true (leaving the chain — still relaying, handing neighbours my next hop)")
@@ -79,6 +80,19 @@ func PrintStatus(w io.Writer, status *chain.Status) {
 	if status.ObservedHostMismatch {
 		fmt.Fprintln(w, "warning:   the registry's host for this hop differs from this box's domain")
 	}
+}
+
+// formatHopCheck renders the host reachability check of the next hop:
+// "10 sent, 0% lost, avg 2 ms (at …)".
+func formatHopCheck(check *chain.HopCheck) string {
+	if check == nil {
+		return "no check yet"
+	}
+	rtt := "no reply"
+	if check.RttAvgMs != nil {
+		rtt = fmt.Sprintf("avg %d ms", *check.RttAvgMs)
+	}
+	return fmt.Sprintf("%d sent, %d%% lost, %s (at %s)", check.Sent, check.LossPct, rtt, formatMilli(check.At))
 }
 
 func staleSuffix(stale bool) string {
