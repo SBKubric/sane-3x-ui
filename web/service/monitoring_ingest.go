@@ -40,6 +40,60 @@ type MonEventIn struct {
 	To          string `json:"to"`
 	Reason      string `json:"reason"`
 	Notified    bool   `json:"notified"`
+
+	// kind=sweep only (contract §4.6): the phase of the diagnostic sweep and
+	// what it found.
+	Phase  string          `json:"phase"`
+	Report *MonSweepReport `json:"report"`
+}
+
+// MonSweepReport is what one diagnostic sweep found for one mon-client and
+// inbound kind: the tunnel probe of every path of the chain and the host
+// reachability checks from the mon-client to every hop and the real server,
+// and from every hop to its next hop (contract §4.6).
+type MonSweepReport struct {
+	Paths []MonSweepPath `json:"paths"`
+	Hosts []MonSweepHost `json:"hosts"`
+}
+
+// MonSweepPath is the tunnel probe of one path during the sweep.
+type MonSweepPath struct {
+	Path   string `json:"path"`
+	Ok     bool   `json:"ok"`
+	Reason string `json:"reason,omitempty"`
+}
+
+// MonSweepHost is one host reachability check: a series of ICMP echoes from
+// From (MonSweepFromMonClient or a hop name) to To (a hop name, or "" for the
+// real server). At is when it was measured, nil when there is no report; a
+// hop that did report before carries the time of its last report in LastAt.
+// RttAvgMs is nil when every echo was lost.
+type MonSweepHost struct {
+	From     string  `json:"from"`
+	To       string  `json:"to"`
+	At       *int64  `json:"at"`
+	LastAt   *int64  `json:"lastAt,omitempty"`
+	Sent     int     `json:"sent"`
+	LossPct  float64 `json:"lossPct"`
+	RttAvgMs *int64  `json:"rttAvgMs"`
+}
+
+// MonSweepFromMonClient is the From of a check the mon-client itself made.
+const MonSweepFromMonClient = "mon-client"
+
+// decodeMonSweepReport reads the report a sweep event was stored with. A
+// row that does not hold one reads as an empty report rather than an error:
+// the feed and the message still show the phase.
+func decodeMonSweepReport(stored string) *MonSweepReport {
+	r := &MonSweepReport{}
+	if stored == "" {
+		return r
+	}
+	if err := json.Unmarshal([]byte(stored), r); err != nil {
+		logger.Warning("monitoring: unreadable sweep report in the feed:", err)
+		return &MonSweepReport{}
+	}
+	return r
 }
 
 // MonStatIn is one element of the POST /stats batch: a 5-minute bucket.
@@ -108,6 +162,16 @@ type MonTargetKey struct {
 // the answer to POST /stats.
 const MonReasonResync = "resync"
 
+// Reasons of a target event that mon-server sends with notified=true
+// (contract §4.6): the derived state of an inner:* target followed the
+// edge paths of its inbound kind, or a direct/inner:* target took the result
+// of a diagnostic sweep. They move the row and land in the feed like any
+// other reason; the page translates them.
+const (
+	MonReasonDerived = "derived"
+	MonReasonSweep   = "sweep"
+)
+
 // Reasons an element lands in ignored.
 const (
 	MonIgnoredUnknownInbound   = "unknown_inbound"
@@ -116,7 +180,7 @@ const (
 
 // MonEventNotifier is the Telegram side of §6. ApplyEvents calls it after the
 // transaction commits with every stored event that still needs a
-// notification (notified=false, kind target or mon_client); it returns the
+// notification (notified=false, kind target, mon_client or sweep); it returns the
 // ids it delivered, which are then marked notified. The bot registers itself
 // through SetMonEventNotifier when it starts.
 type MonEventNotifier interface {
@@ -150,6 +214,7 @@ var (
 	monClientStates    = map[string]bool{"ONLINE": true, "OFFLINE": true}
 	monPanelStates     = map[string]bool{"PANEL_UP": true, "PANEL_DOWN": true}
 	monInboundKinds    = map[string]bool{model.MonInboundKindXray: true, model.MonInboundKindAwg: true}
+	monSweepPhases     = map[string]bool{model.MonSweepPhaseStart: true, model.MonSweepPhaseChange: true, model.MonSweepPhaseEnd: true}
 	monTargetStateRank = map[string]int{model.MonStateDown: 0, model.MonStateFlapping: 1, model.MonStateUnknown: 2, model.MonStateUp: 3, model.MonStatePaused: 4}
 )
 
@@ -217,6 +282,27 @@ func validateMonEvent(i int, e *MonEventIn) error {
 		}
 	case model.MonEventKindPanel:
 		states = monPanelStates
+	case model.MonEventKindSweep:
+		// A sweep is not a transition: it carries no from/to to check.
+		if !monClientIdRe.MatchString(e.MonClientId) {
+			return at("monClientId", "required, up to 64 characters of [A-Za-z0-9_.-]")
+		}
+		if !monInboundKinds[e.InboundKind] {
+			return at("inboundKind", "unknown value %q", e.InboundKind)
+		}
+		if !monSweepPhases[e.Phase] {
+			return at("phase", "unknown value %q", e.Phase)
+		}
+		if e.Report == nil {
+			return at("report", "required for kind sweep")
+		}
+		if err := validateMonSweepReport(e.Report); err != nil {
+			return at("report."+err.field, "%s", err.msg)
+		}
+		if len(e.Reason) > 128 {
+			return at("reason", "longer than 128 characters")
+		}
+		return nil
 	default:
 		return at("kind", "unknown value %q", e.Kind)
 	}
@@ -228,6 +314,48 @@ func validateMonEvent(i int, e *MonEventIn) error {
 	}
 	if len(e.Reason) > 128 {
 		return at("reason", "longer than 128 characters")
+	}
+	return nil
+}
+
+type monFieldError struct{ field, msg string }
+
+// validateMonSweepReport checks the report of a sweep event element by
+// element; the first bad field is named relative to the report.
+func validateMonSweepReport(r *MonSweepReport) *monFieldError {
+	bad := func(field, format string, args ...any) *monFieldError {
+		return &monFieldError{field, fmt.Sprintf(format, args...)}
+	}
+	for j, p := range r.Paths {
+		if !validMonPath(p.Path) {
+			return bad(fmt.Sprintf("paths[%d].path", j), "unknown value %q", p.Path)
+		}
+		if len(p.Reason) > 128 {
+			return bad(fmt.Sprintf("paths[%d].reason", j), "longer than 128 characters")
+		}
+	}
+	for j, h := range r.Hosts {
+		if h.From != MonSweepFromMonClient && !chain.NameValid(h.From) {
+			return bad(fmt.Sprintf("hosts[%d].from", j), "must be %q or a hop name, got %q", MonSweepFromMonClient, h.From)
+		}
+		if h.To != "" && !chain.NameValid(h.To) {
+			return bad(fmt.Sprintf("hosts[%d].to", j), "must be a hop name or \"\" for the real server, got %q", h.To)
+		}
+		if h.At != nil && *h.At <= 0 {
+			return bad(fmt.Sprintf("hosts[%d].at", j), "must be a positive millisecond timestamp or null")
+		}
+		if h.LastAt != nil && *h.LastAt <= 0 {
+			return bad(fmt.Sprintf("hosts[%d].lastAt", j), "must be a positive millisecond timestamp or null")
+		}
+		if h.Sent < 0 {
+			return bad(fmt.Sprintf("hosts[%d].sent", j), "must not be negative")
+		}
+		if h.LossPct < 0 || h.LossPct > 100 {
+			return bad(fmt.Sprintf("hosts[%d].lossPct", j), "must be within 0..100")
+		}
+		if h.RttAvgMs != nil && *h.RttAvgMs < 0 {
+			return bad(fmt.Sprintf("hosts[%d].rttAvgMs", j), "must not be negative")
+		}
 	}
 	return nil
 }
@@ -339,8 +467,9 @@ func (s *MonitoringService) ApplyEventsRaw(raw []json.RawMessage) (*MonEventsRes
 // moves its mon_targets row forward unless it is older than the state already
 // there, and events of unknown inbounds are skipped and named in ignored. A
 // state resync (reason resync) only moves its target: no feed row, no
-// notification. After the commit the Telegram hook sees the stored events
-// that still want a notification.
+// notification. A sweep event (kind sweep) goes into the feed with its phase
+// and report and moves no mon_targets row. After the commit the Telegram hook
+// sees the stored events that still want a notification.
 func (s *MonitoringService) ApplyEvents(batch []MonEventIn) (*MonEventsResult, error) {
 	indexes := make([]int, len(batch))
 	for i := range indexes {
@@ -384,6 +513,18 @@ func (s *MonitoringService) applyEvents(batch []MonEventIn, indexes []int, rejec
 			}
 			if isTarget {
 				ev.InboundKind, ev.InboundId, ev.Path = in.InboundKind, in.InboundId, in.Path
+			}
+			if in.Kind == model.MonEventKindSweep {
+				// A sweep reports on every inbound of its kind and is not a
+				// transition: no inbound id, no path, no from/to, and it
+				// never touches mon_targets — the states of direct and
+				// inner:* come as their own target events.
+				report, err := json.Marshal(in.Report)
+				if err != nil {
+					return err
+				}
+				ev.InboundKind, ev.Phase, ev.Report = in.InboundKind, in.Phase, string(report)
+				ev.From, ev.To = "", ""
 			}
 			if in.Kind == model.MonEventKindPanel {
 				ev.Notified = true // mon-server already told the operator

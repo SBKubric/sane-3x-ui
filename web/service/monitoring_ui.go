@@ -249,13 +249,14 @@ func worstTargetState(targets []MonUITarget) string {
 // --- GET events --------------------------------------------------------------
 
 // MonUIEvent is one feed entry: the stored event plus the names the page
-// prints instead of ids.
+// prints instead of ids, and the report of a sweep event decoded.
 type MonUIEvent struct {
 	model.MonEvent
-	MonClientName string `json:"monClientName"`
-	Region        string `json:"region"`
-	Retired       bool   `json:"retired"`
-	InboundRemark string `json:"inboundRemark"`
+	MonClientName string          `json:"monClientName"`
+	Region        string          `json:"region"`
+	Retired       bool            `json:"retired"`
+	InboundRemark string          `json:"inboundRemark"`
+	SweepReport   *MonSweepReport `json:"report,omitempty"`
 }
 
 // UIEvents is GET events (§7.4): the feed by ts desc, paged with before and
@@ -303,7 +304,13 @@ func (s *MonitoringService) UIEvents(before int64, limit int, inboundKind string
 
 	out := make([]MonUIEvent, 0, len(rows))
 	for _, r := range rows {
-		e := MonUIEvent{MonEvent: r, InboundRemark: remarks[MonInboundRef{r.InboundKind, r.InboundId}]}
+		e := MonUIEvent{MonEvent: r}
+		if r.Kind == model.MonEventKindSweep {
+			// A sweep covers every inbound of its kind, so it names none.
+			e.SweepReport = decodeMonSweepReport(r.Report)
+		} else {
+			e.InboundRemark = remarks[MonInboundRef{r.InboundKind, r.InboundId}]
+		}
 		if r.MonClientId != "" {
 			c, live := byId[r.MonClientId]
 			e.MonClientName, e.Region, e.Retired = c.Name, c.Region, !live

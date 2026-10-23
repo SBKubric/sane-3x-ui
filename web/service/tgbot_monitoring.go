@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"html"
 	"math"
 	"strconv"
 	"strings"
@@ -16,7 +17,9 @@ import (
 // MonEventNotifier of the ingest path and the MonStaleNotifier of the STALE
 // job: MonitoringService hands it transitions, this file turns them into
 // tgbot.messages.monitoring.* messages, one per event — the panel groups
-// nothing, mon-server already decided what is worth telling. On top of that
+// nothing, mon-server already decided what is worth telling. A diagnostic
+// sweep arrives already summarised as one event per phase, and becomes one
+// message. On top of that
 // sits the daily Monitoring block of SendReport, built from the same
 // Summary the Monitoring page reads.
 //
@@ -87,6 +90,8 @@ func (t *Tgbot) monitoringEventMessage(ev *model.MonEvent) string {
 			return t.I18nBot("tgbot.messages.monitoring.clientOnlineNoDuration", client)
 		}
 		return ""
+	case model.MonEventKindSweep:
+		return t.monitoringSweepMessage(ev)
 	}
 	// kind=panel never reaches here: ApplyEvents stores it notified, because
 	// mon-server has already told the operator itself.
@@ -122,6 +127,201 @@ func (t *Tgbot) monStandbyHint(path string) string {
 		return t.I18nBot("tgbot.messages.monitoring.standbyNoHealthy", list)
 	}
 	return t.I18nBot("tgbot.messages.monitoring.standbySwitch", list, "Name=="+candidate)
+}
+
+// --- the diagnostic sweep ----------------------------------------------------
+
+// monitoringSweepMessage is the summary message of a diagnostic sweep
+// (contract §4.6). On start and change: a head line — every edge path of the
+// inbound kind is down for this mon-client — and a line per node of the
+// chain with its host reachability check and tunnel probe. On end: the edge
+// it is reachable through again and how long the outage lasted, measured
+// from the sweep's start event when the feed still holds it.
+func (t *Tgbot) monitoringSweepMessage(ev *model.MonEvent) string {
+	report := decodeMonSweepReport(ev.Report)
+	kind := "Kind==" + monSweepKindLabel(ev.InboundKind)
+	client := "Client==" + html.EscapeString(t.monClientLabel(ev.MonClientId))
+	var head string
+	switch ev.Phase {
+	case model.MonSweepPhaseStart:
+		head = t.I18nBot("tgbot.messages.monitoring.sweepStart", kind, client)
+	case model.MonSweepPhaseChange:
+		head = t.I18nBot("tgbot.messages.monitoring.sweepChange", kind, client)
+	case model.MonSweepPhaseEnd:
+		via, lasted := "", ""
+		if edge := monSweepRecoveredEdge(report); edge != "" {
+			via = t.I18nBot("tgbot.messages.monitoring.sweepVia", "Edge=="+html.EscapeString(edge))
+		}
+		if d, ok := monSweepDuration(ev); ok {
+			lasted = t.I18nBot("tgbot.messages.monitoring.sweepLasted", "Duration=="+monHumanDuration(d))
+		}
+		return t.I18nBot("tgbot.messages.monitoring.sweepEnd", kind, "Via=="+via, client, "Lasted=="+lasted)
+	default:
+		return ""
+	}
+	return strings.Join(append([]string{head}, t.monSweepLines(report)...), "\n")
+}
+
+// monSweepLines is one line per host reachability check, in the order
+// mon-server sent them. A check from the mon-client to a node carries the
+// tunnel probe of that node's path on the same line (real server — direct;
+// a hop — its edge:/inner: path); a check from a hop to its next hop is a
+// line of its own; a path no check names gets its own tunnel-only line.
+func (t *Tgbot) monSweepLines(r *MonSweepReport) []string {
+	byPath := make(map[string]MonSweepPath, len(r.Paths))
+	for _, p := range r.Paths {
+		byPath[p.Path] = p
+	}
+	shown := map[string]bool{}
+	var lines []string
+	for _, h := range r.Hosts {
+		icmp := "Icmp==" + t.monSweepIcmp(h)
+		if h.From != MonSweepFromMonClient {
+			lines = append(lines, t.I18nBot("tgbot.messages.monitoring.sweepLeg",
+				"From=="+html.EscapeString(h.From), "To=="+html.EscapeString(monSweepNodeName(h.To)), icmp))
+			continue
+		}
+		path := monSweepPathOfNode(h.To, byPath)
+		line := t.I18nBot("tgbot.messages.monitoring.sweepHost", "Node=="+html.EscapeString(monSweepPathNode(path, h.To)), icmp)
+		if p, ok := byPath[path]; ok && !shown[path] {
+			shown[path] = true
+			line += t.I18nBot("tgbot.messages.monitoring.sweepTunnel", "Result=="+monSweepTunnel(p))
+		}
+		lines = append(lines, line)
+	}
+	for _, p := range r.Paths {
+		if shown[p.Path] {
+			continue
+		}
+		shown[p.Path] = true
+		lines = append(lines, t.I18nBot("tgbot.messages.monitoring.sweepPath",
+			"Node=="+html.EscapeString(monSweepPathNode(p.Path, "")), "Result=="+monSweepTunnel(p)))
+	}
+	return lines
+}
+
+// monSweepIcmp is the result of one host reachability check: ✅ no loss,
+// ⚠️ some, ❌ all or no report — always with the numbers it has.
+func (t *Tgbot) monSweepIcmp(h MonSweepHost) string {
+	if h.At == nil {
+		if h.LastAt != nil {
+			return t.I18nBot("tgbot.messages.monitoring.sweepNoReportSince", "Since=="+time.UnixMilli(*h.LastAt).Format("15:04"))
+		}
+		return t.I18nBot("tgbot.messages.monitoring.sweepNoReport")
+	}
+	icon := "⚠️"
+	switch {
+	case h.LossPct <= 0:
+		icon = "✅"
+	case h.LossPct >= 100:
+		icon = "❌"
+	}
+	out := icon + " " + strconv.FormatFloat(h.LossPct, 'f', -1, 64) + "%"
+	if h.RttAvgMs != nil {
+		out += t.I18nBot("tgbot.messages.monitoring.sweepRtt", "Rtt=="+strconv.FormatInt(*h.RttAvgMs, 10))
+	}
+	return out
+}
+
+// monSweepTunnel is the tunnel probe of one path: ✅, or ❌ with its reason.
+func monSweepTunnel(p MonSweepPath) string {
+	if p.Ok {
+		return "✅"
+	}
+	return "❌ " + html.EscapeString(monReason(p.Reason))
+}
+
+// monSweepPathOfNode is the path a check from the mon-client to node is
+// paired with: direct for the real server, the hop's edge: or inner: path
+// for a hop; "" when the report has no such path.
+func monSweepPathOfNode(node string, byPath map[string]MonSweepPath) string {
+	if node == "" {
+		if _, ok := byPath[model.MonPathDirect]; ok {
+			return model.MonPathDirect
+		}
+		return ""
+	}
+	for _, path := range []string{monPathEdgePrefix + node, monPathInnerPrefix + node} {
+		if _, ok := byPath[path]; ok {
+			return path
+		}
+	}
+	return ""
+}
+
+// monSweepPathNode names the node a line is about: the hop of an edge: or
+// inner: path, "real (direct)" for direct, the path itself otherwise (proxy);
+// without a path, the node of the check.
+func monSweepPathNode(path, node string) string {
+	switch {
+	case path == model.MonPathDirect:
+		return monSweepRealServer + " (" + model.MonPathDirect + ")"
+	case strings.HasPrefix(path, monPathEdgePrefix):
+		return strings.TrimPrefix(path, monPathEdgePrefix)
+	case strings.HasPrefix(path, monPathInnerPrefix):
+		return strings.TrimPrefix(path, monPathInnerPrefix)
+	case path != "":
+		return path
+	}
+	return monSweepNodeName(node)
+}
+
+// monSweepRealServer is how a sweep line names the real server, whose node
+// name in a report is "".
+const monSweepRealServer = "real"
+
+func monSweepNodeName(node string) string {
+	if node == "" {
+		return monSweepRealServer
+	}
+	return node
+}
+
+// monSweepKindLabel is the inbound kind as the head line names it.
+func monSweepKindLabel(kind string) string {
+	switch kind {
+	case model.MonInboundKindAwg:
+		return "AWG"
+	case model.MonInboundKindXray:
+		return "Xray"
+	}
+	return kind
+}
+
+// monSweepRecoveredEdge is the edge the inbound kind is reachable through
+// again: the first edge path of the end report that is ok — or proxy on a
+// panel without a chain. "" when the report names none.
+func monSweepRecoveredEdge(r *MonSweepReport) string {
+	for _, p := range r.Paths {
+		if !p.Ok {
+			continue
+		}
+		if name, ok := strings.CutPrefix(p.Path, monPathEdgePrefix); ok {
+			return name
+		}
+		if p.Path == model.MonPathProxy {
+			return p.Path
+		}
+	}
+	return ""
+}
+
+// monSweepDuration is how long the sweep that ev ends ran: the distance back
+// to the last start of a sweep for the same mon-client and inbound kind.
+// Reports false when that start is no longer in the feed.
+func monSweepDuration(ev *model.MonEvent) (time.Duration, bool) {
+	var start model.MonEvent
+	err := database.GetDB().Model(&model.MonEvent{}).
+		Where("kind = ? AND mon_client_id = ? AND inbound_kind = ? AND phase = ? AND ts < ?",
+			model.MonEventKindSweep, ev.MonClientId, ev.InboundKind, model.MonSweepPhaseStart, ev.Ts).
+		Order("ts desc").First(&start).Error
+	if err != nil {
+		if !database.IsNotFound(err) {
+			logger.Warning("monitoring: could not look up the start of the sweep:", err)
+		}
+		return 0, false
+	}
+	return time.Duration(ev.Ts-start.Ts) * time.Millisecond, true
 }
 
 // NotifyMonitoringStale announces that mon-server has gone quiet.

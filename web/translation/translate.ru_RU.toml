@@ -619,6 +619,14 @@
 "range24h" = "24ч"
 "range7d" = "7д"
 "range30d" = "30д"
+"reasonDerived" = "выведено из edge-path"
+"reasonSweep" = "по обходу"
+"sweepStart" = "недоступен через все edge"
+"sweepChange" = "картина изменилась"
+"sweepEnd" = "снова доступен"
+"sweepNoReport" = "нет отчёта"
+"sweepSince" = "с"
+"sweepTunnel" = "туннель"
 
 [pages.subUsers]
 "title" = "Пользователи"
@@ -1440,6 +1448,18 @@
 "standbySwitch" = "\n↪️ Запасные: {{ .Standby }}. Переключить: /proxy {{ .Name }}"
 "standbyNoHealthy" = "\n↪️ Запасные: {{ .Standby }}. Нет здорового запасного."
 "standbyNone" = "\n↪️ Нет здорового запасного edge."
+"sweepStart" = "⛔ {{ .Kind }} недоступен через все edge · {{ .Client }}"
+"sweepChange" = "⛔ {{ .Kind }} недоступен через все edge, картина изменилась · {{ .Client }}"
+"sweepEnd" = "✅ {{ .Kind }} снова доступен{{ .Via }} · {{ .Client }}{{ .Lasted }}"
+"sweepVia" = " через {{ .Edge }}"
+"sweepLasted" = " · авария длилась {{ .Duration }}"
+"sweepHost" = "{{ .Node }} — ICMP {{ .Icmp }}"
+"sweepTunnel" = " · туннель {{ .Result }}"
+"sweepLeg" = "{{ .From }} → {{ .To }} — ICMP {{ .Icmp }}"
+"sweepPath" = "{{ .Node }} — туннель {{ .Result }}"
+"sweepRtt" = " · {{ .Rtt }} мс"
+"sweepNoReport" = "❌ нет отчёта"
+"sweepNoReportSince" = "❌ нет отчёта с {{ .Since }}"
 
 [tgbot.probe]
 "card" = "📡 <b>{{ .Name }}</b>\r\n🔒 Probe account: только для чтения.\r\n"
@@ -1483,6 +1503,9 @@
 "adminLinkSent" = "🔧 Ссылка отправлена, удалится через 5 минут"
 "adminLink" = "🔧 Админка: {{ .URL }}\r\nСообщение удалится через 5 минут."
 "monEventPanel" = "{{ .Time }} · панель: {{ .From }} → {{ .To }}{{ .Reason }}"
+"monEventSweepStart" = "{{ .Time }} · ⛔ {{ .Kind }}: начат обход · {{ .Client }}"
+"monEventSweepChange" = "{{ .Time }} · ⛔ {{ .Kind }}: обход, картина изменилась · {{ .Client }}"
+"monEventSweepEnd" = "{{ .Time }} · ✅ {{ .Kind }}: обход закончен · {{ .Client }}"
 
 [tgbot.buttons]
 "closeKeyboard" = "❌ Закрыть клавиатуру"

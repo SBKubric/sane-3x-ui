@@ -121,6 +121,73 @@ test.describe('monitoring events contract', () => {
       await closeContract(authedRequest);
     }
   });
+
+  // A diagnostic sweep (SBKubric/sane-3x-ui#255, contract §4.6): one feed entry
+  // per phase with a line per node, no mon_targets row; the target reasons
+  // derived and sweep read as words on the page.
+  test('a sweep lands in the feed with its report, and derived/sweep reasons are worded', async ({
+    authedPage,
+    authedRequest,
+    request,
+  }) => {
+    const inboundId = await createInbound(authedRequest, 'e2e-mon-sweep', 24202);
+    const token = await openContract(authedRequest);
+    const auth = { Authorization: `Bearer ${token}` };
+
+    try {
+      const now = Date.now();
+      const sweep = randomUUID();
+      const res = await request.post('/mon/v1/events', {
+        headers: auth,
+        data: {
+          events: [
+            {
+              id: sweep, ts: now, kind: 'sweep', monClientId: 'e2e-sweeper', inboundKind: 'awg', phase: 'start',
+              notified: true,
+              report: {
+                paths: [{ path: 'edge:e2e-sw', ok: false, reason: 'awg_no_handshake' }, { path: 'direct', ok: true }],
+                hosts: [
+                  { from: 'mon-client', to: 'e2e-sw', at: now, sent: 10, lossPct: 0, rttAvgMs: 2 },
+                  { from: 'e2e-sw', to: '', at: null },
+                  { from: 'mon-client', to: '', at: now, sent: 10, lossPct: 12, rttAvgMs: 64 },
+                ],
+              },
+            },
+            { id: randomUUID(), ts: now, kind: 'sweep', monClientId: 'e2e-sweeper', inboundKind: 'awg', phase: 'begin',
+              report: {}, notified: true },
+            { id: randomUUID(), ts: now, kind: 'target', monClientId: 'e2e-sweeper', inboundKind: 'xray', inboundId,
+              path: 'inner:e2e-sw', from: '', to: 'UP', reason: 'derived', notified: true },
+          ],
+        },
+      });
+      expect(res.status()).toBe(200);
+      const body = await res.json();
+      expect(body.accepted).toBe(2);
+      expect(body.rejected).toEqual([expect.objectContaining({ index: 1 })]);
+      expect(body.rejected[0].error).toContain('events[1].phase');
+
+      // The sweep is in the feed with its report, and made no target of its own.
+      const feed = await (await authedRequest.get('/panel/api/monitoring/events?limit=50')).json();
+      const entry = feed.obj.find((e: { id: string }) => e.id === sweep);
+      expect(entry).toMatchObject({ kind: 'sweep', phase: 'start', inboundKind: 'awg' });
+      expect(entry.report.hosts).toHaveLength(3);
+      const targets = await (await authedRequest.get('/panel/api/monitoring/targets')).json();
+      const swept = targets.obj.inbounds.flatMap((ib: { targets: { monClientId: string; path: string }[] }) =>
+        ib.targets.filter(t => t.monClientId === 'e2e-sweeper'));
+      expect(swept).toEqual([expect.objectContaining({ path: 'inner:e2e-sw', state: 'UP', reason: 'derived' })]);
+
+      await authedPage.goto('/panel/monitoring');
+      const row = authedPage.getByTestId('mon-event-sweep').first();
+      await expect(row).toContainText('AWG unreachable through every edge');
+      await expect(row).toContainText('e2e-sw — ICMP ✅ 0% · 2 ms · tunnel ❌ awg_no_handshake');
+      await expect(row).toContainText('e2e-sw → real — ICMP ❌ no report');
+      await expect(row).toContainText('real (direct) — ICMP ⚠️ 12% · 64 ms · tunnel ✅');
+      const card = authedPage.getByTestId(`mon-inbound-xray-${inboundId}`);
+      await expect(card.getByText('derived from edge paths', { exact: true })).toBeVisible();
+    } finally {
+      await closeContract(authedRequest);
+    }
+  });
 });
 
 // Per-hop monitoring, contract 3 (docs/spec/proxy-chain.md §6.1): a hop enters
